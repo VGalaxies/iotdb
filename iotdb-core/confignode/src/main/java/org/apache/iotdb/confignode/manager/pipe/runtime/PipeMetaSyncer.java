@@ -38,6 +38,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.apache.iotdb.confignode.procedure.impl.pipe.PipeTaskOperation.AUTO_RESTART;
+import static org.apache.iotdb.confignode.procedure.impl.pipe.PipeTaskOperation.SUCCESSFUL_RESTART;
+
 public class PipeMetaSyncer {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PipeMetaSyncer.class);
@@ -87,6 +90,13 @@ public class PipeMetaSyncer {
   }
 
   private void sync() {
+    if (configManager
+        .getPipeManager()
+        .getPipeTaskCoordinator()
+        .isLockAcquiredByActivePipeTaskOperation()) {
+      return;
+    }
+
     final ProcedureManager procedureManager = configManager.getProcedureManager();
 
     boolean somePipesNeedRestarting = false;
@@ -121,7 +131,7 @@ public class PipeMetaSyncer {
 
   private boolean autoRestartWithLock() {
     final AtomicReference<PipeTaskInfo> pipeTaskInfo =
-        configManager.getPipeManager().getPipeTaskCoordinator().tryLock();
+        configManager.getPipeManager().getPipeTaskCoordinator().tryLock(AUTO_RESTART);
     if (pipeTaskInfo == null) {
       LOGGER.warn("Failed to acquire pipe lock for auto restart pipe task.");
       return false;
@@ -129,13 +139,13 @@ public class PipeMetaSyncer {
     try {
       return pipeTaskInfo.get().autoRestart();
     } finally {
-      configManager.getPipeManager().getPipeTaskCoordinator().unlock();
+      configManager.getPipeManager().getPipeTaskCoordinator().unlock(AUTO_RESTART);
     }
   }
 
   private void handleSuccessfulRestartWithLock() {
     final AtomicReference<PipeTaskInfo> pipeTaskInfo =
-        configManager.getPipeManager().getPipeTaskCoordinator().tryLock();
+        configManager.getPipeManager().getPipeTaskCoordinator().tryLock(SUCCESSFUL_RESTART);
     if (pipeTaskInfo == null) {
       LOGGER.warn("Failed to acquire pipe lock for handling successful restart.");
       return;
@@ -143,7 +153,7 @@ public class PipeMetaSyncer {
     try {
       pipeTaskInfo.get().handleSuccessfulRestart();
     } finally {
-      configManager.getPipeManager().getPipeTaskCoordinator().unlock();
+      configManager.getPipeManager().getPipeTaskCoordinator().unlock(SUCCESSFUL_RESTART);
     }
   }
 }

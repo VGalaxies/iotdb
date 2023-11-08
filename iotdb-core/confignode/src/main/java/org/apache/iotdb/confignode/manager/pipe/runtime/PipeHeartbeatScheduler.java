@@ -82,6 +82,13 @@ public class PipeHeartbeatScheduler {
       return;
     }
 
+    if (configManager
+        .getPipeManager()
+        .getPipeTaskCoordinator()
+        .isLockAcquiredByActivePipeTaskOperation()) {
+      return;
+    }
+
     final Map<Integer, TDataNodeLocation> dataNodeLocationMap =
         configManager.getNodeManager().getRegisteredDataNodeLocations();
     final TPipeHeartbeatReq request = new TPipeHeartbeatReq(System.currentTimeMillis());

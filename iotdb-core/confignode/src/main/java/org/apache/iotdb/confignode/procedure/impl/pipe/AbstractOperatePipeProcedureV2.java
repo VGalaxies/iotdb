@@ -77,7 +77,7 @@ public abstract class AbstractOperatePipeProcedureV2
             .getConfigManager()
             .getPipeManager()
             .getPipeTaskCoordinator()
-            .tryLock();
+            .tryLock(getOperation());
     if (pipeTaskInfo == null) {
       LOGGER.warn("ProcedureId {} failed to acquire pipe lock.", getProcId());
     } else {
@@ -106,7 +106,7 @@ public abstract class AbstractOperatePipeProcedureV2
               .getConfigManager()
               .getPipeManager()
               .getPipeTaskCoordinator()
-              .unlock();
+              .unlock(getOperation());
           pipeTaskInfo = null;
         }
         break;
@@ -125,7 +125,7 @@ public abstract class AbstractOperatePipeProcedureV2
               .getConfigManager()
               .getPipeManager()
               .getPipeTaskCoordinator()
-              .unlock();
+              .unlock(getOperation());
           pipeTaskInfo = null;
         }
         break;
@@ -141,7 +141,11 @@ public abstract class AbstractOperatePipeProcedureV2
       LOGGER.warn("ProcedureId {} release lock. No need to release pipe lock.", getProcId());
     } else {
       LOGGER.info("ProcedureId {} release lock. Pipe lock will be released.", getProcId());
-      configNodeProcedureEnv.getConfigManager().getPipeManager().getPipeTaskCoordinator().unlock();
+      configNodeProcedureEnv
+          .getConfigManager()
+          .getPipeManager()
+          .getPipeTaskCoordinator()
+          .unlock(getOperation());
       pipeTaskInfo = null;
     }
   }

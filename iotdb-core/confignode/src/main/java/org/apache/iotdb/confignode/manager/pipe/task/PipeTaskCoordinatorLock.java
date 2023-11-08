@@ -19,9 +19,13 @@
 
 package org.apache.iotdb.confignode.manager.pipe.task;
 
+import org.apache.iotdb.confignode.procedure.impl.pipe.PipeTaskOperation;
+import org.apache.iotdb.tsfile.utils.Pair;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Objects;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
@@ -35,20 +39,22 @@ public class PipeTaskCoordinatorLock {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PipeTaskCoordinatorLock.class);
 
-  private final BlockingDeque<Long> deque = new LinkedBlockingDeque<>(1);
+  private final BlockingDeque<Pair<Long, PipeTaskOperation>> deque = new LinkedBlockingDeque<>(1);
   private final AtomicLong idGenerator = new AtomicLong(0);
 
-  void lock() {
+  void lock(PipeTaskOperation op) {
     try {
       final long id = idGenerator.incrementAndGet();
       LOGGER.info(
-          "PipeTaskCoordinator lock (id: {}) waiting for thread {}",
+          "PipeTaskCoordinator lock (id: {}, op: {}) waiting for thread {}",
           id,
+          op,
           Thread.currentThread().getName());
-      deque.put(id);
+      deque.put(new Pair<>(id, op));
       LOGGER.info(
-          "PipeTaskCoordinator lock (id: {}) acquired by thread {}",
+          "PipeTaskCoordinator lock (id: {}, op: {}) acquired by thread {}",
           id,
+          op,
           Thread.currentThread().getName());
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
@@ -58,23 +64,34 @@ public class PipeTaskCoordinatorLock {
     }
   }
 
-  boolean tryLock() {
+  boolean isLockAcquiredByActivePipeTaskOperation() {
+    if (!deque.isEmpty()) {
+      final Pair<Long, PipeTaskOperation> pair = deque.peek();
+      return Objects.nonNull(pair) && PipeTaskOperation.isPipeTaskOperationActive(pair.right);
+    }
+    return false;
+  }
+
+  boolean tryLock(PipeTaskOperation op) {
     try {
       final long id = idGenerator.incrementAndGet();
       LOGGER.info(
-          "PipeTaskCoordinator lock (id: {}) waiting for thread {}",
+          "PipeTaskCoordinator lock (id: {}, op: {}) waiting for thread {}",
           id,
+          op,
           Thread.currentThread().getName());
-      if (deque.offer(id, 10, TimeUnit.SECONDS)) {
+      if (deque.offer(new Pair<>(id, op), 10, TimeUnit.SECONDS)) {
         LOGGER.info(
-            "PipeTaskCoordinator lock (id: {}) acquired by thread {}",
+            "PipeTaskCoordinator lock (id: {}, op: {}) acquired by thread {}",
             id,
+            op,
             Thread.currentThread().getName());
         return true;
       } else {
         LOGGER.info(
-            "PipeTaskCoordinator lock (id: {}) failed to acquire by thread {} because of timeout",
+            "PipeTaskCoordinator lock (id: {}, op: {}) failed to acquire by thread {} because of timeout",
             id,
+            op,
             Thread.currentThread().getName());
         return false;
       }
@@ -87,17 +104,26 @@ public class PipeTaskCoordinatorLock {
     }
   }
 
-  void unlock() {
-    final Long id = deque.poll();
-    if (id == null) {
+  void unlock(PipeTaskOperation op) {
+    final Pair<Long, PipeTaskOperation> pair = deque.poll();
+    if (pair == null) {
       LOGGER.error(
           "PipeTaskCoordinator lock released by thread {} but the lock is not acquired by any thread",
           Thread.currentThread().getName());
     } else {
-      LOGGER.info(
-          "PipeTaskCoordinator lock (id: {}) released by thread {}",
-          id,
-          Thread.currentThread().getName());
+      if (pair.right != op) {
+        LOGGER.error(
+            "PipeTaskCoordinator lock released by thread {} but the lock op is mismatch, expected {}, actual {}",
+            Thread.currentThread().getName(),
+            pair.right,
+            op);
+      } else {
+        LOGGER.info(
+            "PipeTaskCoordinator lock (id: {}, op: {}) released by thread {}",
+            pair.left,
+            pair.right,
+            Thread.currentThread().getName());
+      }
     }
   }
 }

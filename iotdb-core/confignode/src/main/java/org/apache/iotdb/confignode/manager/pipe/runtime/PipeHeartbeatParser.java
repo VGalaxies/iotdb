@@ -44,6 +44,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.apache.iotdb.confignode.procedure.impl.pipe.PipeTaskOperation.PARSE_HEARTBEAT;
+
 public class PipeHeartbeatParser {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PipeHeartbeatParser.class);
@@ -101,7 +103,7 @@ public class PipeHeartbeatParser {
         .submit(
             () -> {
               final AtomicReference<PipeTaskInfo> pipeTaskInfo =
-                  configManager.getPipeManager().getPipeTaskCoordinator().tryLock();
+                  configManager.getPipeManager().getPipeTaskCoordinator().tryLock(PARSE_HEARTBEAT);
               if (pipeTaskInfo == null) {
                 LOGGER.warn(
                     "Failed to acquire lock when parseHeartbeat from data node (id={}).",
@@ -128,7 +130,7 @@ public class PipeHeartbeatParser {
                   needPushPipeMetaToDataNodes.set(false);
                 }
               } finally {
-                configManager.getPipeManager().getPipeTaskCoordinator().unlock();
+                configManager.getPipeManager().getPipeTaskCoordinator().unlock(PARSE_HEARTBEAT);
               }
             });
   }

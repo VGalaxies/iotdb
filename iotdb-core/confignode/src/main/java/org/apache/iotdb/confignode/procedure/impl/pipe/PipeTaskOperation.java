@@ -26,5 +26,12 @@ public enum PipeTaskOperation {
   DROP_PIPE,
   HANDLE_LEADER_CHANGE,
   SYNC_PIPE_META,
-  HANDLE_PIPE_META_CHANGE
+  HANDLE_PIPE_META_CHANGE,
+  PARSE_HEARTBEAT,
+  AUTO_RESTART,
+  SUCCESSFUL_RESTART;
+
+  public static boolean isPipeTaskOperationActive(PipeTaskOperation op) {
+    return op == CREATE_PIPE || op == START_PIPE || op == STOP_PIPE || op == DROP_PIPE;
+  }
 }

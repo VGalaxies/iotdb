@@ -24,6 +24,7 @@ import org.apache.iotdb.confignode.consensus.request.read.pipe.task.ShowPipePlan
 import org.apache.iotdb.confignode.consensus.response.pipe.task.PipeTableResp;
 import org.apache.iotdb.confignode.manager.ConfigManager;
 import org.apache.iotdb.confignode.persistence.pipe.PipeTaskInfo;
+import org.apache.iotdb.confignode.procedure.impl.pipe.PipeTaskOperation;
 import org.apache.iotdb.confignode.rpc.thrift.TCreatePipeReq;
 import org.apache.iotdb.confignode.rpc.thrift.TGetAllPipeInfoResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowPipeReq;
@@ -57,18 +58,28 @@ public class PipeTaskCoordinator {
     this.pipeTaskCoordinatorLock = new PipeTaskCoordinatorLock();
   }
 
+  public boolean isLockAcquiredByActivePipeTaskOperation() {
+    return pipeTaskCoordinatorLock.isLockAcquiredByActivePipeTaskOperation();
+  }
+
   /**
    * Lock the pipe task coordinator.
    *
    * @return the pipe task info holder, which can be used to get the pipe task info. The holder is
    *     null if the lock is not acquired.
    */
-  public AtomicReference<PipeTaskInfo> tryLock() {
-    if (pipeTaskCoordinatorLock.tryLock()) {
-      pipeTaskInfoHolder = new AtomicReference<>(pipeTaskInfo);
+  public AtomicReference<PipeTaskInfo> tryLock(PipeTaskOperation op) {
+    if (!PipeTaskOperation.isPipeTaskOperationActive(op)
+        && pipeTaskCoordinatorLock.isLockAcquiredByActivePipeTaskOperation()) {
+      return null;
     }
 
-    return pipeTaskInfoHolder;
+    if (pipeTaskCoordinatorLock.tryLock(op)) {
+      pipeTaskInfoHolder = new AtomicReference<>(pipeTaskInfo);
+      return pipeTaskInfoHolder;
+    }
+
+    return null;
   }
 
   /**
@@ -77,14 +88,14 @@ public class PipeTaskCoordinator {
    *
    * @return true if successfully unlocked, false if current thread is not holding the lock.
    */
-  public boolean unlock() {
+  public boolean unlock(PipeTaskOperation op) {
     if (pipeTaskInfoHolder != null) {
       pipeTaskInfoHolder.set(null);
       pipeTaskInfoHolder = null;
     }
 
     try {
-      pipeTaskCoordinatorLock.unlock();
+      pipeTaskCoordinatorLock.unlock(op);
       return true;
     } catch (IllegalMonitorStateException ignored) {
       // This is thrown if unlock() is called without lock() called first.
@@ -93,12 +104,16 @@ public class PipeTaskCoordinator {
     }
   }
 
-  /** Caller should ensure that the method is called in the lock {@link #tryLock()}. */
+  /**
+   * Caller should ensure that the method is called in the lock {@link #tryLock(PipeTaskOperation)}.
+   */
   public TSStatus createPipe(TCreatePipeReq req) {
     return configManager.getProcedureManager().createPipe(req);
   }
 
-  /** Caller should ensure that the method is called in the lock {@link #tryLock()}. */
+  /**
+   * Caller should ensure that the method is called in the lock {@link #tryLock(PipeTaskOperation)}.
+   */
   public TSStatus startPipe(String pipeName) {
     final boolean hasException = pipeTaskInfo.hasExceptions(pipeName);
     final TSStatus status = configManager.getProcedureManager().startPipe(pipeName);
@@ -109,7 +124,9 @@ public class PipeTaskCoordinator {
     return status;
   }
 
-  /** Caller should ensure that the method is called in the lock {@link #tryLock()}. */
+  /**
+   * Caller should ensure that the method is called in the lock {@link #tryLock(PipeTaskOperation)}.
+   */
   public TSStatus stopPipe(String pipeName) {
     final boolean isStoppedByRuntimeException = pipeTaskInfo.isStoppedByRuntimeException(pipeName);
     final TSStatus status = configManager.getProcedureManager().stopPipe(pipeName);
@@ -122,7 +139,9 @@ public class PipeTaskCoordinator {
     return status;
   }
 
-  /** Caller should ensure that the method is called in the lock {@link #tryLock()}. */
+  /**
+   * Caller should ensure that the method is called in the lock {@link #tryLock(PipeTaskOperation)}.
+   */
   public TSStatus dropPipe(String pipeName) {
     final boolean isPipeExistedBeforeDrop = pipeTaskInfo.isPipeExisted(pipeName);
     final TSStatus status = configManager.getProcedureManager().dropPipe(pipeName);
