@@ -155,6 +155,9 @@ public class ColumnHeaderConstant {
   public static final String PIPE_CONNECTOR = "PipeSink";
   public static final String EXCEPTION_MESSAGE = "ExceptionMessage";
 
+  // column names for create/start/stop/drop pipe
+  public static final String MESSAGE = "Message";
+
   // column names for select into
   public static final String SOURCE_DEVICE = "SourceDevice";
   public static final String SOURCE_COLUMN = "SourceColumn";
@@ -388,6 +391,9 @@ public class ColumnHeaderConstant {
           new ColumnHeader(PIPE_PROCESSOR, TSDataType.TEXT),
           new ColumnHeader(PIPE_CONNECTOR, TSDataType.TEXT),
           new ColumnHeader(EXCEPTION_MESSAGE, TSDataType.TEXT));
+
+  public static final List<ColumnHeader> pipeMessageColumnHeaders =
+      ImmutableList.of(new ColumnHeader(MESSAGE, TSDataType.TEXT));
 
   public static final List<ColumnHeader> selectIntoColumnHeaders =
       ImmutableList.of(
