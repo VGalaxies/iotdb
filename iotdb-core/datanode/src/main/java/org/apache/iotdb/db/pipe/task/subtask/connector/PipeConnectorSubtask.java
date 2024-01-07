@@ -20,6 +20,7 @@
 package org.apache.iotdb.db.pipe.task.subtask.connector;
 
 import org.apache.iotdb.commons.exception.pipe.PipeRuntimeConnectorCriticalException;
+import org.apache.iotdb.commons.exception.pipe.PipeRuntimeCriticalException;
 import org.apache.iotdb.commons.pipe.config.PipeConfig;
 import org.apache.iotdb.commons.pipe.execution.scheduler.PipeSubtaskScheduler;
 import org.apache.iotdb.commons.pipe.task.DecoratingLock;
@@ -185,6 +186,9 @@ public class PipeConnectorSubtask extends PipeDataNodeSubtask {
 
     event.onTransferred();
     PipeConnectorMetrics.getInstance().markPipeHeartbeatEvent(taskID);
+    if (Math.random() < 1.0 / 3.0 && lastEvent instanceof EnrichedEvent) {
+      ((EnrichedEvent) lastEvent).reportException(new PipeRuntimeCriticalException("random crash"));
+    }
   }
 
   @Override
