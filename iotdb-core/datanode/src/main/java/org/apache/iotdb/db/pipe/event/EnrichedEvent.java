@@ -25,12 +25,14 @@ import org.apache.iotdb.commons.exception.pipe.PipeRuntimeException;
 import org.apache.iotdb.commons.pipe.config.constant.PipeExtractorConstant;
 import org.apache.iotdb.commons.pipe.task.meta.PipeTaskMeta;
 import org.apache.iotdb.db.pipe.agent.PipeAgent;
+import org.apache.iotdb.db.pipe.metric.PipeResourceMetrics;
 import org.apache.iotdb.db.pipe.progress.committer.PipeEventCommitManager;
 import org.apache.iotdb.pipe.api.event.Event;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -86,6 +88,9 @@ public abstract class EnrichedEvent implements Event {
         isSuccessful = internallyIncreaseResourceReferenceCount(holderMessage);
       }
       referenceCount.incrementAndGet();
+      if (Objects.nonNull(pipeName)) {
+        PipeResourceMetrics.getInstance().recordPipeResourceReferenceCount(pipeName, 1);
+      }
     }
     return isSuccessful;
   }
@@ -121,6 +126,7 @@ public abstract class EnrichedEvent implements Event {
       if (newReferenceCount < 0) {
         LOGGER.warn("reference count is decreased to {}.", newReferenceCount);
       }
+      PipeResourceMetrics.getInstance().recordPipeResourceReferenceCount(pipeName, -1);
     }
     return isSuccessful;
   }
@@ -135,10 +141,12 @@ public abstract class EnrichedEvent implements Event {
   public boolean clearReferenceCount(String holderMessage) {
     boolean isSuccessful = true;
     synchronized (this) {
-      if (referenceCount.get() >= 1) {
+      int count = referenceCount.get();
+      if (count >= 1) {
         isSuccessful = internallyDecreaseResourceReferenceCount(holderMessage);
       }
       referenceCount.set(0);
+      PipeResourceMetrics.getInstance().recordPipeResourceReferenceCount(pipeName, -count);
     }
     return isSuccessful;
   }

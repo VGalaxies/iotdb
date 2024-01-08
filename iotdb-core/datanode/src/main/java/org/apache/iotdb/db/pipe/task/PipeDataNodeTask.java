@@ -22,6 +22,7 @@ package org.apache.iotdb.db.pipe.task;
 import org.apache.iotdb.common.rpc.thrift.TConsensusGroupId;
 import org.apache.iotdb.commons.pipe.task.PipeTask;
 import org.apache.iotdb.commons.pipe.task.stage.PipeTaskStage;
+import org.apache.iotdb.db.pipe.metric.PipeResourceMetrics;
 
 public class PipeDataNodeTask implements PipeTask {
 
@@ -48,6 +49,7 @@ public class PipeDataNodeTask implements PipeTask {
 
   @Override
   public void create() {
+    PipeResourceMetrics.getInstance().register(pipeName);
     extractorStage.create();
     processorStage.create();
     connectorStage.create();
@@ -58,6 +60,7 @@ public class PipeDataNodeTask implements PipeTask {
     extractorStage.drop();
     processorStage.drop();
     connectorStage.drop();
+    PipeResourceMetrics.getInstance().deregister(pipeName);
   }
 
   @Override

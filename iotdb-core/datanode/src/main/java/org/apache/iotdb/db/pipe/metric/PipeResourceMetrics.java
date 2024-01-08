@@ -27,19 +27,40 @@ import org.apache.iotdb.db.pipe.resource.tsfile.PipeTsFileResourceManager;
 import org.apache.iotdb.db.pipe.resource.wal.PipeWALResourceManager;
 import org.apache.iotdb.metrics.AbstractMetricService;
 import org.apache.iotdb.metrics.metricsets.IMetricSet;
+import org.apache.iotdb.metrics.type.Gauge;
 import org.apache.iotdb.metrics.utils.MetricLevel;
 import org.apache.iotdb.metrics.utils.MetricType;
 
+import com.google.common.collect.ImmutableSet;
+import org.checkerframework.checker.nullness.qual.NonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
 public class PipeResourceMetrics implements IMetricSet {
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(PipeResourceMetrics.class);
+
+  private AbstractMetricService metricService;
 
   private static final String PIPE_USED_MEMORY = "PipeUsedMemory";
 
   private static final String PIPE_TOTAL_MEMORY = "PipeTotalMemory";
 
+  private final Set<String> pipeNames = new HashSet<>();
+
+  private final Map<String, Gauge> pipeName2Gauge = new ConcurrentHashMap<>();
+
   //////////////////////////// bindTo & unbindFrom (metric framework) ////////////////////////////
 
   @Override
   public void bindTo(AbstractMetricService metricService) {
+    this.metricService = metricService;
     // pipe memory related
     metricService.createAutoGauge(
         Metric.PIPE_MEM.toString(),
@@ -66,6 +87,26 @@ public class PipeResourceMetrics implements IMetricSet {
         MetricLevel.IMPORTANT,
         PipeResourceManager.tsfile(),
         PipeTsFileResourceManager::getLinkedTsfileCount);
+    // resource reference count per pipe
+    synchronized (this) {
+      for (String pipeName : pipeNames) {
+        register(pipeName);
+      }
+    }
+  }
+
+  private void createMetrics(String pipeName) {
+    createGauge(pipeName);
+  }
+
+  private void createGauge(String pipeName) {
+    pipeName2Gauge.put(
+        pipeName,
+        metricService.getOrCreateGauge(
+            Metric.PIPE_RESOURCE_REFERENCE_COUNT.toString(),
+            MetricLevel.IMPORTANT,
+            Tag.NAME.toString(),
+            pipeName));
   }
 
   @Override
@@ -78,6 +119,67 @@ public class PipeResourceMetrics implements IMetricSet {
     // resource reference count
     metricService.remove(MetricType.AUTO_GAUGE, Metric.PIPE_PINNED_MEMTABLE_COUNT.toString());
     metricService.remove(MetricType.AUTO_GAUGE, Metric.PIPE_LINKED_TSFILE_COUNT.toString());
+    // resource reference count per pipe
+    ImmutableSet<String> copiedPipeNames = ImmutableSet.copyOf(pipeNames);
+    for (String pipeName : copiedPipeNames) {
+      deregister(pipeName);
+    }
+    if (!pipeNames.isEmpty()) {
+      LOGGER.warn(
+          "Failed to unbind from pipe resource reference count metrics, pipe names set not empty");
+    }
+  }
+
+  private void removeMetrics(String pipeName) {
+    removeGauge(pipeName);
+  }
+
+  private void removeGauge(String pipeName) {
+    metricService.remove(
+        MetricType.GAUGE,
+        Metric.PIPE_RESOURCE_REFERENCE_COUNT.toString(),
+        Tag.NAME.toString(),
+        pipeName);
+  }
+
+  //////////////////////////// register & deregister (pipe integration) ////////////////////////////
+
+  public void register(@NonNull String pipeName) {
+    synchronized (this) {
+      pipeNames.add(pipeName);
+      if (Objects.nonNull(metricService)) {
+        createMetrics(pipeName);
+      }
+    }
+  }
+
+  public void deregister(@NonNull String pipeName) {
+    synchronized (this) {
+      if (!pipeNames.contains(pipeName)) {
+        LOGGER.warn(
+            "Failed to deregister pipe resource reference count metrics, Pipe({}) does not exist",
+            pipeName);
+        return;
+      }
+      if (Objects.nonNull(metricService)) {
+        removeMetrics(pipeName);
+      }
+      pipeNames.remove(pipeName);
+    }
+  }
+
+  public void recordPipeResourceReferenceCount(@NonNull String pipeName, long delta) {
+    Gauge gauge = pipeName2Gauge.get(pipeName);
+    if (gauge == null) {
+      LOGGER.warn(
+          "Failed to record pipe resource reference count, Pipe({}) does not exist", pipeName);
+      return;
+    }
+    if (delta >= 0) {
+      gauge.incr(delta);
+    } else {
+      gauge.decr(-delta);
+    }
   }
 
   //////////////////////////// singleton ////////////////////////////
