@@ -54,7 +54,9 @@ public class PipeResourceMetrics implements IMetricSet {
 
   private final Set<String> pipeNames = new HashSet<>();
 
-  private final Map<String, Gauge> pipeName2Gauge = new ConcurrentHashMap<>();
+  private final Map<String, Gauge> pipeName2CurrentReferenceCountGauge = new ConcurrentHashMap<>();
+
+  private final Map<String, Gauge> pipeName2DecreaseReferenceCountGauge = new ConcurrentHashMap<>();
 
   //////////////////////////// bindTo & unbindFrom (metric framework) ////////////////////////////
 
@@ -100,10 +102,17 @@ public class PipeResourceMetrics implements IMetricSet {
   }
 
   private void createGauge(String pipeName) {
-    pipeName2Gauge.put(
+    pipeName2CurrentReferenceCountGauge.put(
         pipeName,
         metricService.getOrCreateGauge(
-            Metric.PIPE_RESOURCE_REFERENCE_COUNT.toString(),
+            Metric.PIPE_RESOURCE_CURRENT_REFERENCE_COUNT.toString(),
+            MetricLevel.IMPORTANT,
+            Tag.NAME.toString(),
+            pipeName));
+    pipeName2DecreaseReferenceCountGauge.put(
+        pipeName,
+        metricService.getOrCreateGauge(
+            Metric.PIPE_RESOURCE_DECREASE_REFERENCE_COUNT.toString(),
             MetricLevel.IMPORTANT,
             Tag.NAME.toString(),
             pipeName));
@@ -137,7 +146,12 @@ public class PipeResourceMetrics implements IMetricSet {
   private void removeGauge(String pipeName) {
     metricService.remove(
         MetricType.GAUGE,
-        Metric.PIPE_RESOURCE_REFERENCE_COUNT.toString(),
+        Metric.PIPE_RESOURCE_CURRENT_REFERENCE_COUNT.toString(),
+        Tag.NAME.toString(),
+        pipeName);
+    metricService.remove(
+        MetricType.GAUGE,
+        Metric.PIPE_RESOURCE_DECREASE_REFERENCE_COUNT.toString(),
         Tag.NAME.toString(),
         pipeName);
   }
@@ -168,11 +182,12 @@ public class PipeResourceMetrics implements IMetricSet {
     }
   }
 
-  public void recordPipeResourceReferenceCount(@NonNull String pipeName, long delta) {
-    Gauge gauge = pipeName2Gauge.get(pipeName);
+  public void recordPipeResourceCurrentReferenceCount(@NonNull String pipeName, long delta) {
+    Gauge gauge = pipeName2CurrentReferenceCountGauge.get(pipeName);
     if (gauge == null) {
       LOGGER.warn(
-          "Failed to record pipe resource reference count, Pipe({}) does not exist", pipeName);
+          "Failed to record pipe resource current reference count, Pipe({}) does not exist",
+          pipeName);
       return;
     }
     if (delta >= 0) {
@@ -180,6 +195,17 @@ public class PipeResourceMetrics implements IMetricSet {
     } else {
       gauge.decr(-delta);
     }
+  }
+
+  public void recordPipeResourceDecreaseReferenceCount(@NonNull String pipeName) {
+    Gauge gauge = pipeName2DecreaseReferenceCountGauge.get(pipeName);
+    if (gauge == null) {
+      LOGGER.warn(
+          "Failed to record pipe resource decrease reference count, Pipe({}) does not exist",
+          pipeName);
+      return;
+    }
+    gauge.incr(1);
   }
 
   //////////////////////////// singleton ////////////////////////////

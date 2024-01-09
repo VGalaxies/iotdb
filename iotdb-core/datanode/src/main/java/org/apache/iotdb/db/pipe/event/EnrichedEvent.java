@@ -85,12 +85,12 @@ public abstract class EnrichedEvent implements Event {
     boolean isSuccessful = true;
     synchronized (this) {
       if (referenceCount.get() == 0) {
+        if (Objects.nonNull(pipeName)) {
+          PipeResourceMetrics.getInstance().recordPipeResourceCurrentReferenceCount(pipeName, 1);
+        }
         isSuccessful = internallyIncreaseResourceReferenceCount(holderMessage);
       }
       referenceCount.incrementAndGet();
-      if (Objects.nonNull(pipeName)) {
-        PipeResourceMetrics.getInstance().recordPipeResourceReferenceCount(pipeName, 1);
-      }
     }
     return isSuccessful;
   }
@@ -116,6 +116,10 @@ public abstract class EnrichedEvent implements Event {
     boolean isSuccessful = true;
     synchronized (this) {
       if (referenceCount.get() == 1) {
+        if (Objects.nonNull(pipeName)) {
+          PipeResourceMetrics.getInstance().recordPipeResourceCurrentReferenceCount(pipeName, -1);
+          PipeResourceMetrics.getInstance().recordPipeResourceDecreaseReferenceCount(pipeName);
+        }
         isSuccessful = internallyDecreaseResourceReferenceCount(holderMessage);
         if (shouldReport) {
           shouldReportOnCommit = true;
@@ -126,7 +130,6 @@ public abstract class EnrichedEvent implements Event {
       if (newReferenceCount < 0) {
         LOGGER.warn("reference count is decreased to {}.", newReferenceCount);
       }
-      PipeResourceMetrics.getInstance().recordPipeResourceReferenceCount(pipeName, -1);
     }
     return isSuccessful;
   }
@@ -146,7 +149,6 @@ public abstract class EnrichedEvent implements Event {
         isSuccessful = internallyDecreaseResourceReferenceCount(holderMessage);
       }
       referenceCount.set(0);
-      PipeResourceMetrics.getInstance().recordPipeResourceReferenceCount(pipeName, -count);
     }
     return isSuccessful;
   }
