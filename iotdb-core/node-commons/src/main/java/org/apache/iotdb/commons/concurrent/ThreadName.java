@@ -137,6 +137,8 @@ public enum ThreadName {
   PIPE_RUNTIME_PROCEDURE_SUBMITTER("Pipe-Runtime-Procedure-Submitter"),
   PIPE_RUNTIME_PERIODICAL_JOB_EXECUTOR("Pipe-Runtime-Periodical-Job-Executor"),
   PIPE_ASYNC_CONNECTOR_CLIENT_POOL("Pipe-Async-Connector-Client-Pool"),
+  PIPE_TASK_AGENT_START_PIPE_TASK_POOL("Pipe-Task-Agent-Start-Pipe-Task-Pool"),
+  PIPE_TASK_AGENT_START_PIPE_TASK_CALLBACK_POOL("Pipe-Task-Agent-Start-Pipe-Task-Callback-Pool"),
   PIPE_RECEIVER_AIR_GAP_AGENT("Pipe-Receiver-Air-Gap-Agent"),
   WINDOW_EVALUATION_SERVICE("WindowEvaluationTaskPoolManager"),
   STATEFUL_TRIGGER_INFORMATION_UPDATER("Stateful-Trigger-Information-Updater"),

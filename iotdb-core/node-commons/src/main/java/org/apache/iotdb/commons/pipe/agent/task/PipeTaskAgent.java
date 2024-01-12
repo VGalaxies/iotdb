@@ -20,6 +20,8 @@
 package org.apache.iotdb.commons.pipe.agent.task;
 
 import org.apache.iotdb.common.rpc.thrift.TConsensusGroupId;
+import org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory;
+import org.apache.iotdb.commons.concurrent.ThreadName;
 import org.apache.iotdb.commons.pipe.task.PipeTask;
 import org.apache.iotdb.commons.pipe.task.PipeTaskManager;
 import org.apache.iotdb.commons.pipe.task.meta.PipeMeta;
@@ -29,16 +31,27 @@ import org.apache.iotdb.commons.pipe.task.meta.PipeStaticMeta;
 import org.apache.iotdb.commons.pipe.task.meta.PipeStatus;
 import org.apache.iotdb.commons.pipe.task.meta.PipeTaskMeta;
 import org.apache.iotdb.mpp.rpc.thrift.TPushPipeMetaRespExceptionMessage;
+import org.apache.iotdb.pipe.api.exception.PipeException;
 
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
+import org.checkerframework.checker.nullness.qual.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -64,6 +77,16 @@ public abstract class PipeTaskAgent {
 
   protected final PipeMetaKeeper pipeMetaKeeper;
   protected final PipeTaskManager pipeTaskManager;
+
+  private static final ListeningExecutorService startPipeTaskExecutor =
+      MoreExecutors.listeningDecorator(
+          IoTDBThreadPoolFactory.newFixedThreadPool(
+              Math.min(5, Math.max(1, Runtime.getRuntime().availableProcessors() / 2)),
+              ThreadName.PIPE_TASK_AGENT_START_PIPE_TASK_POOL.getName()));
+
+  private static final ExecutorService startPipeTaskCallbackExecutor =
+      IoTDBThreadPoolFactory.newSingleThreadExecutor(
+          ThreadName.PIPE_TASK_AGENT_START_PIPE_TASK_CALLBACK_POOL.getName());
 
   public PipeTaskAgent() {
     pipeMetaKeeper = new PipeMetaKeeper();
@@ -509,8 +532,56 @@ public abstract class PipeTaskAgent {
           creationTime);
       return;
     }
-    for (PipeTask pipeTask : pipeTasks.values()) {
-      pipeTask.start();
+
+    // start all pipe task using startPipeTaskExecutor
+    final Collection<PipeTask> tasks = pipeTasks.values();
+    if (!pipeTasks.isEmpty()) {
+      final long startAllPipeTasksStartTime = System.currentTimeMillis();
+      final CountDownLatch startAllPipeTasksLatch = new CountDownLatch(tasks.size());
+      for (PipeTask task : tasks) {
+        final ListenableFuture<Void> future =
+            startPipeTaskExecutor.submit(
+                () -> {
+                  final long startPipeTaskStartTime = System.currentTimeMillis();
+                  task.start();
+                  LOGGER.info(
+                      "Start pipe task {} successfully within {} ms",
+                      task,
+                      System.currentTimeMillis() - startPipeTaskStartTime);
+                  return null;
+                });
+        Futures.addCallback(
+            future,
+            new FutureCallback<Void>() {
+              @Override
+              public void onSuccess(Void result) {
+                startAllPipeTasksLatch.countDown();
+              }
+
+              @Override
+              public void onFailure(@NonNull Throwable t) {
+                LOGGER.warn("Failed to start pipe task {}", task, t);
+              }
+            },
+            startPipeTaskCallbackExecutor);
+      }
+      try {
+        if (startAllPipeTasksLatch.await(30, TimeUnit.SECONDS)) {
+          LOGGER.info(
+              "Start all pipe tasks on Pipe {} successfully within {} ms",
+              pipeName,
+              System.currentTimeMillis() - startAllPipeTasksStartTime);
+        } else {
+          throw new PipeException(
+              String.format("Failed to start all pipe tasks on Pipe %s in 30s", pipeName));
+        }
+      } catch (InterruptedException e) {
+        LOGGER.warn(
+            String.format(
+                "Interrupted when waiting for all pipe tasks started on Pipe %s", pipeName),
+            e);
+        Thread.currentThread().interrupt();
+      }
     }
 
     // Set pipe meta status to RUNNING

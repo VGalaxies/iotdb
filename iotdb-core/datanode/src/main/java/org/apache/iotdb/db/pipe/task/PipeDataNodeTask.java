@@ -81,4 +81,9 @@ public class PipeDataNodeTask implements PipeTask {
   public String getPipeName() {
     return pipeName;
   }
+
+  @Override
+  public String toString() {
+    return pipeName + "@" + regionId;
+  }
 }
