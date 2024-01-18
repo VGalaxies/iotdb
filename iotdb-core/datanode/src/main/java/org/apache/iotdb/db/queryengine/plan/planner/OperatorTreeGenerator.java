@@ -2065,6 +2065,8 @@ public class OperatorTreeGenerator extends PlanVisitor<Operator, LocalExecutionP
 
   @Override
   public Operator visitInnerTimeJoin(InnerTimeJoinNode node, LocalExecutionPlanContext context) {
+    node.getTimePartitions().ifPresent(context::setTimePartitions);
+
     List<Operator> children = dealWithConsumeAllChildrenPipelineBreaker(node, context);
     OperatorContext operatorContext =
         context
@@ -2080,7 +2082,36 @@ public class OperatorTreeGenerator extends PlanVisitor<Operator, LocalExecutionP
             ? getOutputColumnTypesOfTimeJoinNode(node)
             : getOutputColumnTypes(node, context.getTypeProvider());
 
-    return new InnerTimeJoinOperator(operatorContext, children, outputColumnTypes, timeComparator);
+    return new InnerTimeJoinOperator(
+        operatorContext, children, outputColumnTypes, timeComparator, getOutputColumnMap(node));
+  }
+
+  private Map<InputLocation, Integer> getOutputColumnMap(InnerTimeJoinNode innerTimeJoinNode) {
+    Map<InputLocation, Integer> result = new HashMap<>();
+    if (innerTimeJoinNode.outputColumnNamesIsNull()) {
+      int outputIndex = 0;
+      for (int i = 0, size = innerTimeJoinNode.getChildren().size(); i < size; i++) {
+        PlanNode child = innerTimeJoinNode.getChildren().get(i);
+        List<String> childOutputColumns = child.getOutputColumnNames();
+        for (int j = 0, childSize = childOutputColumns.size(); j < childSize; j++) {
+          result.put(new InputLocation(i, j), outputIndex++);
+        }
+      }
+    } else {
+      List<String> outputColumns = innerTimeJoinNode.getOutputColumnNames();
+      Map<String, Integer> outputColumnIndexMap = new HashMap<>();
+      for (int i = 0; i < outputColumns.size(); i++) {
+        outputColumnIndexMap.put(outputColumns.get(i), i);
+      }
+      for (int i = 0, size = innerTimeJoinNode.getChildren().size(); i < size; i++) {
+        PlanNode child = innerTimeJoinNode.getChildren().get(i);
+        List<String> childOutputColumns = child.getOutputColumnNames();
+        for (int j = 0, childSize = childOutputColumns.size(); j < childSize; j++) {
+          result.put(new InputLocation(i, j), outputColumnIndexMap.get(childOutputColumns.get(j)));
+        }
+      }
+    }
+    return result;
   }
 
   @Override
@@ -2813,7 +2844,6 @@ public class OperatorTreeGenerator extends PlanVisitor<Operator, LocalExecutionP
       PlanNode node, LocalExecutionPlanContext context) {
     // children after pipelining
     List<Operator> parentPipelineChildren = new ArrayList<>();
-    int finalExchangeNum = context.getExchangeSumNum();
     if (context.getDegreeOfParallelism() == 1 || node.getChildren().size() == 1) {
       // If dop = 1, we don't create extra pipeline
       for (PlanNode localChild : node.getChildren()) {
@@ -2821,6 +2851,7 @@ public class OperatorTreeGenerator extends PlanVisitor<Operator, LocalExecutionP
         parentPipelineChildren.add(childOperation);
       }
     } else {
+      int finalExchangeNum = context.getExchangeSumNum();
       // Keep it since we may change the structure of origin children nodes
       List<PlanNode> afterwardsNodes = new ArrayList<>();
       // 1. Calculate localChildren size
@@ -2916,8 +2947,8 @@ public class OperatorTreeGenerator extends PlanVisitor<Operator, LocalExecutionP
           throw new IllegalArgumentException("Unknown node type: " + node.getClass().getName());
         }
       }
+      context.setExchangeSumNum(finalExchangeNum);
     }
-    context.setExchangeSumNum(finalExchangeNum);
     return parentPipelineChildren;
   }
 

@@ -166,14 +166,7 @@ public class PipeTsFileInsertionEvent extends EnrichedEvent implements TsFileIns
   public PipeTsFileInsertionEvent shallowCopySelfAndBindPipeTaskMetaForProgressReport(
       String pipeName, PipeTaskMeta pipeTaskMeta, String pattern, long startTime, long endTime) {
     return new PipeTsFileInsertionEvent(
-        resource,
-        isLoaded,
-        isGeneratedByPipe,
-        pipeName,
-        pipeTaskMeta,
-        pattern,
-        this.startTime,
-        this.endTime);
+        resource, isLoaded, isGeneratedByPipe, pipeName, pipeTaskMeta, pattern, startTime, endTime);
   }
 
   @Override
@@ -229,13 +222,16 @@ public class PipeTsFileInsertionEvent extends EnrichedEvent implements TsFileIns
 
   @Override
   public String toString() {
-    return "PipeTsFileInsertionEvent{"
-        + "resource="
-        + resource
-        + ", tsFile="
-        + tsFile
-        + ", isClosed="
-        + isClosed
-        + '}';
+    return String.format(
+            "PipeTsFileInsertionEvent{isTsFileFormatValid=%s, resource=%s, tsFile=%s, isLoaded=%s, isGeneratedByPipe=%s, isClosed=%s, dataContainer=%s}",
+            isTsFileFormatValid,
+            resource,
+            tsFile,
+            isLoaded,
+            isGeneratedByPipe,
+            isClosed.get(),
+            dataContainer)
+        + " - "
+        + super.toString();
   }
 }

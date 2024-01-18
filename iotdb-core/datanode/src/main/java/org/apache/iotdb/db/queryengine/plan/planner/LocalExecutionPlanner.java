@@ -89,6 +89,8 @@ public class LocalExecutionPlanner {
 
     instanceContext.setSourcePaths(collectSourcePaths(context));
 
+    context.getTimePartitions().ifPresent(instanceContext::setTimePartitions);
+
     // set maxBytes one SourceHandle can reserve after visiting the whole tree
     context.setMaxBytesOneHandleCanReserve();
 
@@ -169,8 +171,11 @@ public class LocalExecutionPlanner {
     context
         .getPipelineDriverFactories()
         .forEach(
-            pipeline ->
-                sourcePaths.addAll(((DataDriverContext) pipeline.getDriverContext()).getPaths()));
+            pipeline -> {
+              DataDriverContext dataDriverContext = (DataDriverContext) pipeline.getDriverContext();
+              sourcePaths.addAll(dataDriverContext.getPaths());
+              dataDriverContext.clearPaths();
+            });
     return sourcePaths;
   }
 

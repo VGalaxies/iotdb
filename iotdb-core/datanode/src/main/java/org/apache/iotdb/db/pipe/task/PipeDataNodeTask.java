@@ -24,7 +24,12 @@ import org.apache.iotdb.commons.pipe.task.PipeTask;
 import org.apache.iotdb.commons.pipe.task.stage.PipeTaskStage;
 import org.apache.iotdb.db.pipe.metric.PipeResourceMetrics;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class PipeDataNodeTask implements PipeTask {
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(PipeDataNodeTask.class);
 
   protected final String pipeName;
   protected final TConsensusGroupId regionId;
@@ -50,31 +55,51 @@ public class PipeDataNodeTask implements PipeTask {
   @Override
   public void create() {
     PipeResourceMetrics.getInstance().register(pipeName);
+    final long startTime = System.currentTimeMillis();
     extractorStage.create();
     processorStage.create();
     connectorStage.create();
+    LOGGER.info(
+        "Create pipe DN task {} successfully within {} ms",
+        this,
+        System.currentTimeMillis() - startTime);
   }
 
   @Override
   public void drop() {
+    final long startTime = System.currentTimeMillis();
     extractorStage.drop();
     processorStage.drop();
     connectorStage.drop();
     PipeResourceMetrics.getInstance().deregister(pipeName);
+    LOGGER.info(
+        "Drop pipe DN task {} successfully within {} ms",
+        this,
+        System.currentTimeMillis() - startTime);
   }
 
   @Override
   public void start() {
+    final long startTime = System.currentTimeMillis();
     extractorStage.start();
     processorStage.start();
     connectorStage.start();
+    LOGGER.info(
+        "Start pipe DN task {} successfully within {} ms",
+        this,
+        System.currentTimeMillis() - startTime);
   }
 
   @Override
   public void stop() {
+    final long startTime = System.currentTimeMillis();
     extractorStage.stop();
     processorStage.stop();
     connectorStage.stop();
+    LOGGER.info(
+        "Stop pipe DN task {} successfully within {} ms",
+        this,
+        System.currentTimeMillis() - startTime);
   }
 
   public TConsensusGroupId getRegionId() {
@@ -83,5 +108,10 @@ public class PipeDataNodeTask implements PipeTask {
 
   public String getPipeName() {
     return pipeName;
+  }
+
+  @Override
+  public String toString() {
+    return pipeName + "@" + regionId;
   }
 }
