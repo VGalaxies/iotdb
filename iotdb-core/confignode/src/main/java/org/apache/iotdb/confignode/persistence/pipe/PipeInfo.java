@@ -34,10 +34,12 @@ public class PipeInfo implements SnapshotProcessor {
 
   private final PipePluginInfo pipePluginInfo;
   private final PipeTaskInfo pipeTaskInfo;
+  private final PipeStoreInfo pipeStoreInfo;
 
   public PipeInfo() throws IOException {
     pipePluginInfo = new PipePluginInfo();
     pipeTaskInfo = new PipeTaskInfo();
+    pipeStoreInfo = new PipeStoreInfo();
   }
 
   public PipePluginInfo getPipePluginInfo() {
@@ -48,18 +50,24 @@ public class PipeInfo implements SnapshotProcessor {
     return pipeTaskInfo;
   }
 
+  public PipeStoreInfo getPipeStoreInfo() {
+    return pipeStoreInfo;
+  }
+
   /////////////////////////////////  SnapshotProcessor  /////////////////////////////////
 
   @Override
   public boolean processTakeSnapshot(File snapshotDir) throws IOException {
     return pipeTaskInfo.processTakeSnapshot(snapshotDir)
-        && pipePluginInfo.processTakeSnapshot(snapshotDir);
+        && pipePluginInfo.processTakeSnapshot(snapshotDir)
+        && pipeStoreInfo.processTakeSnapshot(snapshotDir);
   }
 
   @Override
   public void processLoadSnapshot(File snapshotDir) throws IOException {
     Exception loadPipeTaskInfoException = null;
     Exception loadPipePluginInfoException = null;
+    Exception loadPipeStoreInfoException = null;
 
     try {
       pipeTaskInfo.processLoadSnapshot(snapshotDir);
@@ -75,13 +83,22 @@ public class PipeInfo implements SnapshotProcessor {
       loadPipePluginInfoException = ex;
     }
 
-    if (loadPipeTaskInfoException != null || loadPipePluginInfoException != null) {
+    try {
+      pipeStoreInfo.processLoadSnapshot(snapshotDir);
+    } catch (Exception ex) {
+      LOGGER.error("Failed to load pipe store info from snapshot", ex);
+      loadPipeStoreInfoException = ex;
+    }
+
+    if (loadPipeTaskInfoException != null || loadPipePluginInfoException != null || loadPipeStoreInfoException != null) {
       throw new IOException(
           "Failed to load pipe info from snapshot, "
               + "loadPipeTaskInfoException="
               + loadPipeTaskInfoException
               + ", loadPipePluginInfoException="
-              + loadPipePluginInfoException);
+              + loadPipePluginInfoException
+              + ", loadPipeStoreInfoException="
+              + loadPipeStoreInfoException);
     }
   }
 
@@ -97,12 +114,13 @@ public class PipeInfo implements SnapshotProcessor {
     }
     PipeInfo pipeInfo = (PipeInfo) o;
     return Objects.equals(pipePluginInfo, pipeInfo.pipePluginInfo)
-        && Objects.equals(pipeTaskInfo, pipeInfo.pipeTaskInfo);
+        && Objects.equals(pipeTaskInfo, pipeInfo.pipeTaskInfo)
+        && Objects.equals(pipeStoreInfo, pipeInfo.pipeStoreInfo);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(pipePluginInfo, pipeTaskInfo);
+    return Objects.hash(pipePluginInfo, pipeTaskInfo, pipeStoreInfo);
   }
 
   @Override
@@ -112,6 +130,8 @@ public class PipeInfo implements SnapshotProcessor {
         + pipePluginInfo
         + ", pipeTaskInfo="
         + pipeTaskInfo
+        + ", pipeStoreInfo="
+        + pipeStoreInfo
         + '}';
   }
 }

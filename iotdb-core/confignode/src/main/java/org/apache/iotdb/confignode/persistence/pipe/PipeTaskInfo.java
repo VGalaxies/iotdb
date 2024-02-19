@@ -776,7 +776,7 @@ public class PipeTaskInfo implements SnapshotProcessor {
       final File snapshotFile = new File(snapshotDir, SNAPSHOT_FILE_NAME);
       if (!snapshotFile.exists() || !snapshotFile.isFile()) {
         LOGGER.error(
-            "Failed to load snapshot,snapshot file [{}] is not exist.",
+            "Failed to load snapshot, snapshot file [{}] is not exist.",
             snapshotFile.getAbsolutePath());
         return;
       }
