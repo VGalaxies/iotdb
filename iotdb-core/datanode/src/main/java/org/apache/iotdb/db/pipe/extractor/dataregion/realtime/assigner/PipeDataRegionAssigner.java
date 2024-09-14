@@ -79,6 +79,7 @@ public class PipeDataRegionAssigner implements Closeable {
       return;
     }
 
+    LOGGER.warn("[DEBUG][ASSIGNER] publish event {}", event.getEvent());
     disruptor.publish(event);
 
     if (event.getEvent() instanceof PipeHeartbeatEvent) {

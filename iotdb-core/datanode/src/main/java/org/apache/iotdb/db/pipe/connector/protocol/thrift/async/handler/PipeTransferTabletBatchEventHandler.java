@@ -109,9 +109,10 @@ public class PipeTransferTabletBatchEventHandler implements AsyncMethodCallback<
       }
 
       events.forEach(
-          event ->
-              event.decreaseReferenceCount(
-                  PipeTransferTabletBatchEventHandler.class.getName(), true));
+          event -> {
+            LOGGER.warn("[DEBUG][COMPLETE] event on on complete {}", event.coreReportMessage());
+            event.decreaseReferenceCount(PipeTransferTabletBatchEventHandler.class.getName(), true);
+          });
     } catch (final Exception e) {
       onError(e);
     }

@@ -119,7 +119,8 @@ public class PipeHistoricalDataRegionTsFileExtractor implements PipeHistoricalDa
   private boolean shouldTerminatePipeOnAllHistoricalEventsConsumed;
   private boolean isTerminateSignalSent = false;
 
-  private Queue<TsFileResource> pendingQueue;
+  private volatile Queue<TsFileResource> pendingQueue;
+  private volatile boolean pendingQueueReady = false;
 
   @Override
   public void validate(final PipeParameterValidator validator) {
@@ -268,6 +269,13 @@ public class PipeHistoricalDataRegionTsFileExtractor implements PipeHistoricalDa
     }
 
     pipePattern = PipePattern.parsePipePatternFromSourceParameters(parameters);
+
+    LOGGER.warn(
+        "[DEBUG][SOURCE] pipeName='{}' DR {} init PipeHistoricalDataRegionTsFileExtractor with start index {}, task meta {}",
+        pipeName,
+        dataRegionId,
+        startIndex,
+        pipeTaskMeta);
 
     final DataRegion dataRegion =
         StorageEngine.getInstance().getDataRegion(new DataRegionId(environment.getRegionId()));
@@ -425,28 +433,142 @@ public class PipeHistoricalDataRegionTsFileExtractor implements PipeHistoricalDa
         final Collection<TsFileResource> sequenceTsFileResources =
             tsFileManager.getTsFileList(true).stream()
                 .filter(
-                    resource ->
-                        // Some resource may not be closed due to the control of
-                        // PIPE_MIN_FLUSH_INTERVAL_IN_MS. We simply ignore them.
-                        !resource.isClosed()
-                            || mayTsFileContainUnprocessedData(resource)
-                                && isTsFileResourceOverlappedWithTimeRange(resource)
-                                && isTsFileGeneratedAfterExtractionTimeLowerBound(resource)
-                                && mayTsFileResourceOverlappedWithPattern(resource))
+                    resource -> {
+                      // 首先检查 !resource.isClosed()
+                      boolean isNotClosed = !resource.isClosed();
+                      if (isNotClosed) {
+                        // 如果资源没有关闭，整个表达式已经为 true，不需要再检查其他条件
+                        LOGGER.warn(
+                            "[DEBUG][SOURCE] pipeName='{}' sequence tsfile resource {}, result {}, "
+                                + "1 = {}",
+                            pipeName,
+                            resource,
+                            true,
+                            true);
+                        return true;
+                      } else {
+                        // 如果资源已关闭，继续检查 mayTsFileContainUnprocessedData(resource)
+                        boolean mayContainUnprocessedData =
+                            mayTsFileContainUnprocessedData(resource);
+                        boolean isOverlappedWithTimeRange = false;
+                        boolean isGeneratedAfterExtractionTime = false;
+                        boolean isOverlappedWithPattern = false;
+                        boolean result = false;
+
+                        // 只有在 mayTsFileContainUnprocessedData(resource) 为 true 时才继续评估其他条件
+                        if (mayContainUnprocessedData) {
+                          isOverlappedWithTimeRange =
+                              isTsFileResourceOverlappedWithTimeRange(resource);
+                          // 继续检查 isTsFileResourceOverlappedWithTimeRange(resource)
+                          if (isOverlappedWithTimeRange) {
+                            isGeneratedAfterExtractionTime =
+                                isTsFileGeneratedAfterExtractionTimeLowerBound(resource);
+                            // 继续检查 isTsFileGeneratedAfterExtractionTimeLowerBound(resource)
+                            if (isGeneratedAfterExtractionTime) {
+                              isOverlappedWithPattern =
+                                  mayTsFileResourceOverlappedWithPattern(resource);
+                              // 继续检查 mayTsFileResourceOverlappedWithPattern(resource)
+                              result = isOverlappedWithPattern;
+                            }
+                          }
+                        }
+
+                        LOGGER.warn(
+                            "[DEBUG][SOURCE] pipeName='{}' sequence tsfile resource {}, result {}, "
+                                + "1 = {}, "
+                                + "2 = {}, "
+                                + "3 = {}, "
+                                + "4 = {}, "
+                                + "5 = {}",
+                            pipeName,
+                            resource,
+                            result,
+                            false,
+                            mayContainUnprocessedData,
+                            mayContainUnprocessedData ? isOverlappedWithTimeRange : "SKIPPED",
+                            mayContainUnprocessedData && isOverlappedWithTimeRange
+                                ? isGeneratedAfterExtractionTime
+                                : "SKIPPED",
+                            mayContainUnprocessedData
+                                    && isOverlappedWithTimeRange
+                                    && isGeneratedAfterExtractionTime
+                                ? isOverlappedWithPattern
+                                : "SKIPPED");
+
+                        return result;
+                      }
+                    })
                 .collect(Collectors.toList());
         resourceList.addAll(sequenceTsFileResources);
 
         final Collection<TsFileResource> unsequenceTsFileResources =
             tsFileManager.getTsFileList(false).stream()
                 .filter(
-                    resource ->
-                        // Some resource may not be closed due to the control of
-                        // PIPE_MIN_FLUSH_INTERVAL_IN_MS. We simply ignore them.
-                        !resource.isClosed()
-                            || mayTsFileContainUnprocessedData(resource)
-                                && isTsFileResourceOverlappedWithTimeRange(resource)
-                                && isTsFileGeneratedAfterExtractionTimeLowerBound(resource)
-                                && mayTsFileResourceOverlappedWithPattern(resource))
+                    resource -> {
+                      // 首先检查 !resource.isClosed()
+                      boolean isNotClosed = !resource.isClosed();
+                      if (isNotClosed) {
+                        // 如果资源没有关闭，整个表达式已经为 true，不需要再检查其他条件
+                        LOGGER.warn(
+                            "[DEBUG][SOURCE] pipeName='{}' sequence tsfile resource {}, result {}, "
+                                + "1 = {}",
+                            pipeName,
+                            resource,
+                            true,
+                            true);
+                        return true;
+                      } else {
+                        // 如果资源已关闭，继续检查 mayTsFileContainUnprocessedData(resource)
+                        boolean mayContainUnprocessedData =
+                            mayTsFileContainUnprocessedData(resource);
+                        boolean isOverlappedWithTimeRange = false;
+                        boolean isGeneratedAfterExtractionTime = false;
+                        boolean isOverlappedWithPattern = false;
+                        boolean result = false;
+
+                        // 只有在 mayTsFileContainUnprocessedData(resource) 为 true 时才继续评估其他条件
+                        if (mayContainUnprocessedData) {
+                          isOverlappedWithTimeRange =
+                              isTsFileResourceOverlappedWithTimeRange(resource);
+                          // 继续检查 isTsFileResourceOverlappedWithTimeRange(resource)
+                          if (isOverlappedWithTimeRange) {
+                            isGeneratedAfterExtractionTime =
+                                isTsFileGeneratedAfterExtractionTimeLowerBound(resource);
+                            // 继续检查 isTsFileGeneratedAfterExtractionTimeLowerBound(resource)
+                            if (isGeneratedAfterExtractionTime) {
+                              isOverlappedWithPattern =
+                                  mayTsFileResourceOverlappedWithPattern(resource);
+                              // 继续检查 mayTsFileResourceOverlappedWithPattern(resource)
+                              result = isOverlappedWithPattern;
+                            }
+                          }
+                        }
+
+                        LOGGER.warn(
+                            "[DEBUG][SOURCE] pipeName='{}' sequence tsfile resource {}, result {}, "
+                                + "1 = {}, "
+                                + "2 = {}, "
+                                + "3 = {}, "
+                                + "4 = {}, "
+                                + "5 = {}",
+                            pipeName,
+                            resource,
+                            result,
+                            false,
+                            mayContainUnprocessedData,
+                            mayContainUnprocessedData ? isOverlappedWithTimeRange : "SKIPPED",
+                            mayContainUnprocessedData && isOverlappedWithTimeRange
+                                ? isGeneratedAfterExtractionTime
+                                : "SKIPPED",
+                            mayContainUnprocessedData
+                                    && isOverlappedWithTimeRange
+                                    && isGeneratedAfterExtractionTime
+                                ? isOverlappedWithPattern
+                                : "SKIPPED");
+
+                        return result;
+                      }
+                    })
                 .collect(Collectors.toList());
         resourceList.addAll(unsequenceTsFileResources);
 
@@ -468,6 +590,7 @@ public class PipeHistoricalDataRegionTsFileExtractor implements PipeHistoricalDa
                     ? Long.compare(o1.getFileStartTime(), o2.getFileStartTime())
                     : o1.getMaxProgressIndex().topologicalCompareTo(o2.getMaxProgressIndex()));
         pendingQueue = new ArrayDeque<>(resourceList);
+        pendingQueueReady = true;
 
         LOGGER.info(
             "Pipe {}@{}: finish to extract historical TsFile, extracted sequence file count {}/{}, "
@@ -633,6 +756,11 @@ public class PipeHistoricalDataRegionTsFileExtractor implements PipeHistoricalDa
             resource.getTsFilePath());
       }
     }
+  }
+
+  @Override
+  public boolean isReady() {
+    return pendingQueueReady;
   }
 
   @Override

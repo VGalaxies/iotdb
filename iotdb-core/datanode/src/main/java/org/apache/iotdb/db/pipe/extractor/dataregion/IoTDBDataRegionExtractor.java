@@ -27,6 +27,7 @@ import org.apache.iotdb.commons.pipe.pattern.PipePattern;
 import org.apache.iotdb.consensus.ConsensusFactory;
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
 import org.apache.iotdb.db.pipe.event.common.heartbeat.PipeHeartbeatEvent;
+import org.apache.iotdb.db.pipe.event.common.tsfile.PipeTsFileInsertionEvent;
 import org.apache.iotdb.db.pipe.extractor.dataregion.historical.PipeHistoricalDataRegionExtractor;
 import org.apache.iotdb.db.pipe.extractor.dataregion.historical.PipeHistoricalDataRegionTsFileExtractor;
 import org.apache.iotdb.db.pipe.extractor.dataregion.realtime.PipeRealtimeDataRegionExtractor;
@@ -435,6 +436,10 @@ public class IoTDBDataRegionExtractor extends IoTDBExtractor {
       return null;
     }
 
+    if (!historicalExtractor.isReady()) {
+      return null;
+    }
+
     Event event = null;
     if (!historicalExtractor.hasConsumedAll()) {
       event = historicalExtractor.supply();
@@ -451,6 +456,10 @@ public class IoTDBDataRegionExtractor extends IoTDBExtractor {
       if (event instanceof TabletInsertionEvent) {
         PipeDataRegionExtractorMetrics.getInstance().markTabletEvent(taskID);
       } else if (event instanceof TsFileInsertionEvent) {
+        LOGGER.warn(
+            "[DEBUG][SUPPLY] pipeName='{}' supply tsfile event {}",
+            realtimeExtractor.getPipeName(),
+            ((PipeTsFileInsertionEvent) event).coreReportMessage());
         PipeDataRegionExtractorMetrics.getInstance().markTsFileEvent(taskID);
       } else if (event instanceof PipeHeartbeatEvent) {
         PipeDataRegionExtractorMetrics.getInstance().markPipeHeartbeatEvent(taskID);

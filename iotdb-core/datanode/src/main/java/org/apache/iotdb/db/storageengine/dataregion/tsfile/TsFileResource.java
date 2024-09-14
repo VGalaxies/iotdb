@@ -291,6 +291,7 @@ public class TsFileResource {
             TsFileResourceBlockType.deserialize(ReadWriteIOUtils.readByte(inputStream));
         if (blockType == TsFileResourceBlockType.PROGRESS_INDEX) {
           maxProgressIndex = ProgressIndexType.deserializeFrom(inputStream);
+          LOGGER.warn("[DEBUG] tsfile {} deserialize progress index to {}", file, maxProgressIndex);
         }
       }
     }
@@ -648,7 +649,9 @@ public class TsFileResource {
 
   @Override
   public String toString() {
-    return String.format("file is %s, status: %s", file.toString(), getStatus());
+    return String.format(
+        "file is %s, status: %s, progress index %s",
+        file.toString(), getStatus(), getMaxProgressIndex());
   }
 
   @Override
@@ -1191,5 +1194,11 @@ public class TsFileResource {
 
   public void setInsertionCompactionTaskCandidate(InsertionCompactionCandidateStatus status) {
     insertionCompactionCandidateStatus = status;
+  }
+
+  public static void main(String[] args) throws IOException {
+    TsFileResource resource =
+        new TsFileResource(new File("C:\\Users\\admin\\Downloads\\1725629166428-2-0-0.tsfile"));
+    resource.deserialize();
   }
 }

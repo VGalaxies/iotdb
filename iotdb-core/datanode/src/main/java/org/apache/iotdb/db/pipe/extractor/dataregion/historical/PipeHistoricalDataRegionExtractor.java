@@ -23,6 +23,8 @@ import org.apache.iotdb.pipe.api.PipeExtractor;
 
 public interface PipeHistoricalDataRegionExtractor extends PipeExtractor {
 
+  boolean isReady();
+
   boolean hasConsumedAll();
 
   int getPendingQueueSize();

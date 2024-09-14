@@ -258,6 +258,11 @@ public abstract class EnrichedEvent implements Event {
       final ProgressIndex progressIndex = getProgressIndex();
       pipeTaskMeta.updateProgressIndex(
           progressIndex == null ? MinimumProgressIndex.INSTANCE : progressIndex);
+      LOGGER.warn(
+          "[DEBUG][REPORT] pipeName='{}' report progress for event {}, updated progress index {}",
+          pipeName,
+          coreReportMessage(),
+          pipeTaskMeta.getProgressIndex());
     }
   }
 
@@ -446,28 +451,12 @@ public abstract class EnrichedEvent implements Event {
 
   public String coreReportMessage() {
     return "EnrichedEvent{"
-        + "referenceCount="
-        + referenceCount.get()
-        + ", isReleased="
-        + isReleased.get()
+        + "committerKey="
+        + committerKey
+        + ", commitId="
+        + commitId
         + ", pipeName='"
         + pipeName
-        + "', committerKey='"
-        + committerKey
-        + "', commitId="
-        + commitId
-        + ", pattern='"
-        + pipePattern
-        + "', startTime="
-        + startTime
-        + ", endTime="
-        + endTime
-        + ", isPatternParsed="
-        + isPatternParsed
-        + ", isTimeParsed="
-        + isTimeParsed
-        + ", shouldReportOnCommit="
-        + shouldReportOnCommit
-        + '}';
+        + "'}";
   }
 }

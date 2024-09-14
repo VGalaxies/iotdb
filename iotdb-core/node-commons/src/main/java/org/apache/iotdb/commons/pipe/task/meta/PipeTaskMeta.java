@@ -28,20 +28,26 @@ import org.apache.iotdb.commons.exception.pipe.PipeRuntimeExceptionType;
 import org.apache.iotdb.commons.exception.pipe.PipeRuntimeNonCriticalException;
 
 import org.apache.tsfile.utils.ReadWriteIOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 public class PipeTaskMeta {
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(PipeTaskMeta.class);
 
   private final AtomicReference<ProgressIndex> progressIndex = new AtomicReference<>();
   private final AtomicInteger leaderNodeId = new AtomicInteger(0);
@@ -61,6 +67,15 @@ public class PipeTaskMeta {
   public PipeTaskMeta(/* @NotNull */ final ProgressIndex progressIndex, final int leaderNodeId) {
     this.progressIndex.set(progressIndex);
     this.leaderNodeId.set(leaderNodeId);
+    LOGGER.warn(
+        "[DEBUG] pipe task meta set progress index to {}, leader node id {}, stack trace {}",
+        progressIndex,
+        leaderNodeId,
+        Arrays.stream(Thread.currentThread().getStackTrace())
+            .skip(1)
+            .limit(8)
+            .map(trace -> trace.getFileName() + ":" + trace.getLineNumber())
+            .collect(Collectors.toList()));
   }
 
   public ProgressIndex getProgressIndex() {
@@ -68,8 +83,19 @@ public class PipeTaskMeta {
   }
 
   public ProgressIndex updateProgressIndex(final ProgressIndex updateIndex) {
-    return progressIndex.updateAndGet(
-        index -> index.updateToMinimumEqualOrIsAfterProgressIndex(updateIndex));
+    final ProgressIndex result =
+        progressIndex.updateAndGet(
+            index -> index.updateToMinimumEqualOrIsAfterProgressIndex(updateIndex));
+    LOGGER.warn(
+        "[DEBUG] pipe task meta update progress index to {}, leader node id {}, stack trace {}",
+        progressIndex,
+        leaderNodeId,
+        Arrays.stream(Thread.currentThread().getStackTrace())
+            .skip(1)
+            .limit(8)
+            .map(trace -> trace.getFileName() + ":" + trace.getLineNumber())
+            .collect(Collectors.toList()));
+    return result;
   }
 
   public int getLeaderNodeId() {

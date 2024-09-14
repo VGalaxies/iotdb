@@ -56,6 +56,10 @@ public class PipeRealtimeDataRegionTsFileExtractor extends PipeRealtimeDataRegio
       return;
     }
 
+    LOGGER.warn(
+        "[DEBUG][EXTRACT] pipeName='{}' extract realtime tsfile event {}",
+        pipeName,
+        event.getEvent().coreReportMessage());
     if (!pendingQueue.waitedOffer(event)) {
       // This would not happen, but just in case.
       // Pending is unbounded, so it should never reach capacity.

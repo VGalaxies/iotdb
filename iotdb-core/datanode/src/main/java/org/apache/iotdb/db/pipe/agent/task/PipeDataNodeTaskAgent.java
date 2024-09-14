@@ -488,14 +488,28 @@ public class PipeDataNodeTaskAgent extends PipeTaskAgent {
     }
 
     // Restart all stuck pipes
+    //    final Set<PipeMeta> originalPipeMeta = stuckPipes.stream().map((pipeMeta) -> {
+    //      try {
+    //        return pipeMeta.deepCopy();
+    //      } catch (final IOException e) {
+    //        LOGGER.warn("Failed to restart stuck pipe {}.", pipeMeta.getStaticMeta(), e);
+    //      }
+    //      return null;
+    //    }).filter(Objects::nonNull).collect(Collectors.toSet());
+    //    originalPipeMeta.parallelStream().forEach(this::dropStuckPipe);
+    //    originalPipeMeta.parallelStream().forEach(this::recreateStuckPipe);
+
     stuckPipes.parallelStream().forEach(this::restartStuckPipe);
   }
+
+  private final AtomicLong restartCount = new AtomicLong();
 
   private Set<PipeMeta> findAllStuckPipes() {
     final Set<PipeMeta> stuckPipes = new HashSet<>();
 
     if (System.currentTimeMillis() - LAST_FORCED_RESTART_TIME.get()
-        > PipeConfig.getInstance().getPipeSubtaskExecutorForcedRestartIntervalMs()) {
+            > PipeConfig.getInstance().getPipeSubtaskExecutorForcedRestartIntervalMs()
+        && restartCount.getAndIncrement() < 30) {
       LAST_FORCED_RESTART_TIME.set(System.currentTimeMillis());
       for (final PipeMeta pipeMeta : pipeMetaKeeper.getPipeMetaList()) {
         stuckPipes.add(pipeMeta);
@@ -578,6 +592,16 @@ public class PipeDataNodeTaskAgent extends PipeTaskAgent {
 
   private boolean mayWalSizeReachThrottleThreshold() {
     return 3 * WALManager.getInstance().getTotalDiskUsage() > 2 * CONFIG.getThrottleThreshold();
+  }
+
+  private void dropStuckPipe(final PipeMeta pipeMeta) {
+    LOGGER.warn("Pipe {} will be dropped because of stuck.", pipeMeta.getStaticMeta());
+    handleDropPipe(pipeMeta.getStaticMeta().getPipeName());
+  }
+
+  private void recreateStuckPipe(final PipeMeta originalPipeMeta) {
+    LOGGER.warn("Pipe {} will be recreated because of stuck.", originalPipeMeta.getStaticMeta());
+    handleSinglePipeMetaChanges(originalPipeMeta);
   }
 
   private void restartStuckPipe(final PipeMeta pipeMeta) {

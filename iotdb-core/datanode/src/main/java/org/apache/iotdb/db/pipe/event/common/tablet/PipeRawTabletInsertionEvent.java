@@ -33,6 +33,7 @@ import org.apache.iotdb.pipe.api.collector.RowCollector;
 import org.apache.iotdb.pipe.api.event.dml.insertion.TabletInsertionEvent;
 
 import org.apache.tsfile.file.metadata.IDeviceID;
+import org.apache.tsfile.utils.Pair;
 import org.apache.tsfile.write.record.Tablet;
 
 import java.util.Objects;
@@ -53,6 +54,8 @@ public class PipeRawTabletInsertionEvent extends EnrichedEvent implements Tablet
 
   private ProgressIndex overridingProgressIndex;
 
+  private final Pair<Long, Long> range;
+
   private PipeRawTabletInsertionEvent(
       final Tablet tablet,
       final boolean isAligned,
@@ -69,6 +72,8 @@ public class PipeRawTabletInsertionEvent extends EnrichedEvent implements Tablet
     this.isAligned = isAligned;
     this.sourceEvent = sourceEvent;
     this.needToReport = needToReport;
+
+    this.range = new Pair<>(tablet.timestamps[0], tablet.timestamps[tablet.rowSize - 1]);
   }
 
   public PipeRawTabletInsertionEvent(
@@ -294,12 +299,8 @@ public class PipeRawTabletInsertionEvent extends EnrichedEvent implements Tablet
   @Override
   public String coreReportMessage() {
     return String.format(
-            "PipeRawTabletInsertionEvent{tablet=%s, isAligned=%s, sourceEvent=%s, needToReport=%s, allocatedMemoryBlock=%s}",
-            tablet,
-            isAligned,
-            sourceEvent == null ? "null" : sourceEvent.coreReportMessage(),
-            needToReport,
-            allocatedMemoryBlock)
+            "PipeRawTabletInsertionEvent{sourceEvent=%s, needToReport=%s, range=%s}",
+            sourceEvent == null ? "null" : sourceEvent.coreReportMessage(), needToReport, range)
         + " - "
         + super.coreReportMessage();
   }

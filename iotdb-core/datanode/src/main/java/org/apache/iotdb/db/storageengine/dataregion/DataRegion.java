@@ -1752,9 +1752,14 @@ public class DataRegion implements IDataRegionForQuery {
         || tsFileProcessor.alreadyMarkedClosing()) {
       return CompletableFuture.completedFuture(null);
     }
-    logger.info(
-        "Async close tsfile: {}",
-        tsFileProcessor.getTsFileResource().getTsFile().getAbsolutePath());
+    logger.warn(
+        "[DEBUG] Async close tsfile: {}, stack trace: {}",
+        tsFileProcessor.getTsFileResource().getTsFile().getAbsolutePath(),
+        Arrays.stream(Thread.currentThread().getStackTrace())
+            .skip(1)
+            .limit(4)
+            .map(trace -> trace.getFileName() + ":" + trace.getLineNumber())
+            .collect(Collectors.toList()));
     Future<?> future;
     if (sequence) {
       closingSequenceTsFileProcessor.add(tsFileProcessor);
