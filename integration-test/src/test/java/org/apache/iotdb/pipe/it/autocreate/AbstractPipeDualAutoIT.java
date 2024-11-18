@@ -55,14 +55,20 @@ abstract class AbstractPipeDualAutoIT {
         .getConfig()
         .getCommonConfig()
         .setAutoCreateSchemaEnabled(true)
+        .setDataRegionConsensusProtocolClass(ConsensusFactory.IOT_CONSENSUS_V2)
+        .setDataReplicationFactor(2)
         .setConfigNodeConsensusProtocolClass(ConsensusFactory.RATIS_CONSENSUS)
-        .setSchemaRegionConsensusProtocolClass(ConsensusFactory.RATIS_CONSENSUS);
+        .setSchemaRegionConsensusProtocolClass(ConsensusFactory.RATIS_CONSENSUS)
+        .setSchemaReplicationFactor(3);
     receiverEnv
         .getConfig()
         .getCommonConfig()
         .setAutoCreateSchemaEnabled(true)
+        .setDataRegionConsensusProtocolClass(ConsensusFactory.IOT_CONSENSUS_V2)
+        .setDataReplicationFactor(2)
         .setConfigNodeConsensusProtocolClass(ConsensusFactory.RATIS_CONSENSUS)
-        .setSchemaRegionConsensusProtocolClass(ConsensusFactory.RATIS_CONSENSUS);
+        .setSchemaRegionConsensusProtocolClass(ConsensusFactory.RATIS_CONSENSUS)
+        .setSchemaReplicationFactor(3);
 
     // 10 min, assert that the operations will not time out
     senderEnv.getConfig().getCommonConfig().setCnConnectionTimeoutMs(600000);
