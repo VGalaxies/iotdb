@@ -33,9 +33,7 @@ import java.util.ArrayList;
 
 public class UDTFVARMATrain implements UDTF {
 
-  private VARMATrainUtil masterTrainUtil;
-
-  // private int columnCnt; // Stored in MasterTrainUtil
+  private VARMATrainUtil trainUtil;
 
   @Override
   public void validate(UDFParameterValidator validator) throws Exception {
@@ -73,24 +71,22 @@ public class UDTFVARMATrain implements UDTF {
     int columnCnt = parameters.getDataTypes().size();
     int p_ar_order = parameters.getIntOrDefault("p", 1); // Default AR order to 1
     int q_ma_order = parameters.getIntOrDefault("q", 0); // Default MA order to 0
-    double eta = parameters.getDoubleOrDefault("eta", 1.0);
 
-    // Pass q_ma_order to MasterTrainUtil
-    masterTrainUtil = new VARMATrainUtil(columnCnt, p_ar_order, q_ma_order, eta);
+    trainUtil = new VARMATrainUtil(columnCnt, p_ar_order, q_ma_order);
   }
 
   @Override
   public void transform(Row row, PointCollector collector) throws Exception {
-    if (!masterTrainUtil.isNullRow(row)) {
-      masterTrainUtil.addRow(row);
+    if (!trainUtil.isNullRow(row)) {
+      trainUtil.addRow(row);
     }
   }
 
   @Override
   public void terminate(PointCollector collector) throws Exception {
-    masterTrainUtil.train(); // This will fit the VARMA model
-    ArrayList<Double> coeffs_one_column = masterTrainUtil.coeffsInOneColumn();
-    ArrayList<Long> td_time = masterTrainUtil.getTd_time();
+    trainUtil.train(); // This will fit the VARMA model
+    ArrayList<Double> coeffs_one_column = trainUtil.coeffsInOneColumn();
+    ArrayList<Long> td_time = trainUtil.getTd_time();
 
     if (!td_time.isEmpty()) {
       long lastTime = td_time.get(td_time.size() - 1);

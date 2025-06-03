@@ -45,12 +45,6 @@ public class UDFSessionExample {
             .build();
     session.open(false);
 
-    String deviceId = "root.eg.etth";
-    List<String> measurements = new ArrayList<>();
-    List<TSDataType> types = new ArrayList<>();
-    measurements.add("model");
-    types.add(TSDataType.DOUBLE);
-
     try {
       session.executeNonQueryStatement(
           "create function UDTFVARMATrain as 'org.apache.iotdb.library.anomaly.UDTFVARMATrain'");
@@ -60,9 +54,14 @@ public class UDFSessionExample {
       e.printStackTrace();
     }
 
+    String deviceId = "root.eg.etth";
+    List<String> measurements = new ArrayList<>();
+    List<TSDataType> types = new ArrayList<>();
+    measurements.add("model");
+    types.add(TSDataType.DOUBLE);
     SessionDataSet dataSet =
         session.executeQueryStatement(
-            "select UDTFVARMATrain(s0,s1,s2,s3,s4,s5,s6,'p'='3','q'='1','eta'='1.0') from root.eg.etth");
+            "select UDTFVARMATrain(s0,s1,s2,s3,s4,s5,s6,'p'='3','q'='1') from root.eg.etth");
     while (dataSet.hasNext()) {
       RowRecord record = dataSet.next();
       session.insertAlignedRecord(
