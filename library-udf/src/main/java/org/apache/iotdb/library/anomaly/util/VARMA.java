@@ -1,4 +1,22 @@
-// VARMA.java
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.apache.iotdb.library.anomaly.util;
 
 import java.util.ArrayList;
@@ -115,10 +133,94 @@ public class VARMA {
       for (int i = 0; i < arOrder; i++) this.coeffsAr.add(new Matrix(k, k)); // Zero AR coeffs
     }
 
-    // MA coefficients (Theta_s) are set to zero matrices
+    // 如果指定了 MA 阶数 > 0，则先用 AR 部分拟合结果计算残差，再拟合 MA 部分
     this.coeffsMa.clear();
-    for (int i = 0; i < maOrder; i++) {
-      this.coeffsMa.add(new Matrix(k, k)); // k x k zero matrix
+    if (maOrder <= 0) {
+      // q=0 时，直接保留零矩阵
+      for (int i = 0; i < maOrder; i++) {
+        this.coeffsMa.add(new Matrix(k, k));
+      }
+    } else {
+      // 1) 先用 AR(部分)计算残差 residuals
+      int sz = data.size();
+      ArrayList<ArrayList<Double>> Y_ar = new ArrayList<>();
+      ArrayList<ArrayList<Double>> X_ar = new ArrayList<>();
+      for (int t = p; t < sz; t++) {
+        // 当前观测 Y_t
+        Y_ar.add(data.get(t));
+        // 构造 X_row = [1, Y_{t-1}, Y_{t-2}, ..., Y_{t-p}]
+        ArrayList<Double> xRow = new ArrayList<>();
+        xRow.add(1.0);
+        for (int lag = 0; lag < p; lag++) {
+          xRow.addAll(data.get(t - (lag + 1)));
+        }
+        X_ar.add(xRow);
+      }
+      Matrix Xmat_ar = new Matrix(X_ar);
+      Matrix Ymat_ar = new Matrix(Y_ar);
+      // 用已拟合的常数和 AR 系数，对每个时刻做一次前向预测，计算残差
+      ArrayList<ArrayList<Double>> residuals = new ArrayList<>();
+      for (int i = 0; i < Y_ar.size(); i++) {
+        // 计算 yHat = C + sum_{s=1..p} Phi_s * Y_{t-s}
+        Matrix yHat = new Matrix(this.constantVectorC.data);
+        for (int s = 0; s < p; s++) {
+          Matrix phi_s = this.coeffsAr.get(s);
+          ArrayList<Double> lagData = data.get(p + i - (s + 1));
+          Matrix lagVec = new Matrix(k, 1);
+          for (int idx = 0; idx < k; idx++) {
+            lagVec.data.get(idx).set(0, lagData.get(idx));
+          }
+          yHat = yHat.add(phi_s.multiply(lagVec));
+        }
+        // 计算残差 E_t = Y_t - yHat
+        ArrayList<Double> resRow = new ArrayList<>();
+        for (int idx = 0; idx < k; idx++) {
+          double e = Y_ar.get(i).get(idx) - yHat.data.get(idx).get(0);
+          resRow.add(e);
+        }
+        residuals.add(resRow);
+      }
+
+      // 2) 组装 MA 设计矩阵 X_ma 和目标矩阵 Y_ma
+      int m = residuals.size();
+      ArrayList<ArrayList<Double>> X_ma = new ArrayList<>();
+      ArrayList<ArrayList<Double>> Y_ma = new ArrayList<>();
+      for (int t = maOrder; t < m; t++) {
+        // 当前目标 E_t
+        Y_ma.add(residuals.get(t));
+        // 设计行 = [ E_{t-1}, E_{t-2}, ..., E_{t-q} ]
+        ArrayList<Double> xRow = new ArrayList<>();
+        for (int lag = 1; lag <= maOrder; lag++) {
+          xRow.addAll(residuals.get(t - lag));
+        }
+        X_ma.add(xRow);
+      }
+
+      // 3) 用最小二乘求解 MA 系数矩阵
+      if (!X_ma.isEmpty()) {
+        Matrix Xmat_ma = new Matrix(X_ma);
+        Matrix Ymat_ma = new Matrix(Y_ma);
+        Matrix XtX_ma = Xmat_ma.transpose().multiply(Xmat_ma);
+        Matrix XtY_ma = Xmat_ma.transpose().multiply(Ymat_ma);
+        Matrix betaHat_ma = XtX_ma.solve(XtY_ma);
+
+        // betaHat_ma 大小 = (q*k) x k，将其拆成 q 个 k×k 矩阵
+        for (int s = 0; s < maOrder; s++) {
+          Matrix theta_s = new Matrix(k, k);
+          for (int i_row = 0; i_row < k; i_row++) {
+            for (int j_col = 0; j_col < k; j_col++) {
+              // 在 betaHat_ma 中，行索引 = s*k + j_col, 列索引 = i_row
+              theta_s.data.get(i_row).set(j_col, betaHat_ma.data.get(s * k + j_col).get(i_row));
+            }
+          }
+          this.coeffsMa.add(theta_s);
+        }
+      } else {
+        // 样本不足，补 q 个零矩阵
+        for (int i = 0; i < maOrder; i++) {
+          this.coeffsMa.add(new Matrix(k, k));
+        }
+      }
     }
   }
 
