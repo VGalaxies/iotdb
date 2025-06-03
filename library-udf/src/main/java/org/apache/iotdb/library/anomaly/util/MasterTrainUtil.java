@@ -3,6 +3,7 @@ package org.apache.iotdb.library.anomaly.util;
 import org.apache.iotdb.library.util.Util;
 import org.apache.iotdb.udf.api.access.Row;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 
@@ -25,7 +26,7 @@ public class MasterTrainUtil {
     this.eta = eta;
   }
 
-  public boolean isNullRow(Row row) {
+  public boolean isNullRow(Row row) throws IOException {
     boolean flag = true;
     for (int i = 0; i < row.size(); i++) {
       if (!row.isNull(i)) {
