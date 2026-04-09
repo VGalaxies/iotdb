@@ -194,12 +194,7 @@ public class StreamTask {
       window.serialize(dataOutputStream);
       // Serialize target using its serialize method
       target.serialize(dataOutputStream);
-      // Assuming StreamProperties has serialize
-      if (properties != null) {
-        properties.serialize(dataOutputStream);
-      } else {
-        dataOutputStream.writeUTF("");
-      }
+      properties.serialize(dataOutputStream);
     } finally {
       dataOutputStream.close();
     }
