@@ -5039,4 +5039,10 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
     }
     return future;
   }
+
+  // ===================================== STREAM =============================
+  @Override
+  public SettableFuture<ConfigTaskResult> createStreamTask() {
+    return null;
+  }
 }

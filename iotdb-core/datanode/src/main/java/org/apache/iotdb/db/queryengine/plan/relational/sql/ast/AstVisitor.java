@@ -20,6 +20,7 @@
 package org.apache.iotdb.db.queryengine.plan.relational.sql.ast;
 
 import org.apache.iotdb.db.exception.sql.SemanticException;
+import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.stream.CreateStream;
 
 import javax.annotation.Nullable;
 
@@ -904,5 +905,10 @@ public abstract class AstVisitor<R, C> {
 
   protected R visitRangeQuantifier(RangeQuantifier node, C context) {
     return visitPatternQuantifier(node, context);
+  }
+
+  // ======================================= STREAM ===========================================
+  public R visitCreateStream(CreateStream node, C context) {
+    return visitStatement(node, context);
   }
 }

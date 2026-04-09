@@ -107,6 +107,7 @@ import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.ShowTablesDetailsTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.ShowTablesTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.UseDBTask;
+import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.stream.CreateStreamTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.DeallocateTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.PrepareTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.SetSqlDialectTask;
@@ -232,6 +233,7 @@ import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.StopRepairData;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.UnloadModel;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.Use;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ViewFieldDefinition;
+import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.stream.CreateStream;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.rewrite.StatementRewrite;
 import org.apache.iotdb.db.queryengine.plan.relational.type.AuthorRType;
 import org.apache.iotdb.db.queryengine.plan.relational.type.TypeManager;
@@ -1666,5 +1668,20 @@ public class TableConfigTaskVisitor extends AstVisitor<IConfigTask, MPPQueryCont
     context.setQueryType(QueryType.WRITE);
     accessControl.checkUserGlobalSysPrivilege(context);
     return new UnloadModelTask(node.getModelId(), node.getDeviceIdList());
+  }
+
+  // ================================== STREAM ==========================================
+
+  @Override
+  public IConfigTask visitCreateStream(CreateStream node, MPPQueryContext context) {
+    context.setQueryType(QueryType.WRITE);
+
+    // TODO(zhenyu shi) analyze
+
+    // TODO(zhenyu shi) logical planner
+
+    // TODO(wenwei shu) optimizer
+
+    return new CreateStreamTask();
   }
 }

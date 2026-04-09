@@ -476,4 +476,8 @@ public interface IConfigTaskExecutor {
       String existingModelId,
       @Nullable String targetSql,
       @Nullable List<String> pathList);
+
+  // ==================================== STREAM =======================================
+  // TODO(yuan tian) 需要包含什么参数
+  SettableFuture<ConfigTaskResult> createStreamTask();
 }
