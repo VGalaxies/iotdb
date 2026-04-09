@@ -19,6 +19,7 @@
 
 package org.apache.iotdb.commons.stream;
 
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -30,7 +31,14 @@ public abstract class StreamSource {
   public abstract void serialize(OutputStream outputStream) throws IOException;
 
   public static StreamSource deserialize(InputStream inputStream) throws IOException {
-    // TODO: implement deserialization dispatch
-    throw new UnsupportedOperationException("Not implemented yet");
+    DataInputStream dataInputStream = new DataInputStream(inputStream);
+    int typeOrdinal = dataInputStream.readInt();
+    StreamSourceType type = StreamSourceType.values()[typeOrdinal];
+    switch (type) {
+      case IOTDB_SUBSCRIPTION:
+        return IoTDBSubscriptionSource.deserialize(dataInputStream);
+      default:
+        throw new IOException("Unknown StreamSourceType: " + type);
+    }
   }
 }

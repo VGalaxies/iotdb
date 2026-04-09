@@ -19,9 +19,12 @@
 
 package org.apache.iotdb.commons.stream;
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.List;
 
 public class IoTDBSubscriptionSource extends StreamSource {
@@ -62,12 +65,56 @@ public class IoTDBSubscriptionSource extends StreamSource {
 
   @Override
   public void serialize(OutputStream outputStream) throws IOException {
-    // TODO: implement serialization
-    throw new UnsupportedOperationException("Not implemented yet");
+    DataOutputStream dataOutputStream = new DataOutputStream(outputStream);
+    // Serialize type
+    dataOutputStream.writeInt(getType().ordinal());
+
+    // Serialize database
+    dataOutputStream.writeUTF(database);
+
+    // Serialize tableName
+    dataOutputStream.writeUTF(tableName);
+
+    // Serialize preFilter (nullable)
+    dataOutputStream.writeBoolean(preFilter != null);
+    if (preFilter != null) {
+      dataOutputStream.writeUTF(preFilter);
+    }
+
+    // Serialize partitionColumns (nullable)
+    dataOutputStream.writeBoolean(partitionColumns != null);
+    if (partitionColumns != null) {
+      dataOutputStream.writeInt(partitionColumns.size());
+      for (String column : partitionColumns) {
+        dataOutputStream.writeUTF(column);
+      }
+    }
   }
 
   public static IoTDBSubscriptionSource deserialize(InputStream inputStream) throws IOException {
-    // TODO: implement deserialization
-    throw new UnsupportedOperationException("Not implemented yet");
+    DataInputStream dataInputStream = new DataInputStream(inputStream);
+    // Deserialize database
+    String database = dataInputStream.readUTF();
+
+    // Deserialize tableName
+    String tableName = dataInputStream.readUTF();
+
+    // Deserialize preFilter (nullable)
+    String preFilter = null;
+    if (dataInputStream.readBoolean()) {
+      preFilter = dataInputStream.readUTF();
+    }
+
+    // Deserialize partitionColumns (nullable)
+    List<String> partitionColumns = null;
+    if (dataInputStream.readBoolean()) {
+      int partitionColumnsSize = dataInputStream.readInt();
+      partitionColumns = new ArrayList<>(partitionColumnsSize);
+      for (int i = 0; i < partitionColumnsSize; i++) {
+        partitionColumns.add(dataInputStream.readUTF());
+      }
+    }
+
+    return new IoTDBSubscriptionSource(database, tableName, preFilter, partitionColumns);
   }
 }
