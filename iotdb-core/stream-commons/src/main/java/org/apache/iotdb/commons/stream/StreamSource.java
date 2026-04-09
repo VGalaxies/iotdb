@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+@SuppressWarnings("SwitchStatementWithTooFewBranches")
 public abstract class StreamSource {
 
   public abstract StreamSourceType getType();
