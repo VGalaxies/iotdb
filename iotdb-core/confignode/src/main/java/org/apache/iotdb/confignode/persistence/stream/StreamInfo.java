@@ -92,6 +92,14 @@ public class StreamInfo implements SnapshotProcessor {
         return new TSStatus(TSStatusCode.EXECUTE_STATEMENT_ERROR.getStatusCode())
             .setMessage("Stream not found: " + taskName);
       }
+      // Delete the task file from disk
+      File streamsDir = new File(ConfigNodeDescriptor.getInstance().getConf().getStreamsDir());
+      File taskFile = new File(streamsDir, removed.getId() + ".stm");
+      if (taskFile.exists()) {
+        if (!taskFile.delete()) {
+          LOGGER.warn("Failed to delete task file: {}", taskFile.getAbsolutePath());
+        }
+      }
       LOGGER.info("Removed stream task: {}", taskName);
       return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
     } finally {
