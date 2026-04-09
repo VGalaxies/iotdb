@@ -50,8 +50,7 @@ public class StreamInfo implements SnapshotProcessor {
     lock.writeLock().lock();
     try {
       if (streamTaskMap.containsKey(task.getTaskName())) {
-        // STREAM_ALREADY_EXISTS does not exist in TSStatusCode, use EXECUTE_STATEMENT_ERROR
-        return new TSStatus(TSStatusCode.EXECUTE_STATEMENT_ERROR.getStatusCode())
+        return new TSStatus(TSStatusCode.STREAM_ALREADY_EXISTS.getStatusCode())
             .setMessage("Stream already exists: " + task.getTaskName());
       }
       task.setId(nextStreamId.getAndIncrement());

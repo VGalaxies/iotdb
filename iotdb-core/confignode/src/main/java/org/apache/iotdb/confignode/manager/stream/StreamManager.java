@@ -19,6 +19,7 @@
 
 package org.apache.iotdb.confignode.manager.stream;
 
+import java.util.stream.Collectors;
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
 import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.commons.stream.StreamTaskStatus;
@@ -70,7 +71,7 @@ public class StreamManager {
   }
 
   public List<StreamTask> showStreams(String database) {
-    // TODO: filter by database
-    return streamInfo.getAllTasks();
+    return streamInfo.getAllTasks().stream().filter(s -> s.getDatabase().equals(database)).collect(
+        Collectors.toList());
   }
 }
