@@ -151,12 +151,11 @@ public class StreamProperties {
     DataInputStream dataInputStream = new DataInputStream(inputStream);
     StreamProperties properties = new StreamProperties();
 
-    label:
     while (true) {
       String fieldName = dataInputStream.readUTF();
       switch (fieldName) {
         case FIELD_END:
-          break label;
+          return properties;
         case FIELD_WATERMARK_MS:
           properties.setWatermarkMs(dataInputStream.readLong());
           break;
@@ -182,7 +181,5 @@ public class StreamProperties {
           throw new IOException("Unknown field: " + fieldName);
       }
     }
-
-    return properties;
   }
 }
