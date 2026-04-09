@@ -19,6 +19,8 @@
 
 package org.apache.iotdb.commons.stream;
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -175,12 +177,58 @@ public class StreamTask {
   }
 
   public void serialize(OutputStream outputStream) throws IOException {
-    // TODO: implement serialization
-    throw new UnsupportedOperationException("Not implemented yet");
+    DataOutputStream dataOutputStream = new DataOutputStream(outputStream);
+    try {
+      dataOutputStream.writeLong(id);
+      dataOutputStream.writeUTF(taskName != null ? taskName : "");
+      dataOutputStream.writeUTF(database != null ? database : "");
+      dataOutputStream.writeLong(creationTime);
+      dataOutputStream.writeUTF(creator != null ? creator : "");
+      dataOutputStream.writeUTF(subQuery != null ? subQuery : "");
+      dataOutputStream.writeUTF(status != null ? status.toString() : "");
+      dataOutputStream.writeUTF(runningOn != null ? runningOn : "");
+      dataOutputStream.writeInt(epoch);
+      // Serialize source using its serialize method
+      source.serialize(dataOutputStream);
+      // Serialize window using its serialize method
+      window.serialize(dataOutputStream);
+      // Serialize target using its serialize method
+      target.serialize(dataOutputStream);
+      // Assuming StreamProperties has serialize
+      if (properties != null) {
+        properties.serialize(dataOutputStream);
+      } else {
+        dataOutputStream.writeUTF("");
+      }
+    } finally {
+      dataOutputStream.close();
+    }
   }
 
   public static StreamTask deserialize(InputStream inputStream) throws IOException {
-    // TODO: implement deserialization
-    throw new UnsupportedOperationException("Not implemented yet");
+    DataInputStream dataInputStream = new DataInputStream(inputStream);
+    StreamTask streamTask = new StreamTask();
+    try {
+      streamTask.setId(dataInputStream.readLong());
+      streamTask.setTaskName(dataInputStream.readUTF());
+      streamTask.setDatabase(dataInputStream.readUTF());
+      streamTask.setCreationTime(dataInputStream.readLong());
+      streamTask.setCreator(dataInputStream.readUTF());
+      streamTask.setSubQuery(dataInputStream.readUTF());
+      streamTask.setStatus(StreamTaskStatus.valueOf(dataInputStream.readUTF()));
+      streamTask.setRunningOn(dataInputStream.readUTF());
+      streamTask.setEpoch(dataInputStream.readInt());
+      // Deserialize source using its deserialize method
+      streamTask.setSource(StreamSource.deserialize(dataInputStream));
+      // Deserialize window using its deserialize method
+      streamTask.setWindow(StreamWindow.deserialize(dataInputStream));
+      // Deserialize target using its deserialize method
+      streamTask.setTarget(StreamTarget.deserialize(dataInputStream));
+      // Assuming StreamProperties has deserialize
+      streamTask.setProperties(StreamProperties.deserialize(dataInputStream));
+    } finally {
+      dataInputStream.close();
+    }
+    return streamTask;
   }
 }
