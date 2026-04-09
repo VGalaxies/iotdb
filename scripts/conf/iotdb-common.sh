@@ -150,6 +150,32 @@ checkAllConfigNodeVariables()
   fi
 }
 
+checkAllStreamNodeVariables()
+{
+  if [ -z "${IOTDB_INCLUDE}" ]; then
+    #do nothing
+    :
+  elif [ -r "$IOTDB_INCLUDE" ]; then
+      . "$IOTDB_INCLUDE"
+  fi
+
+  if [ -z "${STREAMNODE_HOME}" ]; then
+    export STREAMNODE_HOME="`dirname "$0"`/.."
+  fi
+
+  if [ -z "${STREAMNODE_CONF}" ]; then
+    export STREAMNODE_CONF=${STREAMNODE_HOME}/conf
+  fi
+
+  if [ -z "${STREAMNODE_LOGS}" ]; then
+    export STREAMNODE_LOGS=${STREAMNODE_HOME}/logs
+  fi
+
+  if [ -z "${STREAMNODE_LOG_CONFIG}" ]; then
+    export STREAMNODE_LOG_CONFIG="${STREAMNODE_CONF}/logback-streamnode.xml"
+  fi
+}
+
 check_config_unique() {
   local key=$1
   local values=$2
@@ -361,6 +387,25 @@ initConfigNodeEnv() {
       fi
   else
       echo "can't find $CONFIGNODE_CONF/confignode-env.sh"
+  fi
+}
+
+initStreamNodeEnv() {
+  checkAllStreamNodeVariables
+  if [ -f "$STREAMNODE_CONF/streamnode-env.sh" ]; then
+      if [ "x$PRINT_GC" != "x" ]; then
+        . "$STREAMNODE_CONF/streamnode-env.sh" "printgc"
+      else
+          . "$STREAMNODE_CONF/streamnode-env.sh"
+      fi
+  elif [ -f "${STREAMNODE_HOME}/conf/streamnode-env.sh" ]; then
+      if [ "x$PRINT_GC" != "x" ]; then
+        . "${STREAMNODE_HOME}/conf/streamnode-env.sh" "printgc"
+      else
+        . "${STREAMNODE_HOME}/conf/streamnode-env.sh"
+      fi
+  else
+      echo "can't find $STREAMNODE_CONF/streamnode-env.sh"
   fi
 }
 

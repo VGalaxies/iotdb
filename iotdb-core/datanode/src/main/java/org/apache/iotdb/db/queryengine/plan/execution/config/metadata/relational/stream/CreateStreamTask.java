@@ -19,6 +19,7 @@
 
 package org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.stream;
 
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.ConfigTaskResult;
 import org.apache.iotdb.db.queryengine.plan.execution.config.IConfigTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.executor.IConfigTaskExecutor;
@@ -27,11 +28,15 @@ import com.google.common.util.concurrent.ListenableFuture;
 
 public class CreateStreamTask implements IConfigTask {
 
-  // TODO(yuan tian) 需要包含什么变量
+  private final StreamTask streamTask;
+
+  public CreateStreamTask(StreamTask streamTask) {
+    this.streamTask = streamTask;
+  }
 
   @Override
   public ListenableFuture<ConfigTaskResult> execute(IConfigTaskExecutor configTaskExecutor)
       throws InterruptedException {
-    return configTaskExecutor.createStreamTask();
+    return configTaskExecutor.createStream(streamTask);
   }
 }

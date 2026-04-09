@@ -478,6 +478,12 @@ public interface IConfigTaskExecutor {
       @Nullable List<String> pathList);
 
   // ==================================== STREAM =======================================
-  // TODO(yuan tian) 需要包含什么参数
-  SettableFuture<ConfigTaskResult> createStreamTask();
+  SettableFuture<ConfigTaskResult> createStream(
+      org.apache.iotdb.commons.stream.StreamTask streamTask);
+
+  SettableFuture<ConfigTaskResult> dropStream(String database, String streamName);
+
+  SettableFuture<ConfigTaskResult> startStream(String database, String streamName);
+
+  SettableFuture<ConfigTaskResult> stopStream(String database, String streamName);
 }

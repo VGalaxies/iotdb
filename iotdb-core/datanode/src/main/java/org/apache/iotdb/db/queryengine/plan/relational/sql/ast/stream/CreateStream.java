@@ -35,6 +35,7 @@ import org.apache.tsfile.utils.RamUsageEstimator;
 import javax.annotation.Nullable;
 
 import java.util.List;
+import java.util.Objects;
 
 public class CreateStream extends Statement {
 
@@ -72,6 +73,42 @@ public class CreateStream extends Statement {
     this.table = table;
   }
 
+  public Identifier getStreamName() {
+    return streamName;
+  }
+
+  @Nullable
+  public QualifiedName getSourceTableName() {
+    return sourceTableName;
+  }
+
+  @Nullable
+  public Expression getPreFilter() {
+    return preFilter;
+  }
+
+  @Nullable
+  public List<Expression> getPartitionBy() {
+    return partitionBy;
+  }
+
+  public EventWindow getEventWindow() {
+    return eventWindow;
+  }
+
+  public Query getQuery() {
+    return query;
+  }
+
+  public Table getTable() {
+    return table;
+  }
+
+  @Nullable
+  public List<Identifier> getColumns() {
+    return columns;
+  }
+
   @Override
   public <R, C> R accept(AstVisitor<R, C> visitor, C context) {
     return visitor.visitCreateStream(this, context);
@@ -84,17 +121,38 @@ public class CreateStream extends Statement {
 
   @Override
   public int hashCode() {
-    return 0;
+    return Objects.hash(
+        streamName, sourceTableName, preFilter, partitionBy, eventWindow, query, table, columns);
   }
 
   @Override
   public boolean equals(Object obj) {
-    return false;
+    if (this == obj) {
+      return true;
+    }
+    if (obj == null || getClass() != obj.getClass()) {
+      return false;
+    }
+    CreateStream that = (CreateStream) obj;
+    return Objects.equals(streamName, that.streamName)
+        && Objects.equals(sourceTableName, that.sourceTableName)
+        && Objects.equals(preFilter, that.preFilter)
+        && Objects.equals(partitionBy, that.partitionBy)
+        && Objects.equals(eventWindow, that.eventWindow)
+        && Objects.equals(query, that.query)
+        && Objects.equals(table, that.table)
+        && Objects.equals(columns, that.columns);
   }
 
   @Override
   public String toString() {
-    return "";
+    return "CreateStream{streamName="
+        + streamName
+        + ", sourceTableName="
+        + sourceTableName
+        + ", eventWindow="
+        + eventWindow
+        + "}";
   }
 
   @Override

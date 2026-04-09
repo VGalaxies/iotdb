@@ -36,6 +36,8 @@
         <module>datanode</module>
         <module>metrics</module>
         <module>node-commons</module>
+        <module>stream-commons</module>
+        <module>streamnode</module>
         <module>relational-grammar</module>
     </modules>
     <profiles>

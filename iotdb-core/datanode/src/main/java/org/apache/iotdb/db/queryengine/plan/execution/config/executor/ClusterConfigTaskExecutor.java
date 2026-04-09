@@ -5042,7 +5042,32 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
 
   // ===================================== STREAM =============================
   @Override
-  public SettableFuture<ConfigTaskResult> createStreamTask() {
-    return null;
+  public SettableFuture<ConfigTaskResult> createStream(
+      org.apache.iotdb.commons.stream.StreamTask streamTask) {
+    // TODO: implement RPC to ConfigNode
+    SettableFuture<ConfigTaskResult> future = SettableFuture.create();
+    future.setException(new UnsupportedOperationException("createStream not implemented yet"));
+    return future;
+  }
+
+  @Override
+  public SettableFuture<ConfigTaskResult> dropStream(String database, String streamName) {
+    SettableFuture<ConfigTaskResult> future = SettableFuture.create();
+    future.setException(new UnsupportedOperationException("dropStream not implemented yet"));
+    return future;
+  }
+
+  @Override
+  public SettableFuture<ConfigTaskResult> startStream(String database, String streamName) {
+    SettableFuture<ConfigTaskResult> future = SettableFuture.create();
+    future.setException(new UnsupportedOperationException("startStream not implemented yet"));
+    return future;
+  }
+
+  @Override
+  public SettableFuture<ConfigTaskResult> stopStream(String database, String streamName) {
+    SettableFuture<ConfigTaskResult> future = SettableFuture.create();
+    future.setException(new UnsupportedOperationException("stopStream not implemented yet"));
+    return future;
   }
 }

@@ -60,6 +60,7 @@ import org.apache.iotdb.confignode.manager.node.NodeManager;
 import org.apache.iotdb.confignode.manager.partition.PartitionManager;
 import org.apache.iotdb.confignode.manager.pipe.coordinator.PipeManager;
 import org.apache.iotdb.confignode.manager.schema.ClusterSchemaManager;
+import org.apache.iotdb.confignode.manager.stream.StreamManager;
 import org.apache.iotdb.confignode.manager.subscription.SubscriptionManager;
 import org.apache.iotdb.confignode.rpc.thrift.TAINodeRegisterReq;
 import org.apache.iotdb.confignode.rpc.thrift.TAINodeRestartReq;
@@ -275,6 +276,13 @@ public interface IManager {
    * @return SubscriptionManager instance
    */
   SubscriptionManager getSubscriptionManager();
+
+  /**
+   * Get {@link StreamManager}.
+   *
+   * @return {@link StreamManager} instance
+   */
+  StreamManager getStreamManager();
 
   /**
    * Get RetryFailedTasksThread. Get {@link RetryFailedTasksThread}.

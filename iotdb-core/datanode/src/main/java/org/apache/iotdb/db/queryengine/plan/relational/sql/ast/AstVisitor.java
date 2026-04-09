@@ -21,6 +21,9 @@ package org.apache.iotdb.db.queryengine.plan.relational.sql.ast;
 
 import org.apache.iotdb.db.exception.sql.SemanticException;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.stream.CreateStream;
+import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.stream.DropStream;
+import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.stream.StartStream;
+import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.stream.StopStream;
 
 import javax.annotation.Nullable;
 
@@ -909,6 +912,18 @@ public abstract class AstVisitor<R, C> {
 
   // ======================================= STREAM ===========================================
   public R visitCreateStream(CreateStream node, C context) {
+    return visitStatement(node, context);
+  }
+
+  public R visitDropStream(DropStream node, C context) {
+    return visitStatement(node, context);
+  }
+
+  public R visitStartStream(StartStream node, C context) {
+    return visitStatement(node, context);
+  }
+
+  public R visitStopStream(StopStream node, C context) {
     return visitStatement(node, context);
   }
 }

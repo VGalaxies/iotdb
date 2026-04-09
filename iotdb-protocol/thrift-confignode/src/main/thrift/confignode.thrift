@@ -1193,6 +1193,78 @@ struct TAINodeRemoveReq{
 }
 
 // ====================================================
+// StreamNode
+// ====================================================
+
+struct TStreamNodeRegisterReq {
+  1: required string clusterName
+  2: required common.TStreamNodeConfiguration streamNodeConfiguration
+  3: optional TNodeVersionInfo versionInfo
+}
+
+struct TStreamNodeRegisterResp {
+  1: required common.TSStatus status
+  2: required list<common.TConfigNodeLocation> configNodeList
+  3: optional i32 streamNodeId
+}
+
+struct TStreamNodeRestartReq {
+  1: required string clusterName
+  2: required common.TStreamNodeConfiguration streamNodeConfiguration
+  3: optional TNodeVersionInfo versionInfo
+  4: optional string clusterId
+}
+
+struct TStreamNodeRestartResp {
+  1: required common.TSStatus status
+  2: required list<common.TConfigNodeLocation> configNodeList
+}
+
+struct TStreamNodeRemoveReq {
+  1: optional common.TStreamNodeLocation streamNodeLocation
+}
+
+struct TStreamNodeInfo {
+  1: required i32 streamNodeId
+  2: required string status
+  3: required string internalAddress
+  4: required i32 internalPort
+}
+
+struct TShowStreamNodesResp {
+  1: required common.TSStatus status
+  2: optional list<TStreamNodeInfo> streamNodesInfoList
+}
+
+// ====================================================
+// Stream Task Management (DN -> CN)
+// ====================================================
+
+struct TCreateStreamReq {
+  1: required binary streamTask
+}
+
+struct TDropStreamReq {
+  1: required string database
+  2: required string streamName
+}
+
+struct TStartStreamReq {
+  1: required string database
+  2: required string streamName
+}
+
+struct TStopStreamReq {
+  1: required string database
+  2: required string streamName
+}
+
+struct TShowStreamsResp {
+  1: required common.TSStatus status
+  2: optional list<binary> streamTasks
+}
+
+// ====================================================
 // Test only
 // ====================================================
 enum TTestOperation {
@@ -1329,6 +1401,30 @@ service IConfigNodeRPCService {
    * Return a reachable AINode location.
    */
   TGetAINodeLocationResp getAINodeLocation()
+
+  /**
+   * StreamNode management
+   */
+  TStreamNodeRegisterResp registerStreamNode(TStreamNodeRegisterReq req)
+
+  TStreamNodeRestartResp restartStreamNode(TStreamNodeRestartReq req)
+
+  common.TSStatus removeStreamNode(TStreamNodeRemoveReq req)
+
+  TShowStreamNodesResp showStreamNodes()
+
+  /**
+   * Stream task management
+   */
+  common.TSStatus createStream(TCreateStreamReq req)
+
+  common.TSStatus dropStream(TDropStreamReq req)
+
+  common.TSStatus startStream(TStartStreamReq req)
+
+  common.TSStatus stopStream(TStopStreamReq req)
+
+  TShowStreamsResp showStreams()
 
   /**
    * Get system configurations. i.e. configurations that is not associated with the DataNodeId

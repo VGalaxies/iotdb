@@ -101,6 +101,16 @@ struct TAINodeConfiguration{
   2: required TNodeResource resource
 }
 
+struct TStreamNodeLocation {
+  1: required i32 streamNodeId
+  2: required TEndPoint internalEndPoint
+}
+
+struct TStreamNodeConfiguration {
+  1: required TStreamNodeLocation location
+  2: required TNodeResource resource
+}
+
 enum TRegionMigrateFailedType {
   AddPeerFailed,
   RemovePeerFailed,

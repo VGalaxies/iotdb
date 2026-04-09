@@ -40,6 +40,7 @@ import org.apache.iotdb.commons.schema.table.TsTable;
 import org.apache.iotdb.commons.schema.table.column.TimeColumnSchema;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnCategory;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnSchema;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.confignode.rpc.thrift.TDatabaseSchema;
 import org.apache.iotdb.db.audit.DNAuditLogger;
 import org.apache.iotdb.db.auth.AuthorityChecker;
@@ -108,6 +109,9 @@ import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.ShowTablesTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.UseDBTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.stream.CreateStreamTask;
+import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.stream.DropStreamTask;
+import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.stream.StartStreamTask;
+import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.stream.StopStreamTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.DeallocateTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.PrepareTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.SetSqlDialectTask;
@@ -234,6 +238,9 @@ import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.UnloadModel;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.Use;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ViewFieldDefinition;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.stream.CreateStream;
+import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.stream.DropStream;
+import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.stream.StartStream;
+import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.stream.StopStream;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.rewrite.StatementRewrite;
 import org.apache.iotdb.db.queryengine.plan.relational.type.AuthorRType;
 import org.apache.iotdb.db.queryengine.plan.relational.type.TypeManager;
@@ -1676,12 +1683,35 @@ public class TableConfigTaskVisitor extends AstVisitor<IConfigTask, MPPQueryCont
   public IConfigTask visitCreateStream(CreateStream node, MPPQueryContext context) {
     context.setQueryType(QueryType.WRITE);
 
-    // TODO(zhenyu shi) analyze
+    // TODO: implement analyze, logical planner, optimizer
+    // For now, construct a stub StreamTask
+    StreamTask streamTask = new StreamTask();
+    streamTask.setTaskName(node.getStreamName().getValue());
 
-    // TODO(zhenyu shi) logical planner
+    return new CreateStreamTask(streamTask);
+  }
 
-    // TODO(wenwei shu) optimizer
+  @Override
+  public IConfigTask visitDropStream(DropStream node, MPPQueryContext context) {
+    context.setQueryType(QueryType.WRITE);
+    String database = context.getDatabaseName().orElse(null);
+    String streamName = node.getName().toString();
+    return new DropStreamTask(database, streamName);
+  }
 
-    return new CreateStreamTask();
+  @Override
+  public IConfigTask visitStartStream(StartStream node, MPPQueryContext context) {
+    context.setQueryType(QueryType.WRITE);
+    String database = context.getDatabaseName().orElse(null);
+    String streamName = node.getName().toString();
+    return new StartStreamTask(database, streamName);
+  }
+
+  @Override
+  public IConfigTask visitStopStream(StopStream node, MPPQueryContext context) {
+    context.setQueryType(QueryType.WRITE);
+    String database = context.getDatabaseName().orElse(null);
+    String streamName = node.getName().toString();
+    return new StopStreamTask(database, streamName);
   }
 }

@@ -123,6 +123,7 @@ import org.apache.iotdb.confignode.manager.pipe.agent.PipeConfigNodeAgent;
 import org.apache.iotdb.confignode.manager.pipe.coordinator.PipeManager;
 import org.apache.iotdb.confignode.manager.schema.ClusterSchemaManager;
 import org.apache.iotdb.confignode.manager.schema.ClusterSchemaQuotaStatistics;
+import org.apache.iotdb.confignode.manager.stream.StreamManager;
 import org.apache.iotdb.confignode.manager.subscription.SubscriptionManager;
 import org.apache.iotdb.confignode.persistence.ClusterInfo;
 import org.apache.iotdb.confignode.persistence.ProcedureInfo;
@@ -137,6 +138,7 @@ import org.apache.iotdb.confignode.persistence.partition.PartitionInfo;
 import org.apache.iotdb.confignode.persistence.pipe.PipeInfo;
 import org.apache.iotdb.confignode.persistence.quota.QuotaInfo;
 import org.apache.iotdb.confignode.persistence.schema.ClusterSchemaInfo;
+import org.apache.iotdb.confignode.persistence.stream.StreamInfo;
 import org.apache.iotdb.confignode.persistence.subscription.SubscriptionInfo;
 import org.apache.iotdb.confignode.procedure.impl.schema.SchemaUtils;
 import org.apache.iotdb.confignode.rpc.thrift.TAINodeRegisterReq;
@@ -343,6 +345,9 @@ public class ConfigManager implements IManager {
   /** Subscription */
   private final SubscriptionManager subscriptionManager;
 
+  /** Stream */
+  private final StreamManager streamManager;
+
   private final ConfigRegionStateMachine stateMachine;
 
   private final RetryFailedTasksThread retryFailedTasksThread;
@@ -366,6 +371,7 @@ public class ConfigManager implements IManager {
     QuotaInfo quotaInfo = new QuotaInfo();
     TTLInfo ttlInfo = new TTLInfo();
     SubscriptionInfo subscriptionInfo = new SubscriptionInfo();
+    StreamInfo streamInfo = new StreamInfo();
 
     // Build state machine and executor
     ConfigPlanExecutor executor =
@@ -404,6 +410,7 @@ public class ConfigManager implements IManager {
     this.cqManager = new CQManager(this);
     this.pipeManager = new PipeManager(this, pipeInfo);
     this.subscriptionManager = new SubscriptionManager(this, subscriptionInfo);
+    this.streamManager = new StreamManager(this, streamInfo);
     this.auditLogger = new CNAuditLogger(this);
 
     // 1. keep PipeManager initialization before LoadManager initialization, because
@@ -1288,6 +1295,11 @@ public class ConfigManager implements IManager {
   @Override
   public SubscriptionManager getSubscriptionManager() {
     return subscriptionManager;
+  }
+
+  @Override
+  public StreamManager getStreamManager() {
+    return streamManager;
   }
 
   @Override
