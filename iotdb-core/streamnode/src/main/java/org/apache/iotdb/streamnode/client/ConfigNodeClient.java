@@ -26,17 +26,20 @@ public class ConfigNodeClient {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(ConfigNodeClient.class);
 
-  private final String configNodeAddress;
-  private final int configNodePort;
+  private final String seedConfigNode;
 
-  public ConfigNodeClient(String configNodeAddress, int configNodePort) {
-    this.configNodeAddress = configNodeAddress;
-    this.configNodePort = configNodePort;
+  public ConfigNodeClient(String seedConfigNode) {
+    this.seedConfigNode = seedConfigNode;
   }
 
   public boolean registerStreamNode(int streamNodeId, String address, int port) {
     // TODO: implement Thrift RPC call to ConfigNode
-    LOGGER.info("Registering StreamNode {} at {}:{}", streamNodeId, address, port);
+    LOGGER.info(
+        "Registering StreamNode {} at {}:{} to seed ConfigNode {}",
+        streamNodeId,
+        address,
+        port,
+        seedConfigNode);
     return true;
   }
 

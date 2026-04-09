@@ -21,51 +21,94 @@ package org.apache.iotdb.streamnode.conf;
 
 public class StreamNodeConfig {
 
-  private String internalAddress = "127.0.0.1";
-  private int internalPort = 10820;
-  private int rpcPort = 10830;
-  private String configNodeAddress = "127.0.0.1";
-  private int configNodePort = 10710;
+  /** Cluster name this StreamNode belongs to */
+  private String clusterName = "defaultCluster";
+
+  /** Internal RPC address that StreamNode binds to */
+  private String snInternalAddress = "127.0.0.1";
+
+  /** Internal RPC port for CN->SN communication */
+  private int snInternalPort = 10820;
+
+  /** Seed ConfigNode endpoint (address:port) for registration */
+  private String snSeedConfigNode = "127.0.0.1:10710";
+
+  /** Max concurrent client connections for RPC */
+  private int rpcMaxConcurrentClientNum = 1000;
+
+  /** Thrift server await time for stop (ms) */
+  private int thriftServerAwaitTimeForStopService = 60;
+
+  /** Whether to enable Thrift compression */
+  private boolean rpcThriftCompressionEnable = false;
+
+  /** Thread pool size for stream task execution */
   private int executorThreadNum = 4;
 
-  public String getInternalAddress() {
-    return internalAddress;
+  public String getClusterName() {
+    return clusterName;
   }
 
-  public void setInternalAddress(String internalAddress) {
-    this.internalAddress = internalAddress;
+  public void setClusterName(String clusterName) {
+    this.clusterName = clusterName;
   }
 
-  public int getInternalPort() {
-    return internalPort;
+  public String getSnInternalAddress() {
+    return snInternalAddress;
   }
 
-  public void setInternalPort(int internalPort) {
-    this.internalPort = internalPort;
+  public void setSnInternalAddress(String snInternalAddress) {
+    this.snInternalAddress = snInternalAddress;
   }
 
-  public int getRpcPort() {
-    return rpcPort;
+  public int getSnInternalPort() {
+    return snInternalPort;
   }
 
-  public void setRpcPort(int rpcPort) {
-    this.rpcPort = rpcPort;
+  public void setSnInternalPort(int snInternalPort) {
+    this.snInternalPort = snInternalPort;
   }
 
-  public String getConfigNodeAddress() {
-    return configNodeAddress;
+  public String getSnSeedConfigNode() {
+    return snSeedConfigNode;
   }
 
-  public void setConfigNodeAddress(String configNodeAddress) {
-    this.configNodeAddress = configNodeAddress;
+  public void setSnSeedConfigNode(String snSeedConfigNode) {
+    this.snSeedConfigNode = snSeedConfigNode;
   }
 
-  public int getConfigNodePort() {
-    return configNodePort;
+  /** Parse the seed config node address from snSeedConfigNode (ip:port) */
+  public String getSeedConfigNodeAddress() {
+    return snSeedConfigNode.split(":")[0];
   }
 
-  public void setConfigNodePort(int configNodePort) {
-    this.configNodePort = configNodePort;
+  /** Parse the seed config node port from snSeedConfigNode (ip:port) */
+  public int getSeedConfigNodePort() {
+    return Integer.parseInt(snSeedConfigNode.split(":")[1]);
+  }
+
+  public int getRpcMaxConcurrentClientNum() {
+    return rpcMaxConcurrentClientNum;
+  }
+
+  public void setRpcMaxConcurrentClientNum(int rpcMaxConcurrentClientNum) {
+    this.rpcMaxConcurrentClientNum = rpcMaxConcurrentClientNum;
+  }
+
+  public int getThriftServerAwaitTimeForStopService() {
+    return thriftServerAwaitTimeForStopService;
+  }
+
+  public void setThriftServerAwaitTimeForStopService(int thriftServerAwaitTimeForStopService) {
+    this.thriftServerAwaitTimeForStopService = thriftServerAwaitTimeForStopService;
+  }
+
+  public boolean isRpcThriftCompressionEnable() {
+    return rpcThriftCompressionEnable;
+  }
+
+  public void setRpcThriftCompressionEnable(boolean rpcThriftCompressionEnable) {
+    this.rpcThriftCompressionEnable = rpcThriftCompressionEnable;
   }
 
   public int getExecutorThreadNum() {

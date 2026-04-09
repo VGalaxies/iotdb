@@ -45,6 +45,9 @@ public enum ThreadName {
   MPP_COORDINATOR_EXECUTOR_POOL("MPP-Coordinator-Executor"),
   DATANODE_INTERNAL_RPC_SERVICE("DataNodeInternalRPC-Service"),
   DATANODE_INTERNAL_RPC_PROCESSOR("DataNodeInternalRPC-Processor"),
+  // -------------------------- StreamNode-RPC --------------------------
+  STREAM_NODE_RPC_SERVICE("StreamNodeRPC-Service"),
+  STREAM_NODE_RPC_PROCESSOR("StreamNodeRPC-Processor"),
   MPP_COORDINATOR_WRITE_EXECUTOR("MPP-Coordinator-Write-Executor"),
   ASYNC_DATANODE_MPP_DATA_EXCHANGE_CLIENT_POOL("AsyncDataNodeMPPDataExchangeServiceClientPool"),
   // -------------------------- Compaction --------------------------
@@ -377,6 +380,9 @@ public enum ThreadName {
               CONFIG_NODE_TIMEOUT_EXECUTOR,
               CONFIG_NODE_RETRY_FAILED_TASK));
 
+  private static final Set<ThreadName> streamNodeRpcThreadNames =
+      new HashSet<>(Arrays.asList(STREAM_NODE_RPC_SERVICE, STREAM_NODE_RPC_PROCESSOR));
+
   private static final Set<ThreadName> metricsThreadNames =
       new HashSet<>(
           Arrays.asList(
@@ -424,6 +430,7 @@ public enum ThreadName {
         configNodeRegionManagementThreadNames,
         configNodeRecoverThreadNames,
         configNodeProcedureThreadNames,
+        streamNodeRpcThreadNames,
         otherThreadNames
       };
 
@@ -449,6 +456,7 @@ public enum ThreadName {
         ThreadModule.REGION_MANAGEMENT,
         ThreadModule.RECOVER,
         ThreadModule.PROCEDURE,
+        ThreadModule.RPC,
         ThreadModule.OTHER
       };
 

@@ -19,28 +19,70 @@
 
 package org.apache.iotdb.streamnode.service;
 
-import org.apache.iotdb.streamnode.manager.StreamTaskManager;
+import org.apache.iotdb.commons.concurrent.ThreadName;
+import org.apache.iotdb.commons.service.ServiceType;
+import org.apache.iotdb.commons.service.ThriftService;
+import org.apache.iotdb.commons.service.ThriftServiceThread;
+import org.apache.iotdb.rpc.DeepCopyRpcTransportFactory;
+import org.apache.iotdb.streamnode.conf.StreamNodeConfig;
+import org.apache.iotdb.streamnode.conf.StreamNodeDescriptor;
+import org.apache.iotdb.streamnode.rpc.thrift.IStreamNodeRPCService;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+public class StreamNodeRPCService extends ThriftService implements StreamNodeRPCServiceMBean {
 
-public class StreamNodeRPCService {
+  private final StreamNodeConfig config = StreamNodeDescriptor.getInstance().getConfig();
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(StreamNodeRPCService.class);
+  private StreamNodeRPCServiceProcessor processor;
 
-  private final StreamTaskManager taskManager;
-
-  public StreamNodeRPCService(StreamTaskManager taskManager) {
-    this.taskManager = taskManager;
+  @Override
+  public ServiceType getID() {
+    return ServiceType.STREAM_NODE_RPC_SERVICE;
   }
 
-  public void start() {
-    // TODO: Initialize Thrift server using IStreamNodeRPCService.Processor
-    LOGGER.info("StreamNode RPC service started");
+  @Override
+  public void initTProcessor() {
+    processor = new StreamNodeRPCServiceProcessor();
+    super.initSyncedServiceImpl(null);
+    super.processor = new IStreamNodeRPCService.Processor<>(processor);
   }
 
-  public void stop() {
-    // TODO: Shutdown Thrift server
-    LOGGER.info("StreamNode RPC service stopped");
+  @Override
+  public void initThriftServiceThread() throws IllegalAccessException {
+    try {
+      thriftServiceThread =
+          new ThriftServiceThread(
+              super.processor,
+              getID().getName(),
+              ThreadName.STREAM_NODE_RPC_PROCESSOR.getName(),
+              getBindIP(),
+              getBindPort(),
+              config.getRpcMaxConcurrentClientNum(),
+              config.getThriftServerAwaitTimeForStopService(),
+              new StreamNodeRPCServiceHandler(),
+              config.isRpcThriftCompressionEnable(),
+              DeepCopyRpcTransportFactory.INSTANCE);
+      thriftServiceThread.setName(ThreadName.STREAM_NODE_RPC_SERVICE.getName());
+    } catch (Exception e) {
+      throw new IllegalAccessException(
+          "Failed to init StreamNode RPC service thread: " + e.getMessage());
+    }
+  }
+
+  @Override
+  public String getBindIP() {
+    return config.getSnInternalAddress();
+  }
+
+  @Override
+  public int getBindPort() {
+    return config.getSnInternalPort();
+  }
+
+  private static class StreamNodeRPCServiceHolder {
+    private static final StreamNodeRPCService INSTANCE = new StreamNodeRPCService();
+  }
+
+  public static StreamNodeRPCService getInstance() {
+    return StreamNodeRPCServiceHolder.INSTANCE;
   }
 }
