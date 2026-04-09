@@ -19,6 +19,8 @@
 
 package org.apache.iotdb.commons.stream;
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -30,21 +32,30 @@ public class StreamProperties {
     WINDOW_CLOSE
   }
 
-  private Long watermarkMs;
-  private Long expiredTimeMs;
+  // Field name constants for serialization
+  private static final String FIELD_WATERMARK_MS = "watermarkMs";
+  private static final String FIELD_EXPIRED_TIME_MS = "expiredTimeMs";
+  private static final String FIELD_IGNORE_DISORDER = "ignoreDisorder";
+  private static final String FIELD_FILL_HISTORY_START_TIME = "fillHistoryStartTime";
+  private static final String FIELD_MAX_DELAY_MS = "maxDelayMs";
+  private static final String FIELD_EVENT_TYPE = "eventType";
+  private static final String FIELD_END = "end";
+
+  private long watermarkMs; // < 0 means not effective
+  private long expiredTimeMs; // < 0 means not effective
   private boolean ignoreDisorder;
   private Long fillHistoryStartTime;
-  private Long maxDelayMs;
+  private long maxDelayMs; // < 0 means not effective
   private EventType eventType;
 
   public StreamProperties() {}
 
   public StreamProperties(
-      Long watermarkMs,
-      Long expiredTimeMs,
+      long watermarkMs,
+      long expiredTimeMs,
       boolean ignoreDisorder,
       Long fillHistoryStartTime,
-      Long maxDelayMs,
+      long maxDelayMs,
       EventType eventType) {
     this.watermarkMs = watermarkMs;
     this.expiredTimeMs = expiredTimeMs;
@@ -54,19 +65,19 @@ public class StreamProperties {
     this.eventType = eventType;
   }
 
-  public Long getWatermarkMs() {
+  public long getWatermarkMs() {
     return watermarkMs;
   }
 
-  public void setWatermarkMs(Long watermarkMs) {
+  public void setWatermarkMs(long watermarkMs) {
     this.watermarkMs = watermarkMs;
   }
 
-  public Long getExpiredTimeMs() {
+  public long getExpiredTimeMs() {
     return expiredTimeMs;
   }
 
-  public void setExpiredTimeMs(Long expiredTimeMs) {
+  public void setExpiredTimeMs(long expiredTimeMs) {
     this.expiredTimeMs = expiredTimeMs;
   }
 
@@ -86,11 +97,11 @@ public class StreamProperties {
     this.fillHistoryStartTime = fillHistoryStartTime;
   }
 
-  public Long getMaxDelayMs() {
+  public long getMaxDelayMs() {
     return maxDelayMs;
   }
 
-  public void setMaxDelayMs(Long maxDelayMs) {
+  public void setMaxDelayMs(long maxDelayMs) {
     this.maxDelayMs = maxDelayMs;
   }
 
@@ -103,12 +114,75 @@ public class StreamProperties {
   }
 
   public void serialize(OutputStream outputStream) throws IOException {
-    // TODO: implement serialization
-    throw new UnsupportedOperationException("Not implemented yet");
+    DataOutputStream dataOutputStream = new DataOutputStream(outputStream);
+    // Add field names for better readability and future compatibility
+    // Serialize watermarkMs (long)
+    dataOutputStream.writeUTF(FIELD_WATERMARK_MS);
+    dataOutputStream.writeLong(watermarkMs);
+
+    // Serialize expiredTimeMs (long)
+    dataOutputStream.writeUTF(FIELD_EXPIRED_TIME_MS);
+    dataOutputStream.writeLong(expiredTimeMs);
+
+    // Serialize ignoreDisorder (boolean)
+    dataOutputStream.writeUTF(FIELD_IGNORE_DISORDER);
+    dataOutputStream.writeBoolean(ignoreDisorder);
+
+    // Serialize fillHistoryStartTime (nullable long)
+    dataOutputStream.writeUTF(FIELD_FILL_HISTORY_START_TIME);
+    dataOutputStream.writeBoolean(fillHistoryStartTime != null);
+    if (fillHistoryStartTime != null) {
+      dataOutputStream.writeLong(fillHistoryStartTime);
+    }
+
+    // Serialize maxDelayMs (long)
+    dataOutputStream.writeUTF(FIELD_MAX_DELAY_MS);
+    dataOutputStream.writeLong(maxDelayMs);
+
+    // Serialize eventType (int)
+    dataOutputStream.writeUTF(FIELD_EVENT_TYPE);
+    dataOutputStream.writeInt(eventType.ordinal());
+
+    // End marker
+    dataOutputStream.writeUTF(FIELD_END);
   }
 
   public static StreamProperties deserialize(InputStream inputStream) throws IOException {
-    // TODO: implement deserialization
-    throw new UnsupportedOperationException("Not implemented yet");
+    DataInputStream dataInputStream = new DataInputStream(inputStream);
+    StreamProperties properties = new StreamProperties();
+
+    label:
+    while (true) {
+      String fieldName = dataInputStream.readUTF();
+      switch (fieldName) {
+        case FIELD_END:
+          break label;
+        case FIELD_WATERMARK_MS:
+          properties.setWatermarkMs(dataInputStream.readLong());
+          break;
+        case FIELD_EXPIRED_TIME_MS:
+          properties.setExpiredTimeMs(dataInputStream.readLong());
+          break;
+        case FIELD_IGNORE_DISORDER:
+          properties.setIgnoreDisorder(dataInputStream.readBoolean());
+          break;
+        case FIELD_FILL_HISTORY_START_TIME:
+          if (dataInputStream.readBoolean()) {
+            properties.setFillHistoryStartTime(dataInputStream.readLong());
+          }
+          break;
+        case FIELD_MAX_DELAY_MS:
+          properties.setMaxDelayMs(dataInputStream.readLong());
+          break;
+        case FIELD_EVENT_TYPE:
+          int eventTypeOrdinal = dataInputStream.readInt();
+          properties.setEventType(EventType.values()[eventTypeOrdinal]);
+          break;
+        default:
+          throw new IOException("Unknown field: " + fieldName);
+      }
+    }
+
+    return properties;
   }
 }
