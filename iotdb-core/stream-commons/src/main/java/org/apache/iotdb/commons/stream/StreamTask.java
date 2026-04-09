@@ -177,8 +177,7 @@ public class StreamTask {
   }
 
   public void serialize(OutputStream outputStream) throws IOException {
-    DataOutputStream dataOutputStream = new DataOutputStream(outputStream);
-    try {
+    try (DataOutputStream dataOutputStream = new DataOutputStream(outputStream)) {
       dataOutputStream.writeLong(id);
       dataOutputStream.writeUTF(taskName != null ? taskName : "");
       dataOutputStream.writeUTF(database != null ? database : "");
@@ -195,15 +194,12 @@ public class StreamTask {
       // Serialize target using its serialize method
       target.serialize(dataOutputStream);
       properties.serialize(dataOutputStream);
-    } finally {
-      dataOutputStream.close();
     }
   }
 
   public static StreamTask deserialize(InputStream inputStream) throws IOException {
-    DataInputStream dataInputStream = new DataInputStream(inputStream);
     StreamTask streamTask = new StreamTask();
-    try {
+    try (DataInputStream dataInputStream = new DataInputStream(inputStream)) {
       streamTask.setId(dataInputStream.readLong());
       streamTask.setTaskName(dataInputStream.readUTF());
       streamTask.setDatabase(dataInputStream.readUTF());
@@ -221,8 +217,6 @@ public class StreamTask {
       streamTask.setTarget(StreamTarget.deserialize(dataInputStream));
       // Assuming StreamProperties has deserialize
       streamTask.setProperties(StreamProperties.deserialize(dataInputStream));
-    } finally {
-      dataInputStream.close();
     }
     return streamTask;
   }
