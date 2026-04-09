@@ -212,6 +212,10 @@ public class ConfigNodeStartupCheck extends StartupChecks {
     // If consensusDir does not exist, create consensusDir
     File consensusDir = new File(CONF.getConsensusDir());
     createDirIfEmpty(consensusDir);
+
+    // If streamsDir does not exist, create streamsDir
+    File streamsDir = new File(CONF.getStreamsDir());
+    createDirIfEmpty(streamsDir);
   }
 
   private void createDirIfEmpty(File dir) throws IOException {

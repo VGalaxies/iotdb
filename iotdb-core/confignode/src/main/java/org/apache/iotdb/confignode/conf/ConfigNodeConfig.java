@@ -178,6 +178,9 @@ public class ConfigNodeConfig {
   private String pipeReceiverFileDir =
       systemDir + File.separator + "pipe" + File.separator + "receiver";
 
+  /** Streams directory under systemDir. */
+  private String streamsDir = systemDir + File.separator + "streams";
+
   /** Procedure Evict ttl. */
   private int procedureCompletedEvictTTL = 60;
 
@@ -339,6 +342,7 @@ public class ConfigNodeConfig {
     pipeDir = addHomeDir(pipeDir);
     pipeTemporaryLibDir = addHomeDir(pipeTemporaryLibDir);
     pipeReceiverFileDir = addHomeDir(pipeReceiverFileDir);
+    streamsDir = addHomeDir(streamsDir);
   }
 
   public static String addHomeDir(String dir) {
@@ -637,6 +641,10 @@ public class ConfigNodeConfig {
 
   public String getPipeReceiverFileDir() {
     return this.pipeReceiverFileDir;
+  }
+
+  public String getStreamsDir() {
+    return streamsDir;
   }
 
   public int getSchemaReplicationFactor() {
