@@ -41,7 +41,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class StreamManager {
 
-  private static final long CN_STRAT_TIME = System.currentTimeMillis();
   private static final Logger LOGGER = LoggerFactory.getLogger(StreamManager.class);
 
   private final IManager configManager;
@@ -90,7 +89,7 @@ public class StreamManager {
       TEndPoint endPoint = new TEndPoint(parts[0], Integer.parseInt(parts[1]));
       task.setEpoch(task.getEpoch() + 1);
       // Create request
-      TStartTaskOnStreamNodeReq req = new TStartTaskOnStreamNodeReq(task.toByteBuffer(), task.getEpoch(), CN_STRAT_TIME);
+      TStartTaskOnStreamNodeReq req = new TStartTaskOnStreamNodeReq(task.toByteBuffer(), task.getEpoch(), configManager.getConsensusManager().getLeaderTerm());
       // Send request to StreamNode
       TSStatus status = (TSStatus) SyncStreamNodeClientPool.getInstance()
           .sendSyncRequestToStreamNodeWithRetry(endPoint, req, CnToSnSyncRequestType.START_TASK);
@@ -127,7 +126,7 @@ public class StreamManager {
       String[] parts = streamNode.split(":");
       TEndPoint endPoint = new TEndPoint(parts[0], Integer.parseInt(parts[1]));
       // Create request
-      TStopTaskOnStreamNodeReq req = new TStopTaskOnStreamNodeReq(streamName, task.getEpoch(), CN_STRAT_TIME);
+      TStopTaskOnStreamNodeReq req = new TStopTaskOnStreamNodeReq(streamName, task.getEpoch(), configManager.getConsensusManager().getLeaderTerm());
       // Send request to StreamNode
       TSStatus status = (TSStatus) SyncStreamNodeClientPool.getInstance()
           .sendSyncRequestToStreamNodeWithRetry(endPoint, req, CnToSnSyncRequestType.STOP_TASK);
