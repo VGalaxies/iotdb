@@ -29,6 +29,7 @@ import org.apache.iotdb.confignode.client.sync.SyncStreamNodeClientPool;
 import org.apache.iotdb.confignode.manager.IManager;
 import org.apache.iotdb.confignode.persistence.stream.StreamInfo;
 import org.apache.iotdb.streamnode.rpc.thrift.TStartTaskOnStreamNodeReq;
+import org.apache.iotdb.streamnode.rpc.thrift.TStopTaskOnStreamNodeReq;
 
 import org.apache.iotdb.rpc.TSStatusCode;
 import org.slf4j.Logger;
@@ -113,6 +114,24 @@ public class StreamManager {
     try {
       LOGGER.info("Stopping stream: {}.{}", database, streamName);
       String taskName = database + "." + streamName;
+      StreamTask task = streamInfo.getTask(taskName);
+      if (task == null) {
+        return new TSStatus(TSStatusCode.EXECUTE_STATEMENT_ERROR.getStatusCode())
+            .setMessage("Stream not found: " + taskName);
+      }
+      String streamNode = task.getRunningOn();
+      // Parse runningOn to TEndPoint
+      String[] parts = streamNode.split(":");
+      TEndPoint endPoint = new TEndPoint(parts[0], Integer.parseInt(parts[1]));
+      // Create request
+      TStopTaskOnStreamNodeReq req = new TStopTaskOnStreamNodeReq(streamName, task.getEpoch(), CN_STRAT_TIME);
+      // Send request to StreamNode
+      TSStatus status = (TSStatus) SyncStreamNodeClientPool.getInstance()
+          .sendSyncRequestToStreamNodeWithRetry(endPoint, req, CnToSnSyncRequestType.STOP_TASK);
+      if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+        return status;
+      }
+      // Update status
       return streamInfo.updateTaskStatus(taskName, StreamTaskStatus.STOPPED);
     } finally {
       lock.writeLock().unlock();

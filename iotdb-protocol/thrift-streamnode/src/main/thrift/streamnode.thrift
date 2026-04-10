@@ -49,6 +49,8 @@ struct TStartTaskOnStreamNodeReq {
 
 struct TStopTaskOnStreamNodeReq {
   1: required string taskName
+  2: required i32 epoch
+  3: required i64 cnStartTime
 }
 
 struct TDropTaskOnStreamNodeReq {

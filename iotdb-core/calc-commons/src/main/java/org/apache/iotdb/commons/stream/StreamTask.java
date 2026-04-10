@@ -30,20 +30,28 @@ import org.apache.tsfile.utils.PublicBAOS;
 
 public class StreamTask {
 
-  private long id;
+  // CN & SN field
   private String taskName;
   private String database;
-  private long creationTime;
-  private String creator;
   private StreamSource source;
   private StreamWindow window;
   private String subQuery;
   private StreamTarget target;
-  private StreamTaskStatus status;
-  private String runningOn;
-  private long cnStartTime;
+  // to distinguish different execution of the same task, incremented by 1 every time the task is started
   private int epoch;
   private StreamProperties properties;
+
+  // CN field
+  private StreamTaskStatus status;
+  private String runningOn;
+  private long creationTime;
+  private String creator;
+  private long id;
+
+  // SN field
+  // the time when the task starts to run on SN, used for CN restart detect
+  private long cnStartTime;
+
 
   public StreamTask() {}
 
@@ -226,6 +234,7 @@ public class StreamTask {
       return ByteBuffer.wrap(baos.getBuf(), 0, baos.size());
     } catch (IOException e) {
       // ignored since we are writing to memory, this should not happen
+      throw new RuntimeException(e);
     }
   }
 }
