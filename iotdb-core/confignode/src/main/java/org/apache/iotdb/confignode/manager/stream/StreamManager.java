@@ -88,7 +88,7 @@ public class StreamManager {
       TEndPoint endPoint = new TEndPoint(parts[0], Integer.parseInt(parts[1]));
       task.setEpoch(task.getEpoch() + 1);
       // Create request
-      TStartTaskOnStreamNodeReq req = new TStartTaskOnStreamNodeReq(taskName, task.getEpoch());
+      TStartTaskOnStreamNodeReq req = new TStartTaskOnStreamNodeReq(task.toByteBuffer(), task.getEpoch(), CN_STRAT_TIME);
       // Send request to StreamNode
       TSStatus status = (TSStatus) SyncStreamNodeClientPool.getInstance()
           .sendSyncRequestToStreamNodeWithRetry(endPoint, req, CnToSnSyncRequestType.START_TASK);

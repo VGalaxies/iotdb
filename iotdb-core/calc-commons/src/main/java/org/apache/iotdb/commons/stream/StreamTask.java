@@ -24,6 +24,9 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+
+import org.apache.tsfile.utils.PublicBAOS;
 
 public class StreamTask {
 
@@ -214,5 +217,15 @@ public class StreamTask {
       streamTask.setProperties(StreamProperties.deserialize(dataInputStream));
     }
     return streamTask;
+  }
+
+  public ByteBuffer toByteBuffer() {
+    try (PublicBAOS baos = new PublicBAOS();
+         DataOutputStream dos = new DataOutputStream(baos)) {
+      serialize(dos);
+      return ByteBuffer.wrap(baos.getBuf(), 0, baos.size());
+    } catch (IOException e) {
+      // ignored since we are writing to memory, this should not happen
+    }
   }
 }
