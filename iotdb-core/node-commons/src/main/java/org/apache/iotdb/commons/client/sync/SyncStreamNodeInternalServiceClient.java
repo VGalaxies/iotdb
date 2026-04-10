@@ -28,7 +28,6 @@ import org.apache.iotdb.commons.conf.CommonConfig;
 import org.apache.iotdb.commons.conf.CommonDescriptor;
 import org.apache.iotdb.commons.utils.TestOnly;
 import org.apache.iotdb.rpc.TConfigurationConst;
-import org.apache.iotdb.rpc.TimeoutChangeableTransport;
 import org.apache.iotdb.streamnode.rpc.thrift.IStreamNodeRPCService;
 
 import org.apache.commons.pool2.PooledObject;
@@ -92,9 +91,8 @@ public class SyncStreamNodeInternalServiceClient extends IStreamNodeRPCService.C
     return endpoint;
   }
 
-  public static class Factory extends
-
-      ThriftClientFactory<TEndPoint, SyncStreamNodeInternalServiceClient> {
+  public static class Factory
+      extends ThriftClientFactory<TEndPoint, SyncStreamNodeInternalServiceClient> {
 
     public Factory(
         ClientManager<TEndPoint, SyncStreamNodeInternalServiceClient> clientManager,

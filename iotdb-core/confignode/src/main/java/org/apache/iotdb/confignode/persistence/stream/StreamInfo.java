@@ -32,8 +32,8 @@ import org.slf4j.LoggerFactory;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,7 +56,8 @@ public class StreamInfo implements SnapshotProcessor {
         processLoadSnapshot(streamsDir);
         LOGGER.info("Loaded existing StreamTasks from {}", streamsDir.getAbsolutePath());
       } catch (IOException e) {
-        LOGGER.error("Failed to load existing StreamTasks from {}", streamsDir.getAbsolutePath(), e);
+        LOGGER.error(
+            "Failed to load existing StreamTasks from {}", streamsDir.getAbsolutePath(), e);
       }
     }
   }
@@ -75,7 +76,7 @@ public class StreamInfo implements SnapshotProcessor {
     }
     File taskFile = new File(streamsDir, task.getId() + ".stm");
     try (FileOutputStream fos = new FileOutputStream(taskFile);
-         BufferedOutputStream bos = new BufferedOutputStream(fos)) {
+        BufferedOutputStream bos = new BufferedOutputStream(fos)) {
       task.serialize(bos);
       bos.flush();
       fos.getFD().sync();
@@ -124,7 +125,7 @@ public class StreamInfo implements SnapshotProcessor {
     for (StreamTask task : streamTaskMap.values()) {
       File taskFile = new File(snapshotDir, task.getId() + ".stm");
       try (FileOutputStream fos = new FileOutputStream(taskFile);
-           BufferedOutputStream bos = new BufferedOutputStream(fos)) {
+          BufferedOutputStream bos = new BufferedOutputStream(fos)) {
         task.serialize(bos);
         bos.flush();
         fos.getFD().sync();
@@ -145,7 +146,7 @@ public class StreamInfo implements SnapshotProcessor {
     if (files != null) {
       for (File file : files) {
         try (FileInputStream fis = new FileInputStream(file);
-             BufferedInputStream bis = new BufferedInputStream(fis)) {
+            BufferedInputStream bis = new BufferedInputStream(fis)) {
           StreamTask task = StreamTask.deserialize(bis);
           streamTaskMap.put(task.getTaskName(), task);
           if (task.getId() > maxId) {
@@ -158,6 +159,9 @@ public class StreamInfo implements SnapshotProcessor {
     }
     // Set nextStreamId
     nextStreamId.set(maxId + 1);
-    LOGGER.info("Loaded snapshot for StreamInfo with {} tasks, nextStreamId set to {}", streamTaskMap.size(), nextStreamId.get());
+    LOGGER.info(
+        "Loaded snapshot for StreamInfo with {} tasks, nextStreamId set to {}",
+        streamTaskMap.size(),
+        nextStreamId.get());
   }
 }

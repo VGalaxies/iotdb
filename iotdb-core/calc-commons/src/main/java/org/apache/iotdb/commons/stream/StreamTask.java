@@ -19,14 +19,14 @@
 
 package org.apache.iotdb.commons.stream;
 
+import org.apache.tsfile.utils.PublicBAOS;
+
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
-
-import org.apache.tsfile.utils.PublicBAOS;
 
 public class StreamTask {
 
@@ -37,7 +37,8 @@ public class StreamTask {
   private StreamWindow window;
   private String subQuery;
   private StreamTarget target;
-  // to distinguish different execution of the same task, incremented by 1 every time the task is started
+  // to distinguish different execution of the same task, incremented by 1 every time the task is
+  // started
   private int epoch;
   private StreamProperties properties;
 
@@ -54,7 +55,6 @@ public class StreamTask {
   // SN field
   // the time when the task starts to run on SN, used for CN restart detect
   private long cnStartTime;
-
 
   public StreamTask() {}
 
@@ -256,7 +256,7 @@ public class StreamTask {
 
   public ByteBuffer toByteBuffer() {
     try (PublicBAOS baos = new PublicBAOS();
-         DataOutputStream dos = new DataOutputStream(baos)) {
+        DataOutputStream dos = new DataOutputStream(baos)) {
       serialize(dos);
       return ByteBuffer.wrap(baos.getBuf(), 0, baos.size());
     } catch (IOException e) {

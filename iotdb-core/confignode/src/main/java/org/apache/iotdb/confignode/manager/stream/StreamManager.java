@@ -19,7 +19,6 @@
 
 package org.apache.iotdb.confignode.manager.stream;
 
-import java.util.stream.Collectors;
 import org.apache.iotdb.common.rpc.thrift.TEndPoint;
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
 import org.apache.iotdb.commons.stream.StreamTask;
@@ -29,15 +28,16 @@ import org.apache.iotdb.confignode.client.sync.CnToSnSyncRequestType;
 import org.apache.iotdb.confignode.client.sync.SyncStreamNodeClientPool;
 import org.apache.iotdb.confignode.manager.IManager;
 import org.apache.iotdb.confignode.persistence.stream.StreamInfo;
+import org.apache.iotdb.rpc.TSStatusCode;
 import org.apache.iotdb.streamnode.rpc.thrift.TStartTaskOnStreamNodeReq;
 import org.apache.iotdb.streamnode.rpc.thrift.TStopTaskOnStreamNodeReq;
 
-import org.apache.iotdb.rpc.TSStatusCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
 public class StreamManager {
 
@@ -89,10 +89,17 @@ public class StreamManager {
       TEndPoint endPoint = new TEndPoint(parts[0], Integer.parseInt(parts[1]));
       task.setEpoch(task.getEpoch() + 1);
       // Create request
-      TStartTaskOnStreamNodeReq req = new TStartTaskOnStreamNodeReq(task.toByteBuffer(), task.getEpoch(), configManager.getConsensusManager().getLeaderTerm());
+      TStartTaskOnStreamNodeReq req =
+          new TStartTaskOnStreamNodeReq(
+              task.toByteBuffer(),
+              task.getEpoch(),
+              configManager.getConsensusManager().getLeaderTerm());
       // Send request to StreamNode
-      TSStatus status = (TSStatus) SyncStreamNodeClientPool.getInstance()
-          .sendSyncRequestToStreamNodeWithRetry(endPoint, req, CnToSnSyncRequestType.START_TASK);
+      TSStatus status =
+          (TSStatus)
+              SyncStreamNodeClientPool.getInstance()
+                  .sendSyncRequestToStreamNodeWithRetry(
+                      endPoint, req, CnToSnSyncRequestType.START_TASK);
       if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
         return status;
       }
@@ -107,7 +114,8 @@ public class StreamManager {
   }
 
   private String assignStreamToStreamNode(StreamTask task) {
-    // TODO: let StreamNodeManager assign a StreamNode based on load and other factors, for now just return a placeholder
+    // TODO: let StreamNodeManager assign a StreamNode based on load and other factors, for now just
+    // return a placeholder
     return "placeholder:12345";
   }
 
@@ -126,10 +134,15 @@ public class StreamManager {
       String[] parts = streamNode.split(":");
       TEndPoint endPoint = new TEndPoint(parts[0], Integer.parseInt(parts[1]));
       // Create request
-      TStopTaskOnStreamNodeReq req = new TStopTaskOnStreamNodeReq(streamName, task.getEpoch(), configManager.getConsensusManager().getLeaderTerm());
+      TStopTaskOnStreamNodeReq req =
+          new TStopTaskOnStreamNodeReq(
+              streamName, task.getEpoch(), configManager.getConsensusManager().getLeaderTerm());
       // Send request to StreamNode
-      TSStatus status = (TSStatus) SyncStreamNodeClientPool.getInstance()
-          .sendSyncRequestToStreamNodeWithRetry(endPoint, req, CnToSnSyncRequestType.STOP_TASK);
+      TSStatus status =
+          (TSStatus)
+              SyncStreamNodeClientPool.getInstance()
+                  .sendSyncRequestToStreamNodeWithRetry(
+                      endPoint, req, CnToSnSyncRequestType.STOP_TASK);
       if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
         return status;
       }
@@ -155,8 +168,9 @@ public class StreamManager {
   public List<StreamTask> showStreams(String database) {
     lock.readLock().lock();
     try {
-      return streamInfo.getAllTasks().stream().filter(s -> s.getDatabase().equals(database)).collect(
-          Collectors.toList());
+      return streamInfo.getAllTasks().stream()
+          .filter(s -> s.getDatabase().equals(database))
+          .collect(Collectors.toList());
     } finally {
       lock.readLock().unlock();
     }

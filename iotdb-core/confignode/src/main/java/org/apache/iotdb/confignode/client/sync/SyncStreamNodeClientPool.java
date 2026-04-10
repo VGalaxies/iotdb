@@ -85,8 +85,7 @@ public class SyncStreamNodeClientPool {
         CnToSnSyncRequestType.DROP_TASK,
         (req, client) -> client.dropTask((TDropTaskOnStreamNodeReq) req));
     actionMapBuilder.put(
-        CnToSnSyncRequestType.DROP_ALL_TASKS,
-        (req, client) -> client.dropAllTasks());
+        CnToSnSyncRequestType.DROP_ALL_TASKS, (req, client) -> client.dropAllTasks());
     actionMapBuilder.put(
         CnToSnSyncRequestType.GET_HEARTBEAT,
         (req, client) -> client.getHeartbeat((TStreamNodeHeartbeatReq) req));
@@ -113,7 +112,8 @@ public class SyncStreamNodeClientPool {
       } catch (Exception e) {
         lastException = e;
         if (retry != DEFAULT_RETRY_NUM - 1) {
-          LOGGER.warn("{} failed on StreamNode {}, retrying {}...", requestType, endPoint, retry + 1);
+          LOGGER.warn(
+              "{} failed on StreamNode {}, retrying {}...", requestType, endPoint, retry + 1);
           doRetryWait(retry);
         }
       }
