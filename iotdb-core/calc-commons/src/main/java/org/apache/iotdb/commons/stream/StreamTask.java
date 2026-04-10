@@ -47,6 +47,9 @@ public class StreamTask {
   private long creationTime;
   private String creator;
   private long id;
+  private long lastUpTime;
+  private long lastDownTime;
+  private String lastDownReason;
 
   // SN field
   // the time when the task starts to run on SN, used for CN restart detect
@@ -186,6 +189,30 @@ public class StreamTask {
 
   public void setProperties(StreamProperties properties) {
     this.properties = properties;
+  }
+
+  public long getLastUpTime() {
+    return lastUpTime;
+  }
+
+  public void setLastUpTime(long lastUpTime) {
+    this.lastUpTime = lastUpTime;
+  }
+
+  public long getLastDownTime() {
+    return lastDownTime;
+  }
+
+  public void setLastDownTime(long lastDownTime) {
+    this.lastDownTime = lastDownTime;
+  }
+
+  public String getLastDownReason() {
+    return lastDownReason;
+  }
+
+  public void setLastDownReason(String lastDownReason) {
+    this.lastDownReason = lastDownReason;
   }
 
   public void serialize(OutputStream outputStream) throws IOException {

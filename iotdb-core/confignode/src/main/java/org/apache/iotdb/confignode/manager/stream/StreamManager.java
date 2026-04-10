@@ -24,6 +24,7 @@ import org.apache.iotdb.common.rpc.thrift.TEndPoint;
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
 import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.commons.stream.StreamTaskStatus;
+import org.apache.iotdb.commons.utils.StatusUtils;
 import org.apache.iotdb.confignode.client.sync.CnToSnSyncRequestType;
 import org.apache.iotdb.confignode.client.sync.SyncStreamNodeClientPool;
 import org.apache.iotdb.confignode.manager.IManager;
@@ -98,7 +99,9 @@ public class StreamManager {
       }
       // Update status
       task.setRunningOn(streamNode);
-      return streamInfo.updateTaskStatus(taskName, StreamTaskStatus.RUNNING);
+      task.setStatus(StreamTaskStatus.RUNNING);
+      task.setLastUpTime(System.currentTimeMillis());
+      return StatusUtils.OK;
     } finally {
       lock.writeLock().unlock();
     }
@@ -132,7 +135,10 @@ public class StreamManager {
         return status;
       }
       // Update status
-      return streamInfo.updateTaskStatus(taskName, StreamTaskStatus.STOPPED);
+      task.setStatus(StreamTaskStatus.STOPPED);
+      task.setLastDownTime(System.currentTimeMillis());
+      task.setLastDownReason("Manually stopped");
+      return StatusUtils.OK;
     } finally {
       lock.writeLock().unlock();
     }

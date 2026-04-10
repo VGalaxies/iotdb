@@ -109,18 +109,6 @@ public class StreamInfo implements SnapshotProcessor {
     return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
   }
 
-  public TSStatus updateTaskStatus(String taskName, StreamTaskStatus status) {
-    StreamTask task = streamTaskMap.get(taskName);
-    if (task == null) {
-      // STREAM_NOT_EXIST does not exist in TSStatusCode, use EXECUTE_STATEMENT_ERROR
-      return new TSStatus(TSStatusCode.EXECUTE_STATEMENT_ERROR.getStatusCode())
-          .setMessage("Stream not found: " + taskName);
-    }
-    task.setStatus(status);
-    LOGGER.info("Updated stream task {} status to {}", taskName, status);
-    return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
-  }
-
   public StreamTask getTask(String taskName) {
     return streamTaskMap.get(taskName);
   }
