@@ -30,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class StreamManager {
 
@@ -37,6 +38,7 @@ public class StreamManager {
 
   private final IManager configManager;
   private final StreamInfo streamInfo;
+  private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
   public StreamManager(IManager configManager, StreamInfo streamInfo) {
     this.configManager = configManager;
@@ -44,34 +46,64 @@ public class StreamManager {
   }
 
   public TSStatus createStream(StreamTask task) {
-    LOGGER.info("Creating stream task: {}", task.getTaskName());
-    return streamInfo.addTask(task);
+    lock.writeLock().lock();
+    try {
+      LOGGER.info("Creating stream task: {}", task.getTaskName());
+      return streamInfo.addTask(task);
+    } finally {
+      lock.writeLock().unlock();
+    }
   }
 
   public TSStatus dropStream(String database, String streamName) {
-    LOGGER.info("Dropping stream: {}.{}", database, streamName);
-    String taskName = database + "." + streamName;
-    return streamInfo.removeTask(taskName);
+    lock.writeLock().lock();
+    try {
+      LOGGER.info("Dropping stream: {}.{}", database, streamName);
+      String taskName = database + "." + streamName;
+      return streamInfo.removeTask(taskName);
+    } finally {
+      lock.writeLock().unlock();
+    }
   }
 
   public TSStatus startStream(String database, String streamName) {
-    LOGGER.info("Starting stream: {}.{}", database, streamName);
-    String taskName = database + "." + streamName;
-    return streamInfo.updateTaskStatus(taskName, StreamTaskStatus.RUNNING);
+    lock.writeLock().lock();
+    try {
+      LOGGER.info("Starting stream: {}.{}", database, streamName);
+      String taskName = database + "." + streamName;
+      return streamInfo.updateTaskStatus(taskName, StreamTaskStatus.RUNNING);
+    } finally {
+      lock.writeLock().unlock();
+    }
   }
 
   public TSStatus stopStream(String database, String streamName) {
-    LOGGER.info("Stopping stream: {}.{}", database, streamName);
-    String taskName = database + "." + streamName;
-    return streamInfo.updateTaskStatus(taskName, StreamTaskStatus.STOPPED);
+    lock.writeLock().lock();
+    try {
+      LOGGER.info("Stopping stream: {}.{}", database, streamName);
+      String taskName = database + "." + streamName;
+      return streamInfo.updateTaskStatus(taskName, StreamTaskStatus.STOPPED);
+    } finally {
+      lock.writeLock().unlock();
+    }
   }
 
   public List<StreamTask> showStreams() {
-    return streamInfo.getAllTasks();
+    lock.readLock().lock();
+    try {
+      return streamInfo.getAllTasks();
+    } finally {
+      lock.readLock().unlock();
+    }
   }
 
   public List<StreamTask> showStreams(String database) {
-    return streamInfo.getAllTasks().stream().filter(s -> s.getDatabase().equals(database)).collect(
-        Collectors.toList());
+    lock.readLock().lock();
+    try {
+      return streamInfo.getAllTasks().stream().filter(s -> s.getDatabase().equals(database)).collect(
+          Collectors.toList());
+    } finally {
+      lock.readLock().unlock();
+    }
   }
 }
