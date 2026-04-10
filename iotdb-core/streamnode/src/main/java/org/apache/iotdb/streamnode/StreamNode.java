@@ -19,9 +19,9 @@
 
 package org.apache.iotdb.streamnode;
 
+import org.apache.iotdb.commons.service.RegisterManager;
 import org.apache.iotdb.streamnode.conf.StreamNodeConfig;
 import org.apache.iotdb.streamnode.conf.StreamNodeDescriptor;
-import org.apache.iotdb.streamnode.manager.StreamTaskManager;
 import org.apache.iotdb.streamnode.service.StreamNodeRPCService;
 
 import org.slf4j.Logger;
@@ -31,59 +31,48 @@ public class StreamNode {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(StreamNode.class);
 
-  private final StreamNodeConfig config;
-  private final StreamTaskManager taskManager;
-  private StreamNodeRPCService rpcService;
+  private final StreamNodeConfig config = StreamNodeDescriptor.getInstance().getConfig();
 
-  private StreamNode() {
-    this.config = StreamNodeDescriptor.getInstance().getConfig();
-    this.taskManager = new StreamTaskManager();
-  }
+  private final RegisterManager registerManager = new RegisterManager();
+
+  private StreamNode() {}
 
   public void start() throws Exception {
     LOGGER.info("Starting StreamNode...");
+    LOGGER.info(
+        "StreamNode config: cluster_name={}, sn_internal_address={}, sn_internal_port={},"
+            + " sn_seed_config_node={}",
+        config.getClusterName(),
+        config.getSnInternalAddress(),
+        config.getSnInternalPort(),
+        config.getSnSeedConfigNode());
 
     // Step 1: Register with ConfigNode
-    // TODO: implement registration RPC
-    LOGGER.info("StreamNode registered with ConfigNode");
+    // TODO: send registerStreamNode RPC to CN
+    LOGGER.info("StreamNode registered with ConfigNode (stub)");
 
-    // Step 2: Start RPC service
-    rpcService = new StreamNodeRPCService(taskManager);
-    // TODO: rpcService.start();
-    LOGGER.info("StreamNode RPC service started on port {}", config.getInternalPort());
+    // Step 2: Start RPC service to receive CN requests
+    registerManager.register(StreamNodeRPCService.getInstance());
+    LOGGER.info(
+        "StreamNode RPC service listening on {}:{}",
+        config.getSnInternalAddress(),
+        config.getSnInternalPort());
 
     LOGGER.info("StreamNode started successfully");
   }
 
   public void stop() {
     LOGGER.info("Stopping StreamNode...");
-
-    // Step 1: Stop all running tasks
-    taskManager.dropAllTasks();
-
-    // Step 2: Stop RPC service
-    if (rpcService != null) {
-      // TODO: rpcService.stop();
-    }
-
+    registerManager.deregisterAll();
     LOGGER.info("StreamNode stopped");
   }
 
-  public StreamTaskManager getTaskManager() {
-    return taskManager;
-  }
-
-  public StreamNodeConfig getConfig() {
-    return config;
-  }
-
   public static void main(String[] args) {
-    StreamNode streamNode = new StreamNode();
+    StreamNode streamNode = StreamNodeHolder.INSTANCE;
     try {
       streamNode.start();
       LOGGER.info("StreamNode is running. Press Ctrl+C to stop.");
       Runtime.getRuntime().addShutdownHook(new Thread(streamNode::stop));
-      // Keep the main thread alive
       Thread.currentThread().join();
     } catch (Exception e) {
       LOGGER.error("Failed to start StreamNode", e);

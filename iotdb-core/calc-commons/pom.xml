@@ -26,8 +26,8 @@
         <artifactId>iotdb-core</artifactId>
         <version>2.0.7-SNAPSHOT</version>
     </parent>
-    <artifactId>iotdb-stream-commons</artifactId>
-    <name>IoTDB: Core: Stream Commons</name>
+    <artifactId>iotdb-calc-commons</artifactId>
+    <name>IoTDB: Core: Calc Commons</name>
     <description>Shared data structures for DataNode and StreamNode</description>
     <dependencies>
         <dependency>

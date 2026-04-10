@@ -21,53 +21,66 @@ package org.apache.iotdb.streamnode.service;
 
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
 import org.apache.iotdb.rpc.TSStatusCode;
-import org.apache.iotdb.streamnode.manager.StreamTaskManager;
+import org.apache.iotdb.streamnode.rpc.thrift.IStreamNodeRPCService;
+import org.apache.iotdb.streamnode.rpc.thrift.TCreateTaskOnStreamNodeReq;
+import org.apache.iotdb.streamnode.rpc.thrift.TDropTaskOnStreamNodeReq;
+import org.apache.iotdb.streamnode.rpc.thrift.TStartTaskOnStreamNodeReq;
+import org.apache.iotdb.streamnode.rpc.thrift.TStopTaskOnStreamNodeReq;
+import org.apache.iotdb.streamnode.rpc.thrift.TStreamNodeHeartbeatReq;
+import org.apache.iotdb.streamnode.rpc.thrift.TStreamNodeHeartbeatResp;
 
+import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Processes RPC requests from ConfigNode. Will implement IStreamNodeRPCService.Iface once Thrift
- * code is generated.
- */
-public class StreamNodeRPCServiceProcessor {
+import java.util.ArrayList;
+
+public class StreamNodeRPCServiceProcessor implements IStreamNodeRPCService.Iface {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(StreamNodeRPCServiceProcessor.class);
 
-  private final StreamTaskManager taskManager;
-
-  public StreamNodeRPCServiceProcessor(StreamTaskManager taskManager) {
-    this.taskManager = taskManager;
+  @Override
+  public TStreamNodeHeartbeatResp getHeartbeat(TStreamNodeHeartbeatReq req) throws TException {
+    LOGGER.debug("Received heartbeat request, timestamp={}", req.getHeartbeatTimestamp());
+    TStreamNodeHeartbeatResp resp = new TStreamNodeHeartbeatResp();
+    resp.setHeartbeatTimestamp(req.getHeartbeatTimestamp());
+    // TODO: collect running task heartbeats from StreamTaskManager
+    resp.setRunningTasks(new ArrayList<>());
+    return resp;
   }
 
-  // TODO: implement IStreamNodeRPCService.Iface methods once Thrift is generated
-  // For now, define the methods that map to the Thrift service
-
-  public TSStatus createTask(byte[] streamTaskBytes, int epoch) {
-    LOGGER.info("Received createTask request, epoch={}", epoch);
-    // TODO: deserialize StreamTask from bytes
-    // return taskManager.createTask(task, epoch);
+  @Override
+  public TSStatus createTask(TCreateTaskOnStreamNodeReq req) throws TException {
+    LOGGER.info("Received createTask request, epoch={}", req.getEpoch());
+    // TODO: deserialize StreamTask from req.getStreamTask() and delegate to StreamTaskManager
     return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
   }
 
-  public TSStatus startTask(String taskName, int epoch) {
-    LOGGER.info("Received startTask request: {}, epoch={}", taskName, epoch);
-    return taskManager.startTask(taskName, epoch);
+  @Override
+  public TSStatus startTask(TStartTaskOnStreamNodeReq req) throws TException {
+    LOGGER.info("Received startTask request: {}, epoch={}", req.getTaskName(), req.getEpoch());
+    // TODO: delegate to StreamTaskManager.startTask()
+    return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
   }
 
-  public TSStatus stopTask(String taskName) {
-    LOGGER.info("Received stopTask request: {}", taskName);
-    return taskManager.stopTask(taskName);
+  @Override
+  public TSStatus stopTask(TStopTaskOnStreamNodeReq req) throws TException {
+    LOGGER.info("Received stopTask request: {}", req.getTaskName());
+    // TODO: delegate to StreamTaskManager.stopTask()
+    return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
   }
 
-  public TSStatus dropTask(String taskName) {
-    LOGGER.info("Received dropTask request: {}", taskName);
-    return taskManager.dropTask(taskName);
+  @Override
+  public TSStatus dropTask(TDropTaskOnStreamNodeReq req) throws TException {
+    LOGGER.info("Received dropTask request: {}", req.getTaskName());
+    // TODO: delegate to StreamTaskManager.dropTask()
+    return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
   }
 
-  public TSStatus dropAllTasks() {
+  @Override
+  public TSStatus dropAllTasks() throws TException {
     LOGGER.info("Received dropAllTasks request");
-    taskManager.dropAllTasks();
+    // TODO: delegate to StreamTaskManager.dropAllTasks()
     return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
   }
 }

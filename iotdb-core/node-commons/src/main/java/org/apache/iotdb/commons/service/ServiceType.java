@@ -78,6 +78,7 @@ public enum ServiceType {
   PIPE_PLUGIN_CLASSLOADER_MANAGER_SERVICE(
       "Pipe Plugin Classloader Manager Service", "PipePluginClassLoader"),
   AINode_RPC_SERVICE("Rpc Service for AINode", "AINodeRPCService"),
+  STREAM_NODE_RPC_SERVICE("Stream Node RPC Service", "StreamNodeRPCService"),
   MEMORY_RUNTIME_AGENT("Memory Runtime Agent", "MemoryRuntimeAgent"),
   PIPE_RUNTIME_DATA_NODE_AGENT("Pipe Runtime Data Node Agent", "PipeRuntimeDataNodeAgent"),
   PIPE_RUNTIME_CONFIG_NODE_AGENT("Pipe Runtime Config Node Agent", "PipeRuntimeConfigNodeAgent"),
