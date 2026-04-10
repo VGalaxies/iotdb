@@ -44,6 +44,7 @@ struct TCreateTaskOnStreamNodeReq {
 struct TStartTaskOnStreamNodeReq {
   1: required binary streamTask
   2: required i32 epoch
+  3: required i64 cnStartTime
 }
 
 struct TStopTaskOnStreamNodeReq {

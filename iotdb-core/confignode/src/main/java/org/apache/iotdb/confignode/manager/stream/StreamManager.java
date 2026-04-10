@@ -20,12 +20,17 @@
 package org.apache.iotdb.confignode.manager.stream;
 
 import java.util.stream.Collectors;
+import org.apache.iotdb.common.rpc.thrift.TEndPoint;
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
 import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.commons.stream.StreamTaskStatus;
+import org.apache.iotdb.confignode.client.sync.CnToSnSyncRequestType;
+import org.apache.iotdb.confignode.client.sync.SyncStreamNodeClientPool;
 import org.apache.iotdb.confignode.manager.IManager;
 import org.apache.iotdb.confignode.persistence.stream.StreamInfo;
+import org.apache.iotdb.streamnode.rpc.thrift.TStartTaskOnStreamNodeReq;
 
+import org.apache.iotdb.rpc.TSStatusCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,6 +39,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class StreamManager {
 
+  private static final long CN_STRAT_TIME = System.currentTimeMillis();
   private static final Logger LOGGER = LoggerFactory.getLogger(StreamManager.class);
 
   private final IManager configManager;
@@ -71,10 +77,35 @@ public class StreamManager {
     try {
       LOGGER.info("Starting stream: {}.{}", database, streamName);
       String taskName = database + "." + streamName;
+      StreamTask task = streamInfo.getTask(taskName);
+      if (task == null) {
+        return new TSStatus(TSStatusCode.EXECUTE_STATEMENT_ERROR.getStatusCode())
+            .setMessage("Stream not found: " + taskName);
+      }
+      String streamNode = assignStreamToStreamNode(task);
+      // Parse runningOn to TEndPoint
+      String[] parts = streamNode.split(":");
+      TEndPoint endPoint = new TEndPoint(parts[0], Integer.parseInt(parts[1]));
+      task.setEpoch(task.getEpoch() + 1);
+      // Create request
+      TStartTaskOnStreamNodeReq req = new TStartTaskOnStreamNodeReq(taskName, task.getEpoch());
+      // Send request to StreamNode
+      TSStatus status = (TSStatus) SyncStreamNodeClientPool.getInstance()
+          .sendSyncRequestToStreamNodeWithRetry(endPoint, req, CnToSnSyncRequestType.START_TASK);
+      if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+        return status;
+      }
+      // Update status
+      task.setRunningOn(streamNode);
       return streamInfo.updateTaskStatus(taskName, StreamTaskStatus.RUNNING);
     } finally {
       lock.writeLock().unlock();
     }
+  }
+
+  private String assignStreamToStreamNode(StreamTask task) {
+    // TODO: let StreamNodeManager assign a StreamNode based on load and other factors, for now just return a placeholder
+    return "placeholder:12345";
   }
 
   public TSStatus stopStream(String database, String streamName) {

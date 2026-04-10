@@ -38,6 +38,7 @@ public class StreamTask {
   private StreamTarget target;
   private StreamTaskStatus status;
   private String runningOn;
+  private long cnStartTime;
   private int epoch;
   private StreamProperties properties;
 
@@ -184,9 +185,6 @@ public class StreamTask {
       dataOutputStream.writeLong(creationTime);
       dataOutputStream.writeUTF(creator != null ? creator : "");
       dataOutputStream.writeUTF(subQuery != null ? subQuery : "");
-      dataOutputStream.writeUTF(status != null ? status.toString() : "");
-      dataOutputStream.writeUTF(runningOn != null ? runningOn : "");
-      dataOutputStream.writeInt(epoch);
       // Serialize source using its serialize method
       source.serialize(dataOutputStream);
       // Serialize window using its serialize method
@@ -206,9 +204,6 @@ public class StreamTask {
       streamTask.setCreationTime(dataInputStream.readLong());
       streamTask.setCreator(dataInputStream.readUTF());
       streamTask.setSubQuery(dataInputStream.readUTF());
-      streamTask.setStatus(StreamTaskStatus.valueOf(dataInputStream.readUTF()));
-      streamTask.setRunningOn(dataInputStream.readUTF());
-      streamTask.setEpoch(dataInputStream.readInt());
       // Deserialize source using its deserialize method
       streamTask.setSource(StreamSource.deserialize(dataInputStream));
       // Deserialize window using its deserialize method
