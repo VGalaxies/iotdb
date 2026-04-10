@@ -42,7 +42,7 @@ struct TCreateTaskOnStreamNodeReq {
 }
 
 struct TStartTaskOnStreamNodeReq {
-  1: required string taskName
+  1: required binary streamTask
   2: required i32 epoch
 }
 
