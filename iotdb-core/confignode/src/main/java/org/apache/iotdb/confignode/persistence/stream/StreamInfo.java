@@ -29,9 +29,11 @@ import org.apache.iotdb.rpc.TSStatusCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,6 +47,19 @@ public class StreamInfo implements SnapshotProcessor {
 
   private final Map<String, StreamTask> streamTaskMap = new ConcurrentHashMap<>();
   private final AtomicLong nextStreamId = new AtomicLong(0);
+
+  public StreamInfo() {
+    // Load existing tasks from streams directory
+    File streamsDir = new File(ConfigNodeDescriptor.getInstance().getConf().getStreamsDir());
+    if (streamsDir.exists() && streamsDir.isDirectory()) {
+      try {
+        processLoadSnapshot(streamsDir);
+        LOGGER.info("Loaded existing StreamTasks from {}", streamsDir.getAbsolutePath());
+      } catch (IOException e) {
+        LOGGER.error("Failed to load existing StreamTasks from {}", streamsDir.getAbsolutePath(), e);
+      }
+    }
+  }
 
   public TSStatus addTask(StreamTask task) {
     if (streamTaskMap.containsKey(task.getTaskName())) {
@@ -116,14 +131,45 @@ public class StreamInfo implements SnapshotProcessor {
 
   @Override
   public boolean processTakeSnapshot(File snapshotDir) throws IOException {
-    // TODO: implement snapshot serialization
-    LOGGER.info("Taking snapshot for StreamInfo");
+    LOGGER.info("Taking snapshot for StreamInfo to {}", snapshotDir.getAbsolutePath());
+    // Serialize each task
+    for (StreamTask task : streamTaskMap.values()) {
+      File taskFile = new File(snapshotDir, task.getId() + ".stm");
+      try (FileOutputStream fos = new FileOutputStream(taskFile);
+           BufferedOutputStream bos = new BufferedOutputStream(fos)) {
+        task.serialize(bos);
+        bos.flush();
+        fos.getFD().sync();
+      }
+    }
+    LOGGER.info("Snapshot taken for StreamInfo with {} tasks", streamTaskMap.size());
     return true;
   }
 
   @Override
   public void processLoadSnapshot(File snapshotDir) throws IOException {
-    // TODO: implement snapshot deserialization
-    LOGGER.info("Loading snapshot for StreamInfo");
+    LOGGER.info("Loading snapshot for StreamInfo from {}", snapshotDir.getAbsolutePath());
+    // Clear existing map
+    streamTaskMap.clear();
+    long maxId = -1;
+    // Read all .stm files
+    File[] files = snapshotDir.listFiles((dir, name) -> name.endsWith(".stm"));
+    if (files != null) {
+      for (File file : files) {
+        try (FileInputStream fis = new FileInputStream(file);
+             BufferedInputStream bis = new BufferedInputStream(fis)) {
+          StreamTask task = StreamTask.deserialize(bis);
+          streamTaskMap.put(task.getTaskName(), task);
+          if (task.getId() > maxId) {
+            maxId = task.getId();
+          }
+        } catch (IOException e) {
+          LOGGER.error("Failed to deserialize StreamTask from {}", file.getAbsolutePath(), e);
+        }
+      }
+    }
+    // Set nextStreamId
+    nextStreamId.set(maxId + 1);
+    LOGGER.info("Loaded snapshot for StreamInfo with {} tasks, nextStreamId set to {}", streamTaskMap.size(), nextStreamId.get());
   }
 }
