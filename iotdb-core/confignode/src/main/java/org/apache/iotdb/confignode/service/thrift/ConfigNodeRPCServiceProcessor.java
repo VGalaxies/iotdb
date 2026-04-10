@@ -210,6 +210,7 @@ import org.apache.iotdb.confignode.rpc.thrift.TShowPipeResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowRegionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowRegionResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowStreamNodesResp;
+import org.apache.iotdb.confignode.rpc.thrift.TShowStreamsReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowStreamsResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowSubscriptionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowSubscriptionResp;
@@ -1529,7 +1530,7 @@ public class ConfigNodeRPCServiceProcessor implements IConfigNodeRPCService.Ifac
   }
 
   @Override
-  public TShowStreamsResp showStreams() throws TException {
+  public TShowStreamsResp showStreams(TShowStreamsReq req) throws TException {
     return null;
   }
 }

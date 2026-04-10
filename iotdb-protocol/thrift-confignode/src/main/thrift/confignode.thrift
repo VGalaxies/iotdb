@@ -1241,22 +1241,29 @@ struct TShowStreamNodesResp {
 // ====================================================
 
 struct TCreateStreamReq {
-  1: required binary streamTask
+  1: required string streamName
+  2: required string creator
+  3: optional binary streamSource
+  4: required binary eventWindow
+  5: required string calcSql
+  6: required binary calcPlan
+  7: required binary streamSink
 }
 
 struct TDropStreamReq {
-  1: required string database
-  2: required string streamName
+  1: required string streamName
 }
 
 struct TStartStreamReq {
-  1: required string database
-  2: required string streamName
+  1: required string streamName
 }
 
 struct TStopStreamReq {
-  1: required string database
-  2: required string streamName
+  1: required string streamName
+}
+
+struct TShowStreamsReq {
+  1: required string userName
 }
 
 struct TShowStreamsResp {
@@ -1424,7 +1431,7 @@ service IConfigNodeRPCService {
 
   common.TSStatus stopStream(TStopStreamReq req)
 
-  TShowStreamsResp showStreams()
+  TShowStreamsResp showStreams(TShowStreamsReq req)
 
   /**
    * Get system configurations. i.e. configurations that is not associated with the DataNodeId
