@@ -162,7 +162,7 @@ public class StreamManager {
     // Seed the heartbeat history with the start timestamp so the detector has an anchor point
     heartbeatHistory
         .computeIfAbsent(task.getTaskName(), k -> new ArrayDeque<>())
-        .add(new StreamHeartbeatSample());
+        .add(new StreamHeartbeatSample(task.getEpoch(), task.getLeaderTerm()));
     return StatusUtils.OK;
   }
 
@@ -170,23 +170,42 @@ public class StreamManager {
    * Record a heartbeat for the given task. Should be called whenever a heartbeat reply is received
    * from the StreamNode.
    */
-  public void recordHeartbeat(String taskName) {
-    final Deque<AbstractHeartbeatSample> history =
-        heartbeatHistory.computeIfAbsent(taskName, k -> new ArrayDeque<>());
-    history.addLast(new StreamHeartbeatSample());
-    while (history.size() > MAX_HEARTBEAT_HISTORY) {
-      history.pollFirst();
-    }
-    // Also refresh the task's lastHeartbeatTime for compatibility
+  public TSStatus recordHeartbeat(String taskName, int epoch, long leaderTerm) {
     lock.readLock().lock();
     try {
       final StreamTask task = streamInfo.getTask(taskName);
-      if (task != null) {
-        task.setLastHeartbeatTime(System.currentTimeMillis());
+      if (task == null) {
+        LOGGER.warn("Received heartbeat for unknown task: {}", taskName);
+        return new TSStatus(TSStatusCode.STREAM_NOT_EXIST.getStatusCode())
+            .setMessage("Stream task not found: " + taskName);
       }
+      if (task.getEpoch() != epoch || task.getLeaderTerm() != leaderTerm) {
+        LOGGER.warn(
+            "Stale heartbeat for task {}: expected epoch={} leaderTerm={}, got epoch={} leaderTerm={}",
+            taskName, task.getEpoch(), task.getLeaderTerm(), epoch, leaderTerm);
+        return new TSStatus(TSStatusCode.STREAM_STALE.getStatusCode())
+            .setMessage(
+                String.format(
+                    "Stale heartbeat for task %s: expected epoch=%d leaderTerm=%d, got epoch=%d leaderTerm=%d",
+                    taskName, task.getEpoch(), task.getLeaderTerm(), epoch, leaderTerm));
+      }
+      task.setLastHeartbeatTime(System.currentTimeMillis());
     } finally {
       lock.readLock().unlock();
     }
+
+    final Deque<AbstractHeartbeatSample> history =
+        heartbeatHistory.computeIfAbsent(taskName, k -> new ArrayDeque<>());
+    history.removeIf(
+        s -> {
+          final StreamHeartbeatSample sample = (StreamHeartbeatSample) s;
+          return sample.getEpoch() != epoch || sample.getLeaderTerm() != leaderTerm;
+        });
+    history.addLast(new StreamHeartbeatSample(epoch, leaderTerm));
+    while (history.size() > MAX_HEARTBEAT_HISTORY) {
+      history.pollFirst();
+    }
+    return StatusUtils.OK;
   }
 
   private String assignStreamToStreamNode(StreamTask task) {

@@ -349,7 +349,9 @@ public enum TSStatusCode {
   CANNOT_DROP_RUNNING_EXTERNAL_SERVICE(2305),
 
   // Stream
-  STREAM_ALREADY_EXISTS(2400),
+  STREAM_ALREADY_EXISTS(3000),
+  STREAM_NOT_EXIST(3001),
+  STREAM_STALE(3002),
   ;
 
   private final int statusCode;

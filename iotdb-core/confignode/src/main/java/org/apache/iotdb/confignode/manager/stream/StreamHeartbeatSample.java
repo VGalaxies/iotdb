@@ -24,11 +24,26 @@ import org.apache.iotdb.confignode.manager.load.cache.AbstractHeartbeatSample;
 /** Records a single heartbeat sample for a StreamTask. The timestamp is in nanoseconds. */
 public class StreamHeartbeatSample extends AbstractHeartbeatSample {
 
-  public StreamHeartbeatSample() {
+  private final int epoch;
+  private final long leaderTerm;
+
+  public StreamHeartbeatSample(int epoch, long leaderTerm) {
     super(System.nanoTime());
+    this.epoch = epoch;
+    this.leaderTerm = leaderTerm;
   }
 
-  public StreamHeartbeatSample(long sampleNanoTimestamp) {
+  public StreamHeartbeatSample(long sampleNanoTimestamp, int epoch, long leaderTerm) {
     super(sampleNanoTimestamp);
+    this.epoch = epoch;
+    this.leaderTerm = leaderTerm;
+  }
+
+  public int getEpoch() {
+    return epoch;
+  }
+
+  public long getLeaderTerm() {
+    return leaderTerm;
   }
 }
