@@ -2709,6 +2709,14 @@ public class ConfigManager implements IManager {
         new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode()), streamInfoList);
   }
 
+  @Override
+  public TSStatus startStream(String database, String streamName) {
+    TSStatus status = confirmLeader();
+    return status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()
+        ? streamManager.startStream(database, streamName)
+        : status;
+  }
+
   /**
    * Get all related schemaRegion which may contains the timeseries matched by given patternTree.
    */

@@ -889,6 +889,8 @@ public interface IManager {
 
   TShowStreamResp showStreams();
 
+  TSStatus startStream(String database, String streamName);
+
   TSStatus checkConfigNodeGlobalConfig(TConfigNodeRegisterReq req);
 
   TSStatus transfer(List<TDataNodeLocation> newUnknownDataList);
