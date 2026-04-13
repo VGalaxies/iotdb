@@ -58,7 +58,7 @@ public class StreamNodeRPCServiceProcessor implements IStreamNodeRPCService.Ifac
 
   @Override
   public TSStatus startTask(TStartTaskOnStreamNodeReq req) throws TException {
-    LOGGER.info("Received startTask request: {}, epoch={}", req.getTaskName(), req.getEpoch());
+    LOGGER.info("Received startTask request: {}, epoch={}", req.getStreamTask(), req.getEpoch());
     // TODO: delegate to StreamTaskManager.startTask()
     return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
   }

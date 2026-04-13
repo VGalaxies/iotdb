@@ -1259,11 +1259,6 @@ struct TStopStreamReq {
   2: required string streamName
 }
 
-struct TShowStreamsResp {
-  1: required common.TSStatus status
-  2: optional list<binary> streamTasks
-}
-
 // ====================================================
 // Test only
 // ====================================================
@@ -1424,7 +1419,7 @@ service IConfigNodeRPCService {
 
   common.TSStatus stopStream(TStopStreamReq req)
 
-  TShowStreamsResp showStreams()
+  common.TShowStreamResp showStreams()
 
   /**
    * Get system configurations. i.e. configurations that is not associated with the DataNodeId

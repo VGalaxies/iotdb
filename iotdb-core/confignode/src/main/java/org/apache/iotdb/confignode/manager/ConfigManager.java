@@ -37,6 +37,8 @@ import org.apache.iotdb.common.rpc.thrift.TSetSpaceQuotaReq;
 import org.apache.iotdb.common.rpc.thrift.TSetThrottleQuotaReq;
 import org.apache.iotdb.common.rpc.thrift.TShowAppliedConfigurationsResp;
 import org.apache.iotdb.common.rpc.thrift.TShowConfigurationResp;
+import org.apache.iotdb.common.rpc.thrift.TShowStreamResp;
+import org.apache.iotdb.common.rpc.thrift.TStreamInfo;
 import org.apache.iotdb.common.rpc.thrift.TTimePartitionSlot;
 import org.apache.iotdb.commons.auth.AuthException;
 import org.apache.iotdb.commons.auth.entity.PrivilegeUnion;
@@ -2675,6 +2677,36 @@ public class ConfigManager implements IManager {
     return status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()
         ? externalServiceManager.showService(dataNodeId)
         : new TExternalServiceListResp(status, Collections.emptyList());
+  }
+
+  @Override
+  public TShowStreamResp showStreams() {
+    TSStatus status = confirmLeader();
+    if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+      return new TShowStreamResp(status, Collections.emptyList());
+    }
+    List<TStreamInfo> streamInfoList =
+        streamManager.showStreams().stream()
+            .map(
+                task -> {
+                  TStreamInfo info = new TStreamInfo();
+                  info.setDatabase(task.getDatabase());
+                  info.setStreamName(task.getTaskName().substring(task.getDatabase().length() + 1));
+                  info.setStatus(task.getStatus().name());
+                  info.setCreationTime(task.getCreationTime());
+                  info.setCreator(task.getCreator() != null ? task.getCreator() : "");
+                  info.setSubQuery(task.getSubQuery() != null ? task.getSubQuery() : "");
+                  info.setRunningOn(task.getRunningOn() != null ? task.getRunningOn() : "");
+                  info.setLastUpTime(task.getLastUpTime());
+                  info.setLastDownTime(task.getLastDownTime());
+                  info.setLastDownReason(
+                      task.getLastDownReason() != null ? task.getLastDownReason() : "");
+                  info.setLastHeartbeatTime(task.getLastHeartbeatTime());
+                  return info;
+                })
+            .collect(Collectors.toList());
+    return new TShowStreamResp(
+        new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode()), streamInfoList);
   }
 
   /**

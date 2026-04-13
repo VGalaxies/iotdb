@@ -31,6 +31,7 @@ import org.apache.iotdb.common.rpc.thrift.TSetConfigurationReq;
 import org.apache.iotdb.common.rpc.thrift.TSetSpaceQuotaReq;
 import org.apache.iotdb.common.rpc.thrift.TShowAppliedConfigurationsResp;
 import org.apache.iotdb.common.rpc.thrift.TShowConfigurationResp;
+import org.apache.iotdb.common.rpc.thrift.TShowStreamResp;
 import org.apache.iotdb.commons.auth.entity.PrivilegeUnion;
 import org.apache.iotdb.commons.cluster.NodeStatus;
 import org.apache.iotdb.commons.path.PartialPath;
@@ -885,6 +886,8 @@ public interface IManager {
   TSStatus dropExternalService(int dataNodeId, String serviceName);
 
   TExternalServiceListResp showExternalService(int dataNodeId);
+
+  TShowStreamResp showStreams();
 
   TSStatus checkConfigNodeGlobalConfig(TConfigNodeRegisterReq req);
 

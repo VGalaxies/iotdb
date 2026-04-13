@@ -423,8 +423,7 @@ public class InformationSchema {
 
     final TsTable streamsTable = new TsTable(STREAMS);
     streamsTable.addColumnSchema(
-        new TagColumnSchema(
-            ColumnHeaderConstant.DATABASE, TSDataType.STRING));
+        new TagColumnSchema(ColumnHeaderConstant.DATABASE, TSDataType.STRING));
     streamsTable.addColumnSchema(
         new TagColumnSchema(ColumnHeaderConstant.STREAM_NAME_TABLE_MODEL, TSDataType.STRING));
     streamsTable.addColumnSchema(

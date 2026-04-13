@@ -23,11 +23,13 @@ import org.apache.iotdb.common.rpc.thrift.TEndPoint;
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
 import org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory;
 import org.apache.iotdb.commons.concurrent.ThreadName;
+import org.apache.iotdb.commons.concurrent.threadpool.ScheduledExecutorUtil;
 import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.commons.stream.StreamTaskStatus;
 import org.apache.iotdb.commons.utils.StatusUtils;
 import org.apache.iotdb.confignode.client.sync.CnToSnSyncRequestType;
 import org.apache.iotdb.confignode.client.sync.SyncStreamNodeClientPool;
+import org.apache.iotdb.confignode.conf.ConfigNodeDescriptor;
 import org.apache.iotdb.confignode.manager.IManager;
 import org.apache.iotdb.confignode.manager.load.cache.AbstractHeartbeatSample;
 import org.apache.iotdb.confignode.manager.load.cache.IFailureDetector;
@@ -37,8 +39,6 @@ import org.apache.iotdb.confignode.persistence.stream.StreamInfo;
 import org.apache.iotdb.rpc.TSStatusCode;
 import org.apache.iotdb.streamnode.rpc.thrift.TStartTaskOnStreamNodeReq;
 import org.apache.iotdb.streamnode.rpc.thrift.TStopTaskOnStreamNodeReq;
-
-import org.apache.iotdb.confignode.conf.ConfigNodeDescriptor;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -87,7 +87,8 @@ public class StreamManager {
             fixedFallback);
     this.streamMonitorExecutor =
         IoTDBThreadPoolFactory.newScheduledThreadPool(1, ThreadName.STREAM_MONITOR.getName());
-    this.streamMonitorExecutor.scheduleAtFixedRate(this::monitorStreams, 0, 5, TimeUnit.SECONDS);
+    ScheduledExecutorUtil.safelyScheduleAtFixedRate(
+        this.streamMonitorExecutor, this::monitorStreams, 0, 5, TimeUnit.SECONDS);
   }
 
   public TSStatus createStream(StreamTask task) {
@@ -141,10 +142,7 @@ public class StreamManager {
     task.setLeaderTerm(configManager.getConsensusManager().getLeaderTerm());
     // Create request
     TStartTaskOnStreamNodeReq req =
-        new TStartTaskOnStreamNodeReq(
-            task.toByteBuffer(),
-            task.getEpoch(),
-            task.getLeaderTerm());
+        new TStartTaskOnStreamNodeReq(task.toByteBuffer(), task.getEpoch(), task.getLeaderTerm());
     // Send request to StreamNode
     TSStatus status =
         (TSStatus)
@@ -182,7 +180,11 @@ public class StreamManager {
       if (task.getEpoch() != epoch || task.getLeaderTerm() != leaderTerm) {
         LOGGER.warn(
             "Stale heartbeat for task {}: expected epoch={} leaderTerm={}, got epoch={} leaderTerm={}",
-            taskName, task.getEpoch(), task.getLeaderTerm(), epoch, leaderTerm);
+            taskName,
+            task.getEpoch(),
+            task.getLeaderTerm(),
+            epoch,
+            leaderTerm);
         return new TSStatus(TSStatusCode.STREAM_STALE.getStatusCode())
             .setMessage(
                 String.format(
@@ -279,12 +281,11 @@ public class StreamManager {
         if (task.getStatus() != StreamTaskStatus.RUNNING) {
           continue;
         }
-        Deque<AbstractHeartbeatSample> samples = heartbeatHistory.get(
-            task.getTaskName());
+        Deque<AbstractHeartbeatSample> samples = heartbeatHistory.get(task.getTaskName());
         final List<AbstractHeartbeatSample> history =
-            samples != null ? Collections.unmodifiableList(
-                new ArrayList<>(
-                    samples)) : Collections.emptyList();
+            samples != null
+                ? Collections.unmodifiableList(new ArrayList<>(samples))
+                : Collections.emptyList();
         if (!failureDetector.isAvailable(task.getTaskName(), history)) {
           toUpdate.add(task);
         }

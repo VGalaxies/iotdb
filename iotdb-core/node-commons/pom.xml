@@ -179,12 +179,12 @@
             <groupId>org.apache.ratis</groupId>
             <artifactId>ratis-common</artifactId>
         </dependency>
-      <dependency>
-        <groupId>org.apache.iotdb</groupId>
-        <artifactId>iotdb-thrift-streamnode</artifactId>
-        <version>2.0.7-SNAPSHOT</version>
-        <scope>compile</scope>
-      </dependency>
+        <dependency>
+            <groupId>org.apache.iotdb</groupId>
+            <artifactId>iotdb-thrift-streamnode</artifactId>
+            <version>2.0.7-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
     </dependencies>
     <build>
         <resources>

@@ -26,6 +26,8 @@ import org.apache.iotdb.common.rpc.thrift.TConsensusGroupType;
 import org.apache.iotdb.common.rpc.thrift.TDataNodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TExternalServiceEntry;
 import org.apache.iotdb.common.rpc.thrift.TExternalServiceListResp;
+import org.apache.iotdb.common.rpc.thrift.TShowStreamResp;
+import org.apache.iotdb.common.rpc.thrift.TStreamInfo;
 import org.apache.iotdb.commons.audit.UserEntity;
 import org.apache.iotdb.commons.client.exception.ClientManagerException;
 import org.apache.iotdb.commons.conf.IoTDBConstant;
@@ -236,6 +238,8 @@ public class InformationSchemaContentSupplierFactory {
           return new QueriesCostsHistogramSupplier(dataTypes, userEntity);
         case InformationSchema.SERVICES:
           return new ServicesSupplier(dataTypes, userEntity);
+        case InformationSchema.STREAMS:
+          return new StreamsSupplier(dataTypes, userEntity);
         default:
           throw new UnsupportedOperationException("Unknown table: " + tableName);
       }
@@ -1735,6 +1739,54 @@ public class InformationSchemaContentSupplierFactory {
     @Override
     public boolean hasNext() {
       return nextConsumedIndex < 61;
+    }
+  }
+
+  private static class StreamsSupplier extends TsBlockSupplier {
+    private final Iterator<TStreamInfo> iterator;
+
+    private StreamsSupplier(final List<TSDataType> dataTypes, final UserEntity userEntity)
+        throws ClientManagerException, TException {
+      super(dataTypes);
+      accessControl.checkUserGlobalSysPrivilege(userEntity);
+      try (final ConfigNodeClient client =
+          ConfigNodeClientManager.getInstance().borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        final TShowStreamResp resp = client.showStreams();
+        if (resp.getStatus().getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+          throw new IoTDBRuntimeException(resp.getStatus());
+        }
+        iterator = resp.getStreamInfoListIterator();
+      }
+    }
+
+    @Override
+    protected void constructLine() {
+      final TStreamInfo info = iterator.next();
+      columnBuilders[0].writeBinary(BytesUtils.valueOf(info.getDatabase()));
+      columnBuilders[1].writeBinary(BytesUtils.valueOf(info.getStreamName()));
+      columnBuilders[2].writeBinary(BytesUtils.valueOf(info.getStatus()));
+      columnBuilders[3].writeLong(
+          TimestampPrecisionUtils.convertToCurrPrecision(
+              info.getCreationTime(), TimeUnit.MILLISECONDS));
+      columnBuilders[4].writeBinary(BytesUtils.valueOf(info.getCreator()));
+      columnBuilders[5].writeBinary(BytesUtils.valueOf(info.getSubQuery()));
+      columnBuilders[6].writeBinary(BytesUtils.valueOf(info.getRunningOn()));
+      columnBuilders[7].writeLong(
+          TimestampPrecisionUtils.convertToCurrPrecision(
+              info.getLastUpTime(), TimeUnit.MILLISECONDS));
+      columnBuilders[8].writeLong(
+          TimestampPrecisionUtils.convertToCurrPrecision(
+              info.getLastDownTime(), TimeUnit.MILLISECONDS));
+      columnBuilders[9].writeBinary(BytesUtils.valueOf(info.getLastDownReason()));
+      columnBuilders[10].writeLong(
+          TimestampPrecisionUtils.convertToCurrPrecision(
+              info.getLastHeartbeatTime(), TimeUnit.MILLISECONDS));
+      resultBuilder.declarePosition();
+    }
+
+    @Override
+    public boolean hasNext() {
+      return iterator.hasNext();
     }
   }
 }

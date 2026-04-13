@@ -357,3 +357,22 @@ enum FunctionType{
   AGGREGATE=2,
   TABLE=3
 }
+
+struct TStreamInfo {
+  1: required string database
+  2: required string streamName
+  3: required string status
+  4: required i64 creationTime
+  5: required string creator
+  6: required string subQuery
+  7: required string runningOn
+  8: required i64 lastUpTime
+  9: required i64 lastDownTime
+  10: required string lastDownReason
+  11: required i64 lastHeartbeatTime
+}
+
+struct TShowStreamResp {
+  1: required TSStatus status
+  2: required list<TStreamInfo> streamInfoList
+}
