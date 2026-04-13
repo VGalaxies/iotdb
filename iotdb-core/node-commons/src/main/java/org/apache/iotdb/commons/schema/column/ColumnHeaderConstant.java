@@ -127,6 +127,17 @@ public class ColumnHeaderConstant {
   public static final String SERVICE_NAME_TABLE_MODEL = "service_name";
   public static final String SERVICE_TYPE_TABLE_MODEL = "service_type";
 
+  // column names for streams table
+  public static final String STREAM_NAME_TABLE_MODEL = "stream_name";
+  public static final String STREAM_STATUS_TABLE_MODEL = "status";
+  public static final String STREAM_CREATOR_TABLE_MODEL = "creator";
+  public static final String STREAM_SUB_QUERY_TABLE_MODEL = "sub_query";
+  public static final String STREAM_RUNNING_ON_TABLE_MODEL = "running_on";
+  public static final String STREAM_LAST_UP_TIME_TABLE_MODEL = "last_up_time";
+  public static final String STREAM_LAST_DOWN_TIME_TABLE_MODEL = "last_down_time";
+  public static final String STREAM_LAST_DOWN_REASON_TABLE_MODEL = "last_down_reason";
+  public static final String STREAM_LAST_HEARTBEAT_TIME_TABLE_MODEL = "last_heartbeat_time";
+
   // column names for show pipe plugins statement
   public static final String PLUGIN_NAME = "PluginName";
   public static final String PLUGIN_TYPE = "PluginType";
