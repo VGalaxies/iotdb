@@ -324,6 +324,9 @@ public class ConfigNodeConfig {
 
   private long partitionTableRecoverWaitAllDnUpTimeoutInMs = 60000;
 
+  /** Stream heartbeat lost threshold in milliseconds. */
+  private long streamHeartbeatLostThresholdMS = 15000;
+
   public ConfigNodeConfig() {
     // empty constructor
   }
@@ -1304,5 +1307,13 @@ public class ConfigNodeConfig {
   public void setPartitionTableRecoverWaitAllDnUpTimeoutInMs(
       long partitionTableRecoverWaitAllDnUpTimeoutInMs) {
     this.partitionTableRecoverWaitAllDnUpTimeoutInMs = partitionTableRecoverWaitAllDnUpTimeoutInMs;
+  }
+
+  public long getStreamHeartbeatLostThresholdMS() {
+    return streamHeartbeatLostThresholdMS;
+  }
+
+  public void setStreamHeartbeatLostThresholdMS(long streamHeartbeatLostThresholdMS) {
+    this.streamHeartbeatLostThresholdMS = streamHeartbeatLostThresholdMS;
   }
 }

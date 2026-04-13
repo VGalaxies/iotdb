@@ -106,6 +106,9 @@ public enum ThreadName {
   CONFIG_NODE_TIMEOUT_EXECUTOR("ProcedureTimeoutExecutor"),
   CONFIG_NODE_WORKER_THREAD_MONITOR("ProcedureWorkerThreadMonitor"),
   CONFIG_NODE_RETRY_FAILED_TASK("Cluster-RetryFailedTasks-Service"),
+  // -------------------------- ConfigNode-Stream --------------------------
+  STREAM_MONITOR("StreamMonitor"),
+
   // -------------------------- IoTConsensusV2 --------------------------
   IOT_CONSENSUS_V2_RPC_SERVICE("IoTConsensusV2RPC-Service"),
   IOT_CONSENSUS_V2_RPC_PROCESSOR("IoTConsensusV2RPC-Processor"),
@@ -379,7 +382,8 @@ public enum ThreadName {
               CONFIG_NODE_WORKER_THREAD_MONITOR,
               CONFIG_NODE_TIMEOUT_EXECUTOR,
               CONFIG_NODE_RETRY_FAILED_TASK));
-
+  private static final Set<ThreadName> configNodeStreamThreadNames =
+      new HashSet<>(Arrays.asList(STREAM_MONITOR));
   private static final Set<ThreadName> streamNodeRpcThreadNames =
       new HashSet<>(Arrays.asList(STREAM_NODE_RPC_SERVICE, STREAM_NODE_RPC_PROCESSOR));
 
@@ -430,6 +434,7 @@ public enum ThreadName {
         configNodeRegionManagementThreadNames,
         configNodeRecoverThreadNames,
         configNodeProcedureThreadNames,
+        configNodeStreamThreadNames,
         streamNodeRpcThreadNames,
         otherThreadNames
       };
@@ -456,6 +461,7 @@ public enum ThreadName {
         ThreadModule.REGION_MANAGEMENT,
         ThreadModule.RECOVER,
         ThreadModule.PROCEDURE,
+        ThreadModule.STREAM,
         ThreadModule.RPC,
         ThreadModule.OTHER
       };

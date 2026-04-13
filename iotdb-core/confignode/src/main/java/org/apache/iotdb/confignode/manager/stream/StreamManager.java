@@ -21,6 +21,8 @@ package org.apache.iotdb.confignode.manager.stream;
 
 import org.apache.iotdb.common.rpc.thrift.TEndPoint;
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
+import org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory;
+import org.apache.iotdb.commons.concurrent.ThreadName;
 import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.commons.stream.StreamTaskStatus;
 import org.apache.iotdb.commons.utils.StatusUtils;
@@ -32,10 +34,15 @@ import org.apache.iotdb.rpc.TSStatusCode;
 import org.apache.iotdb.streamnode.rpc.thrift.TStartTaskOnStreamNodeReq;
 import org.apache.iotdb.streamnode.rpc.thrift.TStopTaskOnStreamNodeReq;
 
+import org.apache.iotdb.confignode.conf.ConfigNodeDescriptor;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
@@ -46,10 +53,15 @@ public class StreamManager {
   private final IManager configManager;
   private final StreamInfo streamInfo;
   private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+  private final long heartbeatLostThresholdMS;
+  private final ScheduledExecutorService streamMonitorExecutor;
 
   public StreamManager(IManager configManager, StreamInfo streamInfo) {
     this.configManager = configManager;
     this.streamInfo = streamInfo;
+    this.heartbeatLostThresholdMS = ConfigNodeDescriptor.getInstance().getConf().getStreamHeartbeatLostThresholdMS();
+    this.streamMonitorExecutor = IoTDBThreadPoolFactory.newScheduledThreadPool(1, ThreadName.STREAM_MONITOR.getName());
+    this.streamMonitorExecutor.scheduleAtFixedRate(this::monitorStreams, 0, 5, TimeUnit.SECONDS);
   }
 
   public TSStatus createStream(StreamTask task) {
@@ -83,36 +95,45 @@ public class StreamManager {
         return new TSStatus(TSStatusCode.EXECUTE_STATEMENT_ERROR.getStatusCode())
             .setMessage("Stream not found: " + taskName);
       }
-      String streamNode = assignStreamToStreamNode(task);
-      // Parse runningOn to TEndPoint
-      String[] parts = streamNode.split(":");
-      TEndPoint endPoint = new TEndPoint(parts[0], Integer.parseInt(parts[1]));
-      task.setEpoch(task.getEpoch() + 1);
-      task.setLeaderTerm(configManager.getConsensusManager().getLeaderTerm());
-      // Create request
-      TStartTaskOnStreamNodeReq req =
-          new TStartTaskOnStreamNodeReq(
-              task.toByteBuffer(),
-              task.getEpoch(),
-              task.getLeaderTerm());
-      // Send request to StreamNode
-      TSStatus status =
-          (TSStatus)
-              SyncStreamNodeClientPool.getInstance()
-                  .sendSyncRequestToStreamNodeWithRetry(
-                      endPoint, req, CnToSnSyncRequestType.START_TASK);
-      if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
-        return status;
-      }
-      // Update status
-      task.setRunningOn(streamNode);
-      task.setStatus(StreamTaskStatus.RUNNING);
-      task.setLastUpTime(System.currentTimeMillis());
-      task.setLastHeartbeatTime(System.currentTimeMillis());
-      return StatusUtils.OK;
+      return startStreamInternal(task);
     } finally {
       lock.writeLock().unlock();
     }
+  }
+
+  // Caller must hold the write lock
+  private TSStatus startStreamInternal(StreamTask task) {
+    if (task.getStatus() == StreamTaskStatus.RUNNING) {
+      return StatusUtils.OK;
+    }
+
+    String streamNode = assignStreamToStreamNode(task);
+    // Parse runningOn to TEndPoint
+    String[] parts = streamNode.split(":");
+    TEndPoint endPoint = new TEndPoint(parts[0], Integer.parseInt(parts[1]));
+    task.setEpoch(task.getEpoch() + 1);
+    task.setLeaderTerm(configManager.getConsensusManager().getLeaderTerm());
+    // Create request
+    TStartTaskOnStreamNodeReq req =
+        new TStartTaskOnStreamNodeReq(
+            task.toByteBuffer(),
+            task.getEpoch(),
+            task.getLeaderTerm());
+    // Send request to StreamNode
+    TSStatus status =
+        (TSStatus)
+            SyncStreamNodeClientPool.getInstance()
+                .sendSyncRequestToStreamNodeWithRetry(
+                    endPoint, req, CnToSnSyncRequestType.START_TASK);
+    if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+      return status;
+    }
+    // Update status
+    task.setRunningOn(streamNode);
+    task.setStatus(StreamTaskStatus.RUNNING);
+    task.setLastUpTime(System.currentTimeMillis());
+    task.setLastHeartbeatTime(System.currentTimeMillis());
+    return StatusUtils.OK;
   }
 
   private String assignStreamToStreamNode(StreamTask task) {
@@ -175,6 +196,61 @@ public class StreamManager {
           .collect(Collectors.toList());
     } finally {
       lock.readLock().unlock();
+    }
+  }
+
+  private void monitorStreams() {
+    List<StreamTask> toUpdate = new ArrayList<>();
+    lock.readLock().lock();
+    try {
+      for (StreamTask task : streamInfo.getAllTasks()) {
+        if (task.getStatus() == StreamTaskStatus.RUNNING
+            && System.currentTimeMillis() - task.getLastHeartbeatTime() > heartbeatLostThresholdMS) {
+          toUpdate.add(task);
+        }
+      }
+    } finally {
+      lock.readLock().unlock();
+    }
+
+    if (!toUpdate.isEmpty()) {
+      lock.writeLock().lock();
+      try {
+        for (StreamTask task : toUpdate) {
+          if (task.getStatus() == StreamTaskStatus.RUNNING) { // Double check
+            task.setStatus(StreamTaskStatus.UNKNOWN);
+            LOGGER.info("Marked task {} as UNKNOWN due to heartbeat loss", task.getTaskName());
+          }
+        }
+      } finally {
+        lock.writeLock().unlock();
+      }
+    }
+
+    // Restart all UNKNOWN tasks
+    List<StreamTask> unknownTasks = new ArrayList<>();
+    lock.readLock().lock();
+    try {
+      for (StreamTask task : streamInfo.getAllTasks()) {
+        if (task.getStatus() == StreamTaskStatus.UNKNOWN) {
+          unknownTasks.add(task);
+        }
+      }
+    } finally {
+      lock.readLock().unlock();
+    }
+
+    for (StreamTask task : unknownTasks) {
+      LOGGER.info("Restarting UNKNOWN task: {}", task.getTaskName());
+      lock.writeLock().lock();
+      try {
+          TSStatus status = startStreamInternal(task);
+          if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+            LOGGER.warn("Failed to restart task {}: {}", task.getTaskName(), status.getMessage());
+          }
+      } finally {
+        lock.writeLock().unlock();
+      }
     }
   }
 }
