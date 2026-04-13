@@ -68,7 +68,7 @@ public class StreamInfo implements SnapshotProcessor {
           .setMessage("Stream already exists: " + task.getTaskName());
     }
     task.setId(nextStreamId.getAndIncrement());
-    task.setStatus(StreamTaskStatus.CREATED);
+    task.setStatus(StreamTaskStatus.UNKNOWN);
     // Serialize the task to streams directory
     File streamsDir = new File(ConfigNodeDescriptor.getInstance().getConf().getStreamsDir());
     if (!streamsDir.exists()) {

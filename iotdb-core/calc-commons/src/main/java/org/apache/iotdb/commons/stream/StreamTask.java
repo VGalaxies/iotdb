@@ -40,6 +40,7 @@ public class StreamTask {
   // to distinguish different execution of the same task, incremented by 1 every time the task is
   // started
   private int epoch;
+  private long leaderTerm;
   private StreamProperties properties;
 
   // CN field
@@ -50,11 +51,8 @@ public class StreamTask {
   private long id;
   private long lastUpTime;
   private long lastDownTime;
+  private long lastHeartbeatTime;
   private String lastDownReason;
-
-  // SN field
-  // the time when the task starts to run on SN, used for CN restart detect
-  private long cnStartTime;
 
   public StreamTask() {}
 
@@ -213,6 +211,22 @@ public class StreamTask {
 
   public void setLastDownReason(String lastDownReason) {
     this.lastDownReason = lastDownReason;
+  }
+
+  public long getLeaderTerm() {
+    return leaderTerm;
+  }
+
+  public void setLeaderTerm(long leaderTerm) {
+    this.leaderTerm = leaderTerm;
+  }
+
+  public long getLastHeartbeatTime() {
+    return lastHeartbeatTime;
+  }
+
+  public void setLastHeartbeatTime(long lastHeartbeatTime) {
+    this.lastHeartbeatTime = lastHeartbeatTime;
   }
 
   public void serialize(OutputStream outputStream) throws IOException {

@@ -23,6 +23,6 @@ public enum StreamTaskStatus {
   CREATED,
   RUNNING,
   STOPPED,
-  ERROR,
+  UNKNOWN,
   DROPPED
 }

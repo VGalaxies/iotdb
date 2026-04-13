@@ -88,12 +88,13 @@ public class StreamManager {
       String[] parts = streamNode.split(":");
       TEndPoint endPoint = new TEndPoint(parts[0], Integer.parseInt(parts[1]));
       task.setEpoch(task.getEpoch() + 1);
+      task.setLeaderTerm(configManager.getConsensusManager().getLeaderTerm());
       // Create request
       TStartTaskOnStreamNodeReq req =
           new TStartTaskOnStreamNodeReq(
               task.toByteBuffer(),
               task.getEpoch(),
-              configManager.getConsensusManager().getLeaderTerm());
+              task.getLeaderTerm());
       // Send request to StreamNode
       TSStatus status =
           (TSStatus)
@@ -107,6 +108,7 @@ public class StreamManager {
       task.setRunningOn(streamNode);
       task.setStatus(StreamTaskStatus.RUNNING);
       task.setLastUpTime(System.currentTimeMillis());
+      task.setLastHeartbeatTime(System.currentTimeMillis());
       return StatusUtils.OK;
     } finally {
       lock.writeLock().unlock();
