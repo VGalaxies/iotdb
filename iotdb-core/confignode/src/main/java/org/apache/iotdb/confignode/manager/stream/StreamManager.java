@@ -166,6 +166,29 @@ public class StreamManager {
     return StatusUtils.OK;
   }
 
+  /**
+   * Record a heartbeat for the given task. Should be called whenever a heartbeat reply is received
+   * from the StreamNode.
+   */
+  public void recordHeartbeat(String taskName) {
+    final Deque<AbstractHeartbeatSample> history =
+        heartbeatHistory.computeIfAbsent(taskName, k -> new ArrayDeque<>());
+    history.addLast(new StreamHeartbeatSample());
+    while (history.size() > MAX_HEARTBEAT_HISTORY) {
+      history.pollFirst();
+    }
+    // Also refresh the task's lastHeartbeatTime for compatibility
+    lock.readLock().lock();
+    try {
+      final StreamTask task = streamInfo.getTask(taskName);
+      if (task != null) {
+        task.setLastHeartbeatTime(System.currentTimeMillis());
+      }
+    } finally {
+      lock.readLock().unlock();
+    }
+  }
+
   private String assignStreamToStreamNode(StreamTask task) {
     // TODO: let StreamNodeManager assign a StreamNode based on load and other factors, for now just
     // return a placeholder
@@ -234,8 +257,16 @@ public class StreamManager {
     lock.readLock().lock();
     try {
       for (StreamTask task : streamInfo.getAllTasks()) {
-        if (task.getStatus() == StreamTaskStatus.RUNNING
-            && System.currentTimeMillis() - task.getLastHeartbeatTime() > heartbeatLostThresholdMS) {
+        if (task.getStatus() != StreamTaskStatus.RUNNING) {
+          continue;
+        }
+        Deque<AbstractHeartbeatSample> samples = heartbeatHistory.get(
+            task.getTaskName());
+        final List<AbstractHeartbeatSample> history =
+            samples != null ? Collections.unmodifiableList(
+                new ArrayList<>(
+                    samples)) : Collections.emptyList();
+        if (!failureDetector.isAvailable(task.getTaskName(), history)) {
           toUpdate.add(task);
         }
       }
@@ -274,10 +305,15 @@ public class StreamManager {
       LOGGER.info("Restarting UNKNOWN task: {}", task.getTaskName());
       lock.writeLock().lock();
       try {
+        if (task.getStatus() == StreamTaskStatus.UNKNOWN) { // Double check
           TSStatus status = startStreamInternal(task);
           if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
             LOGGER.warn("Failed to restart task {}: {}", task.getTaskName(), status.getMessage());
+          } else {
+            // Clear stale heartbeat history so the detector starts fresh after restart
+            heartbeatHistory.remove(task.getTaskName());
           }
+        }
       } finally {
         lock.writeLock().unlock();
       }
