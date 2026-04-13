@@ -23,6 +23,7 @@ import org.apache.iotdb.confignode.manager.load.cache.AbstractHeartbeatSample;
 import org.apache.iotdb.confignode.manager.load.cache.IFailureDetector;
 import org.apache.iotdb.confignode.manager.load.cache.node.NodeHeartbeatSample;
 import org.apache.iotdb.confignode.manager.load.cache.region.RegionHeartbeatSample;
+import org.apache.iotdb.confignode.manager.stream.StreamHeartbeatSample;
 
 import org.apache.tsfile.utils.Preconditions;
 
@@ -46,7 +47,9 @@ public class FixedDetector implements IFailureDetector {
         history.isEmpty() ? null : history.get(history.size() - 1);
     if (lastSample != null) {
       Preconditions.checkArgument(
-          lastSample instanceof NodeHeartbeatSample || lastSample instanceof RegionHeartbeatSample);
+          lastSample instanceof NodeHeartbeatSample
+              || lastSample instanceof RegionHeartbeatSample
+              || lastSample instanceof StreamHeartbeatSample);
     }
     final long lastSendTime =
         Optional.ofNullable(lastSample)

@@ -29,6 +29,10 @@ import org.apache.iotdb.commons.utils.StatusUtils;
 import org.apache.iotdb.confignode.client.sync.CnToSnSyncRequestType;
 import org.apache.iotdb.confignode.client.sync.SyncStreamNodeClientPool;
 import org.apache.iotdb.confignode.manager.IManager;
+import org.apache.iotdb.confignode.manager.load.cache.AbstractHeartbeatSample;
+import org.apache.iotdb.confignode.manager.load.cache.IFailureDetector;
+import org.apache.iotdb.confignode.manager.load.cache.detector.FixedDetector;
+import org.apache.iotdb.confignode.manager.load.cache.detector.PhiAccrualDetector;
 import org.apache.iotdb.confignode.persistence.stream.StreamInfo;
 import org.apache.iotdb.rpc.TSStatusCode;
 import org.apache.iotdb.streamnode.rpc.thrift.TStartTaskOnStreamNodeReq;
@@ -39,8 +43,13 @@ import org.apache.iotdb.confignode.conf.ConfigNodeDescriptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -50,17 +59,34 @@ public class StreamManager {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(StreamManager.class);
 
+  // Maximum number of heartbeat samples retained per task
+  private static final int MAX_HEARTBEAT_HISTORY = 200;
+
   private final IManager configManager;
   private final StreamInfo streamInfo;
   private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
-  private final long heartbeatLostThresholdMS;
+  private final IFailureDetector failureDetector;
+  // taskName -> ordered deque of heartbeat samples (nano timestamps)
+  private final Map<String, Deque<AbstractHeartbeatSample>> heartbeatHistory =
+      new ConcurrentHashMap<>();
   private final ScheduledExecutorService streamMonitorExecutor;
 
   public StreamManager(IManager configManager, StreamInfo streamInfo) {
     this.configManager = configManager;
     this.streamInfo = streamInfo;
-    this.heartbeatLostThresholdMS = ConfigNodeDescriptor.getInstance().getConf().getStreamHeartbeatLostThresholdMS();
-    this.streamMonitorExecutor = IoTDBThreadPoolFactory.newScheduledThreadPool(1, ThreadName.STREAM_MONITOR.getName());
+    final long heartbeatIntervalNs =
+        ConfigNodeDescriptor.getInstance().getConf().getStreamHeartbeatLostThresholdMS()
+            * 1_000_000L;
+    final FixedDetector fixedFallback = new FixedDetector(heartbeatIntervalNs * 2);
+    this.failureDetector =
+        new PhiAccrualDetector(
+            /* threshold= */ 10,
+            /* acceptableHeartbeatPauseNs= */ heartbeatIntervalNs,
+            /* minHeartbeatStdNs= */ (long) (heartbeatIntervalNs * 0.1),
+            /* minimalSampleCount= */ IFailureDetector.PHI_COLD_START_THRESHOLD,
+            fixedFallback);
+    this.streamMonitorExecutor =
+        IoTDBThreadPoolFactory.newScheduledThreadPool(1, ThreadName.STREAM_MONITOR.getName());
     this.streamMonitorExecutor.scheduleAtFixedRate(this::monitorStreams, 0, 5, TimeUnit.SECONDS);
   }
 
@@ -133,6 +159,10 @@ public class StreamManager {
     task.setStatus(StreamTaskStatus.RUNNING);
     task.setLastUpTime(System.currentTimeMillis());
     task.setLastHeartbeatTime(System.currentTimeMillis());
+    // Seed the heartbeat history with the start timestamp so the detector has an anchor point
+    heartbeatHistory
+        .computeIfAbsent(task.getTaskName(), k -> new ArrayDeque<>())
+        .add(new StreamHeartbeatSample());
     return StatusUtils.OK;
   }
 
