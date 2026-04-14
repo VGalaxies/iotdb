@@ -46,6 +46,7 @@ import org.apache.iotdb.commons.cluster.NodeStatus;
 import org.apache.iotdb.commons.cluster.NodeType;
 import org.apache.iotdb.commons.conf.CommonConfig;
 import org.apache.iotdb.commons.conf.CommonDescriptor;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.commons.conf.ConfigurationFileUtils;
 import org.apache.iotdb.commons.conf.IoTDBConstant;
 import org.apache.iotdb.commons.conf.TrimProperties;
@@ -2707,6 +2708,14 @@ public class ConfigManager implements IManager {
             .collect(Collectors.toList());
     return new TShowStreamResp(
         new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode()), streamInfoList);
+  }
+
+  @Override
+  public TSStatus createStream(StreamTask streamTask) {
+    TSStatus status = confirmLeader();
+    return status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()
+        ? streamManager.createStream(streamTask)
+        : status;
   }
 
   @Override

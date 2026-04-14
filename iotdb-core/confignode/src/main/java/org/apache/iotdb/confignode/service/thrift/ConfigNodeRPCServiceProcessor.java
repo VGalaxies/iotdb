@@ -241,8 +241,12 @@ import org.apache.iotdb.consensus.exception.ConsensusException;
 import org.apache.iotdb.db.queryengine.plan.relational.type.AuthorRType;
 import org.apache.iotdb.rpc.RpcUtils;
 import org.apache.iotdb.rpc.TSStatusCode;
+import org.apache.iotdb.commons.stream.StreamTask;
 
 import org.apache.thrift.TException;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1510,7 +1514,13 @@ public class ConfigNodeRPCServiceProcessor implements IConfigNodeRPCService.Ifac
 
   @Override
   public TSStatus createStream(TCreateStreamReq req) throws TException {
-    return null;
+    try {
+      StreamTask task = StreamTask.deserialize(new ByteArrayInputStream(req.getStreamTask()));
+      return configManager.createStream(task);
+    } catch (IOException e) {
+      return new TSStatus(TSStatusCode.EXECUTE_STATEMENT_ERROR.getStatusCode())
+          .setMessage("Failed to deserialize StreamTask: " + e.getMessage());
+    }
   }
 
   @Override

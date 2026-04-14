@@ -1549,7 +1549,8 @@ public class ConfigNodeClient implements IConfigNodeRPCService.Iface, ThriftClie
 
   @Override
   public TSStatus createStream(TCreateStreamReq req) throws TException {
-    return null;
+    return executeRemoteCallWithRetry(
+        () -> client.createStream(req), status -> !updateConfigNodeLeader(status));
   }
 
   @Override

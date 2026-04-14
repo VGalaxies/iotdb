@@ -63,6 +63,7 @@ import org.apache.iotdb.confignode.manager.pipe.coordinator.PipeManager;
 import org.apache.iotdb.confignode.manager.schema.ClusterSchemaManager;
 import org.apache.iotdb.confignode.manager.stream.StreamManager;
 import org.apache.iotdb.confignode.manager.subscription.SubscriptionManager;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.confignode.rpc.thrift.TAINodeRegisterReq;
 import org.apache.iotdb.confignode.rpc.thrift.TAINodeRestartReq;
 import org.apache.iotdb.confignode.rpc.thrift.TAINodeRestartResp;
@@ -888,6 +889,8 @@ public interface IManager {
   TExternalServiceListResp showExternalService(int dataNodeId);
 
   TShowStreamResp showStreams();
+
+  TSStatus createStream(StreamTask streamTask);
 
   TSStatus startStream(String database, String streamName);
 

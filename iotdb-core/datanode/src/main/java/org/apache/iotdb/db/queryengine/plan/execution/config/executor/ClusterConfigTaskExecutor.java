@@ -172,6 +172,8 @@ import org.apache.iotdb.confignode.rpc.thrift.TSpaceQuotaResp;
 import org.apache.iotdb.confignode.rpc.thrift.TStartPipeReq;
 import org.apache.iotdb.confignode.rpc.thrift.TStartStreamReq;
 import org.apache.iotdb.confignode.rpc.thrift.TStopPipeReq;
+import org.apache.iotdb.confignode.rpc.thrift.TCreateStreamReq;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.confignode.rpc.thrift.TThrottleQuotaResp;
 import org.apache.iotdb.confignode.rpc.thrift.TUnsetSchemaTemplateReq;
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
@@ -5043,11 +5045,23 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
 
   // ===================================== STREAM =============================
   @Override
-  public SettableFuture<ConfigTaskResult> createStream(
-      org.apache.iotdb.commons.stream.StreamTask streamTask) {
-    // TODO: implement RPC to ConfigNode
+  public SettableFuture<ConfigTaskResult> createStream(StreamTask streamTask) {
     SettableFuture<ConfigTaskResult> future = SettableFuture.create();
-    future.setException(new UnsupportedOperationException("createStream not implemented yet"));
+    try (ConfigNodeClient client =
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+      TCreateStreamReq req = new TCreateStreamReq(streamTask.toByteBuffer());
+      TSStatus tsStatus = client.createStream(req);
+      if (TSStatusCode.SUCCESS_STATUS.getStatusCode() != tsStatus.getCode()) {
+        LOGGER.warn(
+            "Failed to create stream {} in config node, status is {}.",
+            streamTask.getTaskName(), tsStatus);
+        future.setException(new IoTDBException(tsStatus));
+      } else {
+        future.set(new ConfigTaskResult(TSStatusCode.SUCCESS_STATUS));
+      }
+    } catch (ClientManagerException | TException e) {
+      future.setException(e);
+    }
     return future;
   }
 

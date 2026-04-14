@@ -111,6 +111,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import org.apache.iotdb.commons.stream.StreamTask;
+
 public interface IConfigTaskExecutor {
 
   SettableFuture<ConfigTaskResult> setDatabase(DatabaseSchemaStatement databaseSchemaStatement);
@@ -478,8 +480,7 @@ public interface IConfigTaskExecutor {
       @Nullable List<String> pathList);
 
   // ==================================== STREAM =======================================
-  SettableFuture<ConfigTaskResult> createStream(
-      org.apache.iotdb.commons.stream.StreamTask streamTask);
+  SettableFuture<ConfigTaskResult> createStream(StreamTask streamTask);
 
   SettableFuture<ConfigTaskResult> dropStream(String database, String streamName);
 
