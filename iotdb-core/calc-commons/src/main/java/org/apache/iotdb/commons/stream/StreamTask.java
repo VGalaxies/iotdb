@@ -41,6 +41,8 @@ public class StreamTask {
   // started
   private int epoch;
   private long leaderTerm;
+  // CN wall-clock time when this epoch was started, used by StreamNode to identify stale tasks
+  private long cnStartTime;
   private StreamProperties properties;
 
   // CN field
@@ -219,6 +221,14 @@ public class StreamTask {
 
   public void setLeaderTerm(long leaderTerm) {
     this.leaderTerm = leaderTerm;
+  }
+
+  public long getCnStartTime() {
+    return cnStartTime;
+  }
+
+  public void setCnStartTime(long cnStartTime) {
+    this.cnStartTime = cnStartTime;
   }
 
   public long getLastHeartbeatTime() {

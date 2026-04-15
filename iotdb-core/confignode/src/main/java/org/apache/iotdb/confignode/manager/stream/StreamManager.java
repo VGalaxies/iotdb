@@ -144,7 +144,7 @@ public class StreamManager {
     task.setLeaderTerm(configManager.getConsensusManager().getLeaderTerm());
     // Create request
     TStartTaskOnStreamNodeReq req =
-        new TStartTaskOnStreamNodeReq(task.toByteBuffer(), task.getEpoch(), task.getLeaderTerm());
+        new TStartTaskOnStreamNodeReq(task.toByteBuffer(), task.getEpoch(), cnStartTime);
     // Send request to StreamNode
     TSStatus status =
         (TSStatus)
