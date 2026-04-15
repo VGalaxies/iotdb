@@ -55,6 +55,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
+@SuppressWarnings("SynchronizationOnLocalVariableOrMethodParameter")
 public class StreamManager {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(StreamManager.class);
@@ -177,23 +178,25 @@ public class StreamManager {
         return new TSStatus(TSStatusCode.STREAM_NOT_EXIST.getStatusCode())
             .setMessage("Stream task not found: " + taskName);
       }
-      if (task.getEpoch() != epoch || task.getLeaderTerm() != leaderTerm) {
-        LOGGER.warn(
-            "Stale heartbeat for task {}: expected epoch={} leaderTerm={}, got epoch={} leaderTerm={}",
-            taskName,
-            task.getEpoch(),
-            task.getLeaderTerm(),
-            epoch,
-            leaderTerm);
-        return new TSStatus(TSStatusCode.STREAM_STALE.getStatusCode())
-            .setMessage(
-                String.format(
-                    "Stale heartbeat for task %s: expected epoch=%d leaderTerm=%d, got epoch=%d leaderTerm=%d",
-                    taskName, task.getEpoch(), task.getLeaderTerm(), epoch, leaderTerm));
+      synchronized (task) {
+        if (task.getEpoch() != epoch || task.getLeaderTerm() != leaderTerm) {
+          LOGGER.warn(
+              "Stale heartbeat for task {}: expected epoch={} leaderTerm={}, got epoch={} leaderTerm={}",
+              taskName,
+              task.getEpoch(),
+              task.getLeaderTerm(),
+              epoch,
+              leaderTerm);
+          return new TSStatus(TSStatusCode.STREAM_STALE.getStatusCode())
+              .setMessage(
+                  String.format(
+                      "Stale heartbeat for task %s: expected epoch=%d leaderTerm=%d, got epoch=%d leaderTerm=%d",
+                      taskName, task.getEpoch(), task.getLeaderTerm(), epoch, leaderTerm));
+        }
+        task.setLastHeartbeatTime(System.currentTimeMillis());
+        task.setRunningOn(runningOn);
+        task.setStatus(StreamTaskStatus.RUNNING);
       }
-      task.setLastHeartbeatTime(System.currentTimeMillis());
-      task.setRunningOn(runningOn);
-      task.setStatus(StreamTaskStatus.RUNNING);
     } finally {
       lock.readLock().unlock();
     }
@@ -228,27 +231,30 @@ public class StreamManager {
         return new TSStatus(TSStatusCode.EXECUTE_STATEMENT_ERROR.getStatusCode())
             .setMessage("Stream not found: " + taskName);
       }
-      String streamNode = task.getRunningOn();
-      // Parse runningOn to TEndPoint
-      String[] parts = streamNode.split(":");
-      TEndPoint endPoint = new TEndPoint(parts[0], Integer.parseInt(parts[1]));
-      // Create request
-      TStopTaskOnStreamNodeReq req =
-          new TStopTaskOnStreamNodeReq(
-              streamName, task.getEpoch(), configManager.getConsensusManager().getLeaderTerm());
-      // Send request to StreamNode
-      TSStatus status =
-          (TSStatus)
-              SyncStreamNodeClientPool.getInstance()
-                  .sendSyncRequestToStreamNodeWithRetry(
-                      endPoint, req, CnToSnSyncRequestType.STOP_TASK);
-      if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
-        return status;
+
+      synchronized (task) {
+        String streamNode = task.getRunningOn();
+        // Parse runningOn to TEndPoint
+        String[] parts = streamNode.split(":");
+        TEndPoint endPoint = new TEndPoint(parts[0], Integer.parseInt(parts[1]));
+        // Create request
+        TStopTaskOnStreamNodeReq req =
+            new TStopTaskOnStreamNodeReq(
+                streamName, task.getEpoch(), configManager.getConsensusManager().getLeaderTerm());
+        // Send request to StreamNode
+        TSStatus status =
+            (TSStatus)
+                SyncStreamNodeClientPool.getInstance()
+                    .sendSyncRequestToStreamNodeWithRetry(
+                        endPoint, req, CnToSnSyncRequestType.STOP_TASK);
+        if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+          return status;
+        }
+        // Update status
+        task.setStatus(StreamTaskStatus.STOPPED);
+        task.setLastDownTime(System.currentTimeMillis());
+        task.setLastDownReason("Manually stopped");
       }
-      // Update status
-      task.setStatus(StreamTaskStatus.STOPPED);
-      task.setLastDownTime(System.currentTimeMillis());
-      task.setLastDownReason("Manually stopped");
       return StatusUtils.OK;
     } finally {
       lock.writeLock().unlock();
@@ -325,8 +331,7 @@ public class StreamManager {
 
     for (StreamTask task : unknownTasks) {
       LOGGER.info("Restarting UNKNOWN task: {}", task.getTaskName());
-      lock.writeLock().lock();
-      try {
+      synchronized (task) {
         if (task.getStatus() == StreamTaskStatus.UNKNOWN) { // Double check
           TSStatus status = startStreamInternal(task);
           if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
@@ -336,8 +341,6 @@ public class StreamManager {
             heartbeatHistory.remove(task.getTaskName());
           }
         }
-      } finally {
-        lock.writeLock().unlock();
       }
     }
   }
