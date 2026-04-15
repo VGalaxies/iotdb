@@ -324,4 +324,36 @@ public class IOUtils {
       inner.close();
     }
   }
+
+  /**
+   * An {@link InputStream} backed by a {@link ByteBuffer} that advances the buffer's position on
+   * every read, ensuring the caller's ByteBuffer position is correctly updated after deserialization.
+   */
+  public static final class ByteBufferInputStream extends InputStream {
+    private final ByteBuffer buf;
+
+    public ByteBufferInputStream(final ByteBuffer buf) {
+      this.buf = buf;
+    }
+
+    @Override
+    public int read() {
+      return buf.hasRemaining() ? buf.get() & 0xFF : -1;
+    }
+
+    @Override
+    public int read(final byte[] b, final int off, final int len) {
+      if (!buf.hasRemaining()) {
+        return -1;
+      }
+      final int toRead = Math.min(len, buf.remaining());
+      buf.get(b, off, toRead);
+      return toRead;
+    }
+
+    @Override
+    public int available() {
+      return buf.remaining();
+    }
+  }
 }

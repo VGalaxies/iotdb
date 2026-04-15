@@ -339,6 +339,9 @@ public enum ConfigPhysicalPlanType {
   DropExternalService((short) 2304),
   ShowExternalService((short) 2305),
 
+  /** Stream. */
+  CreateStream((short) 2400),
+
   /** Test Only. */
   TestOnly((short) 30000),
   ;

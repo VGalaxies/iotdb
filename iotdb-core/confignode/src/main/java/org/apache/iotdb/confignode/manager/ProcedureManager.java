@@ -99,6 +99,8 @@ import org.apache.iotdb.confignode.procedure.impl.schema.table.AbstractAlterOrDr
 import org.apache.iotdb.confignode.procedure.impl.schema.table.AddTableColumnProcedure;
 import org.apache.iotdb.confignode.procedure.impl.schema.table.AlterTableColumnDataTypeProcedure;
 import org.apache.iotdb.confignode.procedure.impl.schema.table.CreateTableProcedure;
+import org.apache.iotdb.confignode.procedure.impl.stream.CreateStreamProcedure;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.confignode.procedure.impl.schema.table.DeleteDevicesProcedure;
 import org.apache.iotdb.confignode.procedure.impl.schema.table.DropTableColumnProcedure;
 import org.apache.iotdb.confignode.procedure.impl.schema.table.DropTableProcedure;
@@ -1960,6 +1962,34 @@ public class ProcedureManager {
     if (interrupted) {
       Thread.currentThread().interrupt();
     }
+  }
+
+  public TSStatus createStream(final StreamTask streamTask) {
+    final String taskName = streamTask.getTaskName();
+    final CreateStreamProcedure procedure = new CreateStreamProcedure(streamTask);
+    synchronized (this) {
+      for (final Procedure<?> running : executor.getProcedures().values()) {
+        if (running.isFinished()) {
+          continue;
+        }
+        if (ProcedureFactory.getProcedureType(running) == ProcedureType.CREATE_STREAM_PROCEDURE) {
+          final CreateStreamProcedure existing = (CreateStreamProcedure) running;
+          if (streamTask.equals(existing.getStreamTask())) {
+            // Identical in-flight procedure — wait for it instead of submitting a duplicate
+            return waitingProcedureFinished(existing.getProcId());
+          }
+          if (taskName.equals(existing.getTaskName())) {
+            // Same name but different definition — conflict
+            return RpcUtils.getStatus(
+                TSStatusCode.OVERLAP_WITH_EXISTING_TASK,
+                "A different CreateStream task with the same name is already in progress: "
+                    + taskName);
+          }
+        }
+      }
+      executor.submitProcedure(procedure);
+    }
+    return waitingProcedureFinished(procedure);
   }
 
   public TSStatus createTable(final String database, final TsTable table) {

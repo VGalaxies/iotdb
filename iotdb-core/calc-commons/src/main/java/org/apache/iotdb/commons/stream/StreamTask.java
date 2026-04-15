@@ -19,6 +19,7 @@
 
 package org.apache.iotdb.commons.stream;
 
+import org.apache.iotdb.commons.utils.IOUtils;
 import org.apache.tsfile.utils.PublicBAOS;
 
 import java.io.DataInputStream;
@@ -27,6 +28,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.Objects;
 
 public class StreamTask {
 
@@ -278,6 +280,10 @@ public class StreamTask {
     return streamTask;
   }
 
+  public static StreamTask deserialize(ByteBuffer byteBuffer) throws IOException {
+    return deserialize(new IOUtils.ByteBufferInputStream(byteBuffer));
+  }
+
   public ByteBuffer toByteBuffer() {
     try (PublicBAOS baos = new PublicBAOS();
         DataOutputStream dos = new DataOutputStream(baos)) {
@@ -287,5 +293,33 @@ public class StreamTask {
       // ignored since we are writing to memory, this should not happen
       throw new RuntimeException(e);
     }
+  }
+
+  /**
+   * Two StreamTasks are equal if they represent the same stream definition: same name, database,
+   * source, window, subQuery, target, and properties. Runtime-only fields (status, epoch,
+   * leaderTerm, runningOn, timestamps, id) are intentionally excluded.
+   */
+  @Override
+  public boolean equals(final Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    final StreamTask that = (StreamTask) o;
+    return Objects.equals(taskName, that.taskName)
+        && Objects.equals(database, that.database)
+        && Objects.equals(subQuery, that.subQuery)
+        && Objects.equals(source, that.source)
+        && Objects.equals(window, that.window)
+        && Objects.equals(target, that.target)
+        && Objects.equals(properties, that.properties);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(taskName, database, subQuery, source, window, target, properties);
   }
 }

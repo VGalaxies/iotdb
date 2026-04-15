@@ -175,7 +175,10 @@ public enum ProcedureType {
   ADD_NEVER_FINISH_SUB_PROCEDURE_PROCEDURE((short) 30001),
 
   /** Data Partition Table Integrity Check */
-  DATA_PARTITION_TABLE_INTEGRITY_CHECK_PROCEDURE((short) 1600);
+  DATA_PARTITION_TABLE_INTEGRITY_CHECK_PROCEDURE((short) 1600),
+
+  /** Stream */
+  CREATE_STREAM_PROCEDURE((short) 1700);
 
   private final short typeCode;
 

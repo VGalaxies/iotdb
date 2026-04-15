@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class StreamInfo implements SnapshotProcessor {
 
@@ -47,6 +48,25 @@ public class StreamInfo implements SnapshotProcessor {
 
   private final Map<String, StreamTask> streamTaskMap = new ConcurrentHashMap<>();
   private final AtomicLong nextStreamId = new AtomicLong(0);
+  private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+
+  // ==================== Lock interface ====================
+
+  public void readLock() {
+    lock.readLock().lock();
+  }
+
+  public void readUnlock() {
+    lock.readLock().unlock();
+  }
+
+  public void writeLock() {
+    lock.writeLock().lock();
+  }
+
+  public void writeUnlock() {
+    lock.writeLock().unlock();
+  }
 
   public StreamInfo() {
     // Load existing tasks from streams directory

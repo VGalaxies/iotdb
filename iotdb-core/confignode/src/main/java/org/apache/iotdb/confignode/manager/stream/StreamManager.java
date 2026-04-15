@@ -52,7 +52,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 @SuppressWarnings("SynchronizationOnLocalVariableOrMethodParameter")
@@ -66,7 +65,6 @@ public class StreamManager {
 
   private final IManager configManager;
   private final StreamInfo streamInfo;
-  private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
   private final IFailureDetector failureDetector;
   // taskName -> ordered deque of heartbeat samples (nano timestamps)
   private final Map<String, Deque<AbstractHeartbeatSample>> heartbeatHistory =
@@ -94,28 +92,32 @@ public class StreamManager {
   }
 
   public TSStatus createStream(StreamTask task) {
-    lock.writeLock().lock();
+    streamInfo.writeLock();
     try {
       LOGGER.info("Creating stream task: {}", task.getTaskName());
       return streamInfo.addTask(task);
     } finally {
-      lock.writeLock().unlock();
+      streamInfo.writeUnlock();
     }
   }
 
+  public StreamInfo getStreamInfo() {
+    return streamInfo;
+  }
+
   public TSStatus dropStream(String database, String streamName) {
-    lock.writeLock().lock();
+    streamInfo.writeLock();
     try {
       LOGGER.info("Dropping stream: {}.{}", database, streamName);
       String taskName = database + "." + streamName;
       return streamInfo.removeTask(taskName);
     } finally {
-      lock.writeLock().unlock();
+      streamInfo.writeUnlock();
     }
   }
 
   public TSStatus startStream(String database, String streamName) {
-    lock.writeLock().lock();
+    streamInfo.readLock();
     try {
       LOGGER.info("Starting stream: {}.{}", database, streamName);
       String taskName = database + "." + streamName;
@@ -126,44 +128,46 @@ public class StreamManager {
       }
       return startStreamInternal(task);
     } finally {
-      lock.writeLock().unlock();
+      streamInfo.readUnlock();
     }
   }
 
-  // Caller must hold the write lock
+  // Caller must hold the read lock
   private TSStatus startStreamInternal(StreamTask task) {
-    if (task.getStatus() == StreamTaskStatus.RUNNING) {
+    synchronized (task) {
+      if (task.getStatus() == StreamTaskStatus.RUNNING) {
+        return StatusUtils.OK;
+      }
+
+      String streamNode = assignStreamToStreamNode(task);
+      // Parse runningOn to TEndPoint
+      String[] parts = streamNode.split(":");
+      TEndPoint endPoint = new TEndPoint(parts[0], Integer.parseInt(parts[1]));
+      task.setEpoch(task.getEpoch() + 1);
+      task.setLeaderTerm(configManager.getConsensusManager().getLeaderTerm());
+      // Create request
+      TStartTaskOnStreamNodeReq req =
+          new TStartTaskOnStreamNodeReq(task.toByteBuffer(), task.getEpoch(), cnStartTime);
+      // Send request to StreamNode
+      TSStatus status =
+          (TSStatus)
+              SyncStreamNodeClientPool.getInstance()
+                  .sendSyncRequestToStreamNodeWithRetry(
+                      endPoint, req, CnToSnSyncRequestType.START_TASK);
+      if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+        return status;
+      }
+      // Update status
+      task.setRunningOn(streamNode);
+      task.setStatus(StreamTaskStatus.RUNNING);
+      task.setLastUpTime(System.currentTimeMillis());
+      task.setLastHeartbeatTime(System.currentTimeMillis());
+      // Seed the heartbeat history with the start timestamp so the detector has an anchor point
+      heartbeatHistory
+          .computeIfAbsent(task.getTaskName(), k -> new ArrayDeque<>())
+          .add(new StreamHeartbeatSample(task.getEpoch(), task.getLeaderTerm()));
       return StatusUtils.OK;
     }
-
-    String streamNode = assignStreamToStreamNode(task);
-    // Parse runningOn to TEndPoint
-    String[] parts = streamNode.split(":");
-    TEndPoint endPoint = new TEndPoint(parts[0], Integer.parseInt(parts[1]));
-    task.setEpoch(task.getEpoch() + 1);
-    task.setLeaderTerm(configManager.getConsensusManager().getLeaderTerm());
-    // Create request
-    TStartTaskOnStreamNodeReq req =
-        new TStartTaskOnStreamNodeReq(task.toByteBuffer(), task.getEpoch(), cnStartTime);
-    // Send request to StreamNode
-    TSStatus status =
-        (TSStatus)
-            SyncStreamNodeClientPool.getInstance()
-                .sendSyncRequestToStreamNodeWithRetry(
-                    endPoint, req, CnToSnSyncRequestType.START_TASK);
-    if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
-      return status;
-    }
-    // Update status
-    task.setRunningOn(streamNode);
-    task.setStatus(StreamTaskStatus.RUNNING);
-    task.setLastUpTime(System.currentTimeMillis());
-    task.setLastHeartbeatTime(System.currentTimeMillis());
-    // Seed the heartbeat history with the start timestamp so the detector has an anchor point
-    heartbeatHistory
-        .computeIfAbsent(task.getTaskName(), k -> new ArrayDeque<>())
-        .add(new StreamHeartbeatSample(task.getEpoch(), task.getLeaderTerm()));
-    return StatusUtils.OK;
   }
 
   /**
@@ -171,7 +175,7 @@ public class StreamManager {
    * from the StreamNode.
    */
   public TSStatus recordHeartbeat(String taskName, int epoch, long cnStartTime, long leaderTerm, String runningOn) {
-    lock.readLock().lock();
+    streamInfo.readLock();
     try {
       final StreamTask task = streamInfo.getTask(taskName);
       if (task == null) {
@@ -190,7 +194,7 @@ public class StreamManager {
         task.setStatus(StreamTaskStatus.RUNNING);
       }
     } finally {
-      lock.readLock().unlock();
+      streamInfo.readUnlock();
     }
 
     final Deque<AbstractHeartbeatSample> history =
@@ -230,7 +234,7 @@ public class StreamManager {
   }
 
   public TSStatus stopStream(String database, String streamName) {
-    lock.writeLock().lock();
+    streamInfo.writeLock();
     try {
       LOGGER.info("Stopping stream: {}.{}", database, streamName);
       String taskName = database + "." + streamName;
@@ -265,33 +269,33 @@ public class StreamManager {
       }
       return StatusUtils.OK;
     } finally {
-      lock.writeLock().unlock();
+      streamInfo.writeUnlock();
     }
   }
 
   public List<StreamTask> showStreams() {
-    lock.readLock().lock();
+    streamInfo.readLock();
     try {
       return streamInfo.getAllTasks();
     } finally {
-      lock.readLock().unlock();
+      streamInfo.readUnlock();
     }
   }
 
   public List<StreamTask> showStreams(String database) {
-    lock.readLock().lock();
+    streamInfo.readLock();
     try {
       return streamInfo.getAllTasks().stream()
           .filter(s -> s.getDatabase().equals(database))
           .collect(Collectors.toList());
     } finally {
-      lock.readLock().unlock();
+      streamInfo.readUnlock();
     }
   }
 
   private void monitorStreams() {
     List<StreamTask> toUpdate = new ArrayList<>();
-    lock.readLock().lock();
+    streamInfo.readLock();
     try {
       for (StreamTask task : streamInfo.getAllTasks()) {
         if (task.getStatus() != StreamTaskStatus.RUNNING) {
@@ -307,11 +311,11 @@ public class StreamManager {
         }
       }
     } finally {
-      lock.readLock().unlock();
+      streamInfo.readUnlock();
     }
 
     if (!toUpdate.isEmpty()) {
-      lock.writeLock().lock();
+      streamInfo.writeLock();
       try {
         for (StreamTask task : toUpdate) {
           if (task.getStatus() == StreamTaskStatus.RUNNING) { // Double check
@@ -320,13 +324,13 @@ public class StreamManager {
           }
         }
       } finally {
-        lock.writeLock().unlock();
+        streamInfo.writeUnlock();
       }
     }
 
     // Restart all UNKNOWN tasks
     List<StreamTask> unknownTasks = new ArrayList<>();
-    lock.readLock().lock();
+    streamInfo.readLock();
     try {
       for (StreamTask task : streamInfo.getAllTasks()) {
         if (task.getStatus() == StreamTaskStatus.UNKNOWN) {
@@ -334,7 +338,7 @@ public class StreamManager {
         }
       }
     } finally {
-      lock.readLock().unlock();
+      streamInfo.readUnlock();
     }
 
     for (StreamTask task : unknownTasks) {
