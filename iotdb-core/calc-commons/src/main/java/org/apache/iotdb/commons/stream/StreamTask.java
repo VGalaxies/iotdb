@@ -34,7 +34,6 @@ public class StreamTask {
 
   // CN & SN field
   private String taskName;
-  private String database;
   private StreamSource source;
   private StreamWindow window;
   private String subQuery;
@@ -63,7 +62,6 @@ public class StreamTask {
   public StreamTask(
       long id,
       String taskName,
-      String database,
       long creationTime,
       String creator,
       StreamSource source,
@@ -76,7 +74,6 @@ public class StreamTask {
       StreamProperties properties) {
     this.id = id;
     this.taskName = taskName;
-    this.database = database;
     this.creationTime = creationTime;
     this.creator = creator;
     this.source = source;
@@ -103,14 +100,6 @@ public class StreamTask {
 
   public void setTaskName(String taskName) {
     this.taskName = taskName;
-  }
-
-  public String getDatabase() {
-    return database;
-  }
-
-  public void setDatabase(String database) {
-    this.database = database;
   }
 
   public long getCreationTime() {
@@ -245,7 +234,6 @@ public class StreamTask {
     try (DataOutputStream dataOutputStream = new DataOutputStream(outputStream)) {
       dataOutputStream.writeLong(id);
       dataOutputStream.writeUTF(taskName != null ? taskName : "");
-      dataOutputStream.writeUTF(database != null ? database : "");
       dataOutputStream.writeLong(creationTime);
       dataOutputStream.writeUTF(creator != null ? creator : "");
       dataOutputStream.writeUTF(subQuery != null ? subQuery : "");
@@ -264,7 +252,6 @@ public class StreamTask {
     try (DataInputStream dataInputStream = new DataInputStream(inputStream)) {
       streamTask.setId(dataInputStream.readLong());
       streamTask.setTaskName(dataInputStream.readUTF());
-      streamTask.setDatabase(dataInputStream.readUTF());
       streamTask.setCreationTime(dataInputStream.readLong());
       streamTask.setCreator(dataInputStream.readUTF());
       streamTask.setSubQuery(dataInputStream.readUTF());
@@ -310,7 +297,6 @@ public class StreamTask {
     }
     final StreamTask that = (StreamTask) o;
     return Objects.equals(taskName, that.taskName)
-        && Objects.equals(database, that.database)
         && Objects.equals(subQuery, that.subQuery)
         && Objects.equals(source, that.source)
         && Objects.equals(window, that.window)
@@ -320,6 +306,6 @@ public class StreamTask {
 
   @Override
   public int hashCode() {
-    return Objects.hash(taskName, database, subQuery, source, window, target, properties);
+    return Objects.hash(taskName, subQuery, source, window, target, properties);
   }
 }

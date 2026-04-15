@@ -888,11 +888,11 @@ public interface IManager {
 
   TExternalServiceListResp showExternalService(int dataNodeId);
 
-  TShowStreamResp showStreams();
+  TShowStreamResp showStreams(String username);
 
   TSStatus createStream(StreamTask streamTask);
 
-  TSStatus startStream(String database, String streamName);
+  TSStatus startStream(String streamName);
 
   TSStatus checkConfigNodeGlobalConfig(TConfigNodeRegisterReq req);
 

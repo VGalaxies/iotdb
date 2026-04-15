@@ -95,26 +95,24 @@ public class StreamManager {
     return streamInfo;
   }
 
-  public TSStatus dropStream(String database, String streamName) {
+  public TSStatus dropStream(String streamName) {
     streamInfo.writeLock();
     try {
-      LOGGER.info("Dropping stream: {}.{}", database, streamName);
-      String taskName = database + "." + streamName;
-      return streamInfo.removeTask(taskName);
+      LOGGER.info("Dropping stream: {}", streamName);
+      return streamInfo.removeTask(streamName);
     } finally {
       streamInfo.writeUnlock();
     }
   }
 
-  public TSStatus startStream(String database, String streamName) {
+  public TSStatus startStream(String streamName) {
     streamInfo.readLock();
     try {
-      LOGGER.info("Starting stream: {}.{}", database, streamName);
-      String taskName = database + "." + streamName;
-      StreamTask task = streamInfo.getTask(taskName);
+      LOGGER.info("Starting stream: {}", streamName);
+      StreamTask task = streamInfo.getTask(streamName);
       if (task == null) {
         return new TSStatus(TSStatusCode.EXECUTE_STATEMENT_ERROR.getStatusCode())
-            .setMessage("Stream not found: " + taskName);
+            .setMessage("Stream not found: " + streamName);
       }
       return startStreamInternal(task);
     } finally {

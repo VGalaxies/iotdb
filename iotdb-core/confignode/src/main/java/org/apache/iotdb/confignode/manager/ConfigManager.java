@@ -2682,18 +2682,18 @@ public class ConfigManager implements IManager {
   }
 
   @Override
-  public TShowStreamResp showStreams() {
+  public TShowStreamResp showStreams(String username) {
     TSStatus status = confirmLeader();
     if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
       return new TShowStreamResp(status, Collections.emptyList());
     }
     List<TStreamInfo> streamInfoList =
         streamManager.showStreams().stream()
+            .filter(s -> username == null || s.getCreator().equals(username))
             .map(
                 task -> {
                   TStreamInfo info = new TStreamInfo();
-                  info.setDatabase(task.getDatabase());
-                  info.setStreamName(task.getTaskName().substring(task.getDatabase().length() + 1));
+                  info.setStreamName(task.getTaskName());
                   info.setStatus(task.getStatus().name());
                   info.setCreationTime(task.getCreationTime());
                   info.setCreator(task.getCreator() != null ? task.getCreator() : "");
@@ -2720,10 +2720,10 @@ public class ConfigManager implements IManager {
   }
 
   @Override
-  public TSStatus startStream(String database, String streamName) {
+  public TSStatus startStream(String streamName) {
     TSStatus status = confirmLeader();
     return status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()
-        ? streamManager.startStream(database, streamName)
+        ? streamManager.startStream(streamName)
         : status;
   }
 

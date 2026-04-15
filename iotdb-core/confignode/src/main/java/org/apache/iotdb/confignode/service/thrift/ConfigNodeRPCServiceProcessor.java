@@ -1541,6 +1541,6 @@ public class ConfigNodeRPCServiceProcessor implements IConfigNodeRPCService.Ifac
 
   @Override
   public TShowStreamResp showStreams(TShowStreamsReq req) throws TException {
-    return configManager.showStreams();
+    return configManager.showStreams(req.getUserName());
   }
 }
