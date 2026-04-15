@@ -169,6 +169,8 @@ import org.apache.iotdb.confignode.rpc.thrift.TShowPipeResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowRegionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowRegionResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowStreamNodesResp;
+import org.apache.iotdb.confignode.rpc.thrift.TShowStreamsReq;
+import org.apache.iotdb.confignode.rpc.thrift.TShowStreamsResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowSubscriptionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowSubscriptionResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowTTLResp;
@@ -1570,7 +1572,7 @@ public class ConfigNodeClient implements IConfigNodeRPCService.Iface, ThriftClie
   }
 
   @Override
-  public TShowStreamResp showStreams() throws TException {
+  public TShowStreamResp showStreams(TShowStreamsReq req) throws TException {
     return executeRemoteCallWithRetry(
         () -> client.showStreams(), resp -> !updateConfigNodeLeader(resp.status));
   }
