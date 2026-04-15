@@ -84,6 +84,7 @@ import org.apache.iotdb.confignode.consensus.request.write.externalservice.DropE
 import org.apache.iotdb.confignode.consensus.request.write.externalservice.StartExternalServicePlan;
 import org.apache.iotdb.confignode.consensus.request.write.externalservice.StopExternalServicePlan;
 import org.apache.iotdb.confignode.consensus.request.write.stream.CreateStreamPlan;
+import org.apache.iotdb.confignode.consensus.request.write.stream.DropStreamPlan;
 import org.apache.iotdb.confignode.consensus.request.write.function.CreateFunctionPlan;
 import org.apache.iotdb.confignode.consensus.request.write.function.DropTableModelFunctionPlan;
 import org.apache.iotdb.confignode.consensus.request.write.function.DropTreeModelFunctionPlan;
@@ -665,7 +666,9 @@ public class ConfigPlanExecutor {
       case DropExternalService:
         return externalServiceInfo.dropService((DropExternalServicePlan) physicalPlan);
       case CreateStream:
-        return streamInfo.addTask(((CreateStreamPlan) physicalPlan).getStreamTask());
+        return streamInfo.applyCreateStream((CreateStreamPlan) physicalPlan);
+      case DropStream:
+        return streamInfo.applyDropStream((DropStreamPlan) physicalPlan);
       case CreatePipePlugin:
         return pipeInfo.getPipePluginInfo().createPipePlugin((CreatePipePluginPlan) physicalPlan);
       case DropPipePlugin:

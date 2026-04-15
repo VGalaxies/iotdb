@@ -178,7 +178,8 @@ public enum ProcedureType {
   DATA_PARTITION_TABLE_INTEGRITY_CHECK_PROCEDURE((short) 1600),
 
   /** Stream */
-  CREATE_STREAM_PROCEDURE((short) 1700);
+  CREATE_STREAM_PROCEDURE((short) 1700),
+  DROP_STREAM_PROCEDURE((short) 1701);
 
   private final short typeCode;
 

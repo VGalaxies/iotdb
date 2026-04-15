@@ -21,16 +21,16 @@ package org.apache.iotdb.confignode.procedure.impl.stream;
 
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
 import org.apache.iotdb.commons.exception.IoTDBException;
-import org.apache.iotdb.commons.stream.StreamTask;
-import org.apache.iotdb.confignode.consensus.request.write.stream.CreateStreamPlan;
+import org.apache.iotdb.confignode.consensus.request.write.stream.DropStreamPlan;
 import org.apache.iotdb.confignode.procedure.env.ConfigNodeProcedureEnv;
 import org.apache.iotdb.confignode.procedure.exception.ProcedureException;
 import org.apache.iotdb.confignode.procedure.impl.StateMachineProcedure;
-import org.apache.iotdb.confignode.procedure.state.stream.CreateStreamState;
+import org.apache.iotdb.confignode.procedure.state.stream.DropStreamState;
 import org.apache.iotdb.confignode.procedure.store.ProcedureType;
 import org.apache.iotdb.consensus.exception.ConsensusException;
 import org.apache.iotdb.rpc.TSStatusCode;
 
+import org.apache.tsfile.utils.ReadWriteIOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,70 +38,65 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-public class CreateStreamProcedure
-    extends StateMachineProcedure<ConfigNodeProcedureEnv, CreateStreamState> {
+public class DropStreamProcedure
+    extends StateMachineProcedure<ConfigNodeProcedureEnv, DropStreamState> {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(CreateStreamProcedure.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(DropStreamProcedure.class);
 
-  private StreamTask streamTask;
+  private String streamName;
 
-  public CreateStreamProcedure() {
+  public DropStreamProcedure() {
     super();
   }
 
-  public CreateStreamProcedure(final StreamTask streamTask) {
+  public DropStreamProcedure(final String streamName) {
     super();
-    this.streamTask = streamTask;
+    this.streamName = streamName;
   }
 
   public String getStreamName() {
-    return streamTask.getTaskName();
-  }
-
-  public StreamTask getStreamTask() {
-    return streamTask;
+    return streamName;
   }
 
   @Override
   protected Flow executeFromState(
-      final ConfigNodeProcedureEnv env, final CreateStreamState state)
+      final ConfigNodeProcedureEnv env, final DropStreamState state)
       throws InterruptedException {
     final long startTime = System.currentTimeMillis();
     try {
       switch (state) {
         case CHECK_EXISTENCE:
-          LOGGER.info("Checking existence of stream {}", streamTask.getTaskName());
+          LOGGER.info("Checking existence of stream {} before drop", streamName);
           checkExistence(env);
           break;
         case WRITE_TO_CONSENSUS:
-          LOGGER.info("Writing stream {} to consensus layer", streamTask.getTaskName());
+          LOGGER.info("Writing drop of stream {} to consensus layer", streamName);
           writeToConsensus(env);
           return Flow.NO_MORE_STATE;
         default:
-          setFailure(new ProcedureException("Unrecognized CreateStreamState: " + state));
+          setFailure(new ProcedureException("Unrecognized DropStreamState: " + state));
           return Flow.NO_MORE_STATE;
       }
       return Flow.HAS_MORE_STATE;
     } finally {
       LOGGER.info(
-          "CreateStream-{}-{} costs {}ms",
-          streamTask.getTaskName(),
+          "DropStream-{}-{} costs {}ms",
+          streamName,
           state,
           System.currentTimeMillis() - startTime);
     }
   }
 
   private void checkExistence(final ConfigNodeProcedureEnv env) {
-    final String taskName = streamTask.getTaskName();
-    if (env.getConfigManager().getStreamManager().getStreamInfo().getTask(taskName) != null) {
+    if (env.getConfigManager().getStreamManager().getStreamInfo().getTask(streamName) == null) {
       setFailure(
           new ProcedureException(
               new IoTDBException(
-                  "Stream '" + taskName + "' already exists.",
-                  TSStatusCode.STREAM_ALREADY_EXISTS.getStatusCode())));
+                  "Stream '" + streamName + "' does not exist.",
+                  TSStatusCode.STREAM_NOT_EXIST.getStatusCode())));
       return;
     }
-    setNextState(CreateStreamState.WRITE_TO_CONSENSUS);
+    setNextState(DropStreamState.WRITE_TO_CONSENSUS);
   }
 
   private void writeToConsensus(final ConfigNodeProcedureEnv env) {
@@ -110,7 +105,7 @@ public class CreateStreamProcedure
       status =
           env.getConfigManager()
               .getConsensusManager()
-              .write(new CreateStreamPlan(streamTask));
+              .write(new DropStreamPlan(streamName));
     } catch (final ConsensusException e) {
       LOGGER.warn("Failed in the write API executing the consensus layer due to: ", e);
       status = new TSStatus(TSStatusCode.EXECUTE_STATEMENT_ERROR.getStatusCode());
@@ -123,45 +118,41 @@ public class CreateStreamProcedure
 
   @Override
   protected void rollbackState(
-      final ConfigNodeProcedureEnv env, final CreateStreamState state)
+      final ConfigNodeProcedureEnv env, final DropStreamState state)
       throws IOException, InterruptedException, ProcedureException {
-    // CHECK_EXISTENCE made no changes; WRITE_TO_CONSENSUS is the terminal state — no rollback
+    // No rollback needed: CHECK_EXISTENCE made no changes; WRITE_TO_CONSENSUS is terminal
   }
 
   @Override
-  protected boolean isRollbackSupported(final CreateStreamState state) {
+  protected boolean isRollbackSupported(final DropStreamState state) {
     return false;
   }
 
   @Override
-  protected CreateStreamState getState(final int stateId) {
-    return CreateStreamState.values()[stateId];
+  protected DropStreamState getState(final int stateId) {
+    return DropStreamState.values()[stateId];
   }
 
   @Override
-  protected int getStateId(final CreateStreamState state) {
+  protected int getStateId(final DropStreamState state) {
     return state.ordinal();
   }
 
   @Override
-  protected CreateStreamState getInitialState() {
-    return CreateStreamState.CHECK_EXISTENCE;
+  protected DropStreamState getInitialState() {
+    return DropStreamState.CHECK_EXISTENCE;
   }
 
   @Override
   public void serialize(final DataOutputStream stream) throws IOException {
-    stream.writeShort(ProcedureType.CREATE_STREAM_PROCEDURE.getTypeCode());
+    stream.writeShort(ProcedureType.DROP_STREAM_PROCEDURE.getTypeCode());
     super.serialize(stream);
-    streamTask.serialize(stream);
+    ReadWriteIOUtils.write(streamName, stream);
   }
 
   @Override
   public void deserialize(final ByteBuffer byteBuffer) {
     super.deserialize(byteBuffer);
-    try {
-      streamTask = StreamTask.deserialize(byteBuffer);
-    } catch (final IOException e) {
-      throw new RuntimeException("Failed to deserialize StreamTask in CreateStreamProcedure", e);
-    }
+    streamName = ReadWriteIOUtils.readString(byteBuffer);
   }
 }

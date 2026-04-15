@@ -2719,6 +2719,14 @@ public class ConfigManager implements IManager {
   }
 
   @Override
+  public TSStatus dropStream(String streamName) {
+    TSStatus status = confirmLeader();
+    LOGGER.info("Submitting DropStreamProcedure for stream: {}", streamName);
+    return status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()
+        ? getProcedureManager().dropStream(streamName) : status;
+  }
+
+  @Override
   public TSStatus startStream(String streamName) {
     TSStatus status = confirmLeader();
     return status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()

@@ -892,6 +892,8 @@ public interface IManager {
 
   TSStatus createStream(StreamTask streamTask);
 
+  TSStatus dropStream(String streamName);
+
   TSStatus startStream(String streamName);
 
   TSStatus checkConfigNodeGlobalConfig(TConfigNodeRegisterReq req);

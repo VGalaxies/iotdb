@@ -1539,7 +1539,7 @@ public class ConfigNodeRPCServiceProcessor implements IConfigNodeRPCService.Ifac
 
   @Override
   public TSStatus dropStream(TDropStreamReq req) throws TException {
-    return null;
+    return configManager.dropStream(req.getStreamName());
   }
 
   @Override

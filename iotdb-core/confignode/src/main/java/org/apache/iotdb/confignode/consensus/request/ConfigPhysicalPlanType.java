@@ -341,6 +341,7 @@ public enum ConfigPhysicalPlanType {
 
   /** Stream. */
   CreateStream((short) 2400),
+  DropStream((short) 2401),
 
   /** Test Only. */
   TestOnly((short) 30000),

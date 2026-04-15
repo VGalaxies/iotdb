@@ -25,6 +25,8 @@ import org.apache.iotdb.common.rpc.thrift.TSStatus;
 import org.apache.iotdb.commons.snapshot.SnapshotProcessor;
 import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.commons.stream.StreamTaskStatus;
+import org.apache.iotdb.confignode.consensus.request.write.stream.CreateStreamPlan;
+import org.apache.iotdb.confignode.consensus.request.write.stream.DropStreamPlan;
 import org.apache.iotdb.rpc.TSStatusCode;
 
 import org.slf4j.Logger;
@@ -107,6 +109,16 @@ public class StreamInfo implements SnapshotProcessor {
 
   public List<StreamTask> getAllTasks() {
     return new ArrayList<>(streamTaskMap.values());
+  }
+
+  /** Apply a {@link CreateStreamPlan} from the consensus layer. */
+  public TSStatus applyCreateStream(final CreateStreamPlan plan) {
+    return addTask(plan.getStreamTask());
+  }
+
+  /** Apply a {@link DropStreamPlan} from the consensus layer. */
+  public TSStatus applyDropStream(final DropStreamPlan plan) {
+    return removeTask(plan.getStreamName());
   }
 
   @Override

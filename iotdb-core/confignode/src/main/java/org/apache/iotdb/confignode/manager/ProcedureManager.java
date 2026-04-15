@@ -100,6 +100,7 @@ import org.apache.iotdb.confignode.procedure.impl.schema.table.AddTableColumnPro
 import org.apache.iotdb.confignode.procedure.impl.schema.table.AlterTableColumnDataTypeProcedure;
 import org.apache.iotdb.confignode.procedure.impl.schema.table.CreateTableProcedure;
 import org.apache.iotdb.confignode.procedure.impl.stream.CreateStreamProcedure;
+import org.apache.iotdb.confignode.procedure.impl.stream.DropStreamProcedure;
 import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.confignode.procedure.impl.schema.table.DeleteDevicesProcedure;
 import org.apache.iotdb.confignode.procedure.impl.schema.table.DropTableColumnProcedure;
@@ -1972,18 +1973,51 @@ public class ProcedureManager {
         if (running.isFinished()) {
           continue;
         }
-        if (ProcedureFactory.getProcedureType(running) == ProcedureType.CREATE_STREAM_PROCEDURE) {
+        final ProcedureType type = ProcedureFactory.getProcedureType(running);
+        if (type == ProcedureType.CREATE_STREAM_PROCEDURE) {
           final CreateStreamProcedure existing = (CreateStreamProcedure) running;
           if (streamTask.equals(existing.getStreamTask())) {
-            // Identical in-flight procedure — wait for it instead of submitting a duplicate
             return waitingProcedureFinished(existing.getProcId());
           }
-          if (taskName.equals(existing.getTaskName())) {
-            // Same name but different definition — conflict
+          if (taskName.equals(existing.getStreamName())) {
             return RpcUtils.getStatus(
                 TSStatusCode.OVERLAP_WITH_EXISTING_TASK,
                 "A different CreateStream task with the same name is already in progress: "
                     + taskName);
+          }
+        } else if (type == ProcedureType.DROP_STREAM_PROCEDURE) {
+          final DropStreamProcedure existing = (DropStreamProcedure) running;
+          if (taskName.equals(existing.getStreamName())) {
+            return RpcUtils.getStatus(
+                TSStatusCode.OVERLAP_WITH_EXISTING_TASK,
+                "A DropStream task for the same stream is already in progress: " + taskName);
+          }
+        }
+      }
+      executor.submitProcedure(procedure);
+    }
+    return waitingProcedureFinished(procedure);
+  }
+
+  public TSStatus dropStream(final String streamName) {
+    final DropStreamProcedure procedure = new DropStreamProcedure(streamName);
+    synchronized (this) {
+      for (final Procedure<?> running : executor.getProcedures().values()) {
+        if (running.isFinished()) {
+          continue;
+        }
+        final ProcedureType type = ProcedureFactory.getProcedureType(running);
+        if (type == ProcedureType.DROP_STREAM_PROCEDURE) {
+          final DropStreamProcedure existing = (DropStreamProcedure) running;
+          if (streamName.equals(existing.getStreamName())) {
+            return waitingProcedureFinished(existing.getProcId());
+          }
+        } else if (type == ProcedureType.CREATE_STREAM_PROCEDURE) {
+          final CreateStreamProcedure existing = (CreateStreamProcedure) running;
+          if (streamName.equals(existing.getStreamName())) {
+            return RpcUtils.getStatus(
+                TSStatusCode.OVERLAP_WITH_EXISTING_TASK,
+                "A CreateStream task for the same stream is already in progress: " + streamName);
           }
         }
       }

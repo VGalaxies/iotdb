@@ -28,6 +28,7 @@ import org.apache.iotdb.confignode.procedure.impl.node.RemoveConfigNodeProcedure
 import org.apache.iotdb.confignode.procedure.impl.node.RemoveDataNodesProcedure;
 import org.apache.iotdb.confignode.procedure.impl.partition.DataPartitionTableIntegrityCheckProcedure;
 import org.apache.iotdb.confignode.procedure.impl.stream.CreateStreamProcedure;
+import org.apache.iotdb.confignode.procedure.impl.stream.DropStreamProcedure;
 import org.apache.iotdb.confignode.procedure.impl.pipe.plugin.CreatePipePluginProcedure;
 import org.apache.iotdb.confignode.procedure.impl.pipe.plugin.DropPipePluginProcedure;
 import org.apache.iotdb.confignode.procedure.impl.pipe.runtime.PipeHandleLeaderChangeProcedure;
@@ -411,6 +412,9 @@ public class ProcedureFactory implements IProcedureFactory {
         break;
       case CREATE_STREAM_PROCEDURE:
         procedure = new CreateStreamProcedure();
+        break;
+      case DROP_STREAM_PROCEDURE:
+        procedure = new DropStreamProcedure();
         break;
       default:
         LOGGER.error("Unknown Procedure type: {}", typeCode);
