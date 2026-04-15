@@ -58,6 +58,7 @@ import java.util.stream.Collectors;
 @SuppressWarnings("SynchronizationOnLocalVariableOrMethodParameter")
 public class StreamManager {
 
+  private static final long cnStartTime = System.currentTimeMillis();
   private static final Logger LOGGER = LoggerFactory.getLogger(StreamManager.class);
 
   // Maximum number of heartbeat samples retained per task
@@ -169,7 +170,7 @@ public class StreamManager {
    * Record a heartbeat for the given task. Should be called whenever a heartbeat reply is received
    * from the StreamNode.
    */
-  public TSStatus recordHeartbeat(String taskName, int epoch, long leaderTerm, String runningOn) {
+  public TSStatus recordHeartbeat(String taskName, int epoch, long cnStartTime, long leaderTerm, String runningOn) {
     lock.readLock().lock();
     try {
       final StreamTask task = streamInfo.getTask(taskName);
@@ -179,19 +180,10 @@ public class StreamManager {
             .setMessage("Stream task not found: " + taskName);
       }
       synchronized (task) {
-        if (task.getEpoch() != epoch || task.getLeaderTerm() != leaderTerm) {
-          LOGGER.warn(
-              "Stale heartbeat for task {}: expected epoch={} leaderTerm={}, got epoch={} leaderTerm={}",
-              taskName,
-              task.getEpoch(),
-              task.getLeaderTerm(),
-              epoch,
-              leaderTerm);
-          return new TSStatus(TSStatusCode.STREAM_STALE.getStatusCode())
-              .setMessage(
-                  String.format(
-                      "Stale heartbeat for task %s: expected epoch=%d leaderTerm=%d, got epoch=%d leaderTerm=%d",
-                      taskName, task.getEpoch(), task.getLeaderTerm(), epoch, leaderTerm));
+        if (task.getLeaderTerm() != leaderTerm
+            || StreamManager.cnStartTime > cnStartTime
+            || task.getEpoch() > epoch) {
+          return reportStaleHeartbeat(taskName, epoch, leaderTerm, task);
         }
         task.setLastHeartbeatTime(System.currentTimeMillis());
         task.setRunningOn(runningOn);
@@ -213,6 +205,22 @@ public class StreamManager {
       history.pollFirst();
     }
     return StatusUtils.OK;
+  }
+
+  private TSStatus reportStaleHeartbeat(String taskName, int epoch, long leaderTerm,
+      StreamTask task) {
+    LOGGER.warn(
+        "Stale heartbeat for task {}: expected epoch={} leaderTerm={}, got epoch={} leaderTerm={}",
+        taskName,
+        task.getEpoch(),
+        task.getLeaderTerm(),
+        epoch,
+        leaderTerm);
+    return new TSStatus(TSStatusCode.STREAM_STALE.getStatusCode())
+        .setMessage(
+            String.format(
+                "Stale heartbeat for task %s: expected epoch=%d leaderTerm=%d, got epoch=%d leaderTerm=%d",
+                taskName, task.getEpoch(), task.getLeaderTerm(), epoch, leaderTerm));
   }
 
   private String assignStreamToStreamNode(StreamTask task) {
