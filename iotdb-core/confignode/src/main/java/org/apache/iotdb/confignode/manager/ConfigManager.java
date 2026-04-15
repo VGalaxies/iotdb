@@ -2688,8 +2688,7 @@ public class ConfigManager implements IManager {
       return new TShowStreamResp(status, Collections.emptyList());
     }
     List<TStreamInfo> streamInfoList =
-        streamManager.showStreams().stream()
-            .filter(s -> username == null || s.getCreator().equals(username))
+        streamManager.showStreams(username).stream()
             .map(
                 task -> {
                   TStreamInfo info = new TStreamInfo();

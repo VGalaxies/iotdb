@@ -270,11 +270,11 @@ public class StreamManager {
     }
   }
 
-  public List<StreamTask> showStreams(String database) {
+  public List<StreamTask> showStreams(String username) {
     streamInfo.readLock();
     try {
       return streamInfo.getAllTasks().stream()
-          .filter(s -> s.getDatabase().equals(database))
+          .filter(s -> username == null || s.getCreator().equals(username))
           .collect(Collectors.toList());
     } finally {
       streamInfo.readUnlock();
