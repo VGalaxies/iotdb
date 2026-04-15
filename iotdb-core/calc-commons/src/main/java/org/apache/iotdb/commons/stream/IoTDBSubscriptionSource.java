@@ -34,12 +34,29 @@ public class IoTDBSubscriptionSource extends StreamSource {
   private String preFilter; // nullable, serialized WHERE expression
   private List<String> partitionColumns; // nullable
 
+  // Connection info for the source IoTDB instance
+  private String host;
+  private int rpcPort;
+  private String user;
+  private String encryptedPassword;
+
   public IoTDBSubscriptionSource(
-      String database, String tableName, String preFilter, List<String> partitionColumns) {
+      String database,
+      String tableName,
+      String preFilter,
+      List<String> partitionColumns,
+      String host,
+      int rpcPort,
+      String user,
+      String encryptedPassword) {
     this.database = database;
     this.tableName = tableName;
     this.preFilter = preFilter;
     this.partitionColumns = partitionColumns;
+    this.host = host;
+    this.rpcPort = rpcPort;
+    this.user = user;
+    this.encryptedPassword = encryptedPassword;
   }
 
   @Override
@@ -61,6 +78,22 @@ public class IoTDBSubscriptionSource extends StreamSource {
 
   public List<String> getPartitionColumns() {
     return partitionColumns;
+  }
+
+  public String getHost() {
+    return host;
+  }
+
+  public int getRpcPort() {
+    return rpcPort;
+  }
+
+  public String getUser() {
+    return user;
+  }
+
+  public String getEncryptedPassword() {
+    return encryptedPassword;
   }
 
   @Override
@@ -89,6 +122,12 @@ public class IoTDBSubscriptionSource extends StreamSource {
         dataOutputStream.writeUTF(column);
       }
     }
+
+    // Serialize connection info
+    dataOutputStream.writeUTF(host != null ? host : "");
+    dataOutputStream.writeInt(rpcPort);
+    dataOutputStream.writeUTF(user != null ? user : "");
+    dataOutputStream.writeUTF(encryptedPassword != null ? encryptedPassword : "");
   }
 
   public static IoTDBSubscriptionSource deserialize(InputStream inputStream) throws IOException {
@@ -115,6 +154,13 @@ public class IoTDBSubscriptionSource extends StreamSource {
       }
     }
 
-    return new IoTDBSubscriptionSource(database, tableName, preFilter, partitionColumns);
+    // Deserialize connection info
+    String host = dataInputStream.readUTF();
+    int rpcPort = dataInputStream.readInt();
+    String user = dataInputStream.readUTF();
+    String encryptedPassword = dataInputStream.readUTF();
+
+    return new IoTDBSubscriptionSource(
+        database, tableName, preFilter, partitionColumns, host, rpcPort, user, encryptedPassword);
   }
 }

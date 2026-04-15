@@ -19,6 +19,7 @@
 
 package org.apache.iotdb.streamnode.engine.source;
 
+import org.apache.iotdb.commons.stream.IoTDBSubscriptionSource;
 import org.apache.iotdb.commons.stream.StreamSource;
 import org.apache.iotdb.commons.stream.StreamSourceType;
 
@@ -33,7 +34,7 @@ public abstract class StreamSourceInstance {
   public static StreamSourceInstance create(StreamSource source) {
     if (source.getType() == StreamSourceType.IOTDB_SUBSCRIPTION) {
       return new IoTDBSubscriptionSourceInstance(
-          (org.apache.iotdb.commons.stream.IoTDBSubscriptionSource) source);
+          (IoTDBSubscriptionSource) source);
     }
     throw new UnsupportedOperationException("Unsupported source type: " + source.getType());
   }
