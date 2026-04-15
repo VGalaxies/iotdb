@@ -19,18 +19,19 @@
 
 package org.apache.iotdb.confignode.persistence.stream;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
 import org.apache.iotdb.commons.snapshot.SnapshotProcessor;
 import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.commons.stream.StreamTaskStatus;
-import org.apache.iotdb.confignode.conf.ConfigNodeDescriptor;
 import org.apache.iotdb.rpc.TSStatusCode;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -45,6 +46,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class StreamInfo implements SnapshotProcessor {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(StreamInfo.class);
+  private static final String SNAPSHOT_FILENAME = "stream_info.bin";
 
   private final Map<String, StreamTask> streamTaskMap = new ConcurrentHashMap<>();
   private final AtomicLong nextStreamId = new AtomicLong(0);
@@ -109,11 +111,58 @@ public class StreamInfo implements SnapshotProcessor {
 
   @Override
   public boolean processTakeSnapshot(File snapshotDir) throws IOException {
+    final File snapshotFile = new File(snapshotDir, SNAPSHOT_FILENAME);
+    if (snapshotFile.exists() && snapshotFile.isFile()) {
+      LOGGER.error(
+          "Failed to take snapshot, because snapshot file [{}] already exists.",
+          snapshotFile.getAbsolutePath());
+      return false;
+    }
 
+    readLock();
+    try (final FileOutputStream fos = new FileOutputStream(snapshotFile);
+        final DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(fos))) {
+      dos.writeInt(streamTaskMap.size());
+      for (final StreamTask task : streamTaskMap.values()) {
+        task.serialize(dos);
+      }
+      fos.getFD().sync();
+      LOGGER.info(
+          "Snapshot taken for StreamInfo: {} tasks written to {}",
+          streamTaskMap.size(),
+          snapshotFile.getAbsolutePath());
+      return true;
+    } finally {
+      readUnlock();
+    }
   }
 
   @Override
   public void processLoadSnapshot(File snapshotDir) throws IOException {
+    final File snapshotFile = new File(snapshotDir, SNAPSHOT_FILENAME);
+    if (!snapshotFile.exists() || !snapshotFile.isFile()) {
+      LOGGER.error(
+          "Failed to load snapshot, snapshot file [{}] does not exist.",
+          snapshotFile.getAbsolutePath());
+      return;
+    }
 
+    writeLock();
+    try (final FileInputStream fis = new FileInputStream(snapshotFile);
+        final DataInputStream dis = new DataInputStream(new BufferedInputStream(fis))) {
+      streamTaskMap.clear();
+      final int count = dis.readInt();
+      for (int i = 0; i < count; i++) {
+        final StreamTask task = StreamTask.deserialize(dis);
+        streamTaskMap.put(task.getTaskName(), task);
+      }
+      LOGGER.info(
+          "Snapshot loaded for StreamInfo: {} tasks restored from {}",
+          streamTaskMap.size(),
+          snapshotFile.getAbsolutePath());
+      nextStreamId.set(streamTaskMap.values().stream().mapToLong(StreamTask::getId).max().orElse(0));
+    } finally {
+      writeUnlock();
+    }
   }
 }
