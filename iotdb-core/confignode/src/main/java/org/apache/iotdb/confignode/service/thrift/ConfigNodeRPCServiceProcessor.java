@@ -212,7 +212,6 @@ import org.apache.iotdb.confignode.rpc.thrift.TShowRegionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowRegionResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowStreamNodesResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowStreamsReq;
-import org.apache.iotdb.confignode.rpc.thrift.TShowStreamsResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowSubscriptionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowSubscriptionResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowTTLResp;
@@ -244,6 +243,9 @@ import org.apache.iotdb.db.queryengine.plan.relational.type.AuthorRType;
 import org.apache.iotdb.rpc.RpcUtils;
 import org.apache.iotdb.rpc.TSStatusCode;
 import org.apache.iotdb.commons.stream.StreamTask;
+import org.apache.iotdb.commons.stream.StreamSource;
+import org.apache.iotdb.commons.stream.StreamWindow;
+import org.apache.iotdb.commons.stream.StreamTarget;
 
 import org.apache.thrift.TException;
 
@@ -1516,11 +1518,22 @@ public class ConfigNodeRPCServiceProcessor implements IConfigNodeRPCService.Ifac
   @Override
   public TSStatus createStream(TCreateStreamReq req) throws TException {
     try {
-      StreamTask task = StreamTask.deserialize(ByteBuffer.wrap(req.getStreamTask()));
+      final StreamTask task = new StreamTask();
+      task.setTaskName(req.getStreamName());
+      task.setCreator(req.getCreator());
+      task.setCreationTime(System.currentTimeMillis());
+      task.setSubQuery(req.getCalcSql());
+
+      if (req.isSetStreamSource()) {
+        task.setSource(StreamSource.deserialize(ByteBuffer.wrap(req.getStreamSource())));
+      }
+      task.setWindow(StreamWindow.deserialize(ByteBuffer.wrap(req.getEventWindow())));
+      task.setTarget(StreamTarget.deserialize(ByteBuffer.wrap(req.getStreamSink())));
+
       return configManager.createStream(task);
     } catch (IOException e) {
       return new TSStatus(TSStatusCode.EXECUTE_STATEMENT_ERROR.getStatusCode())
-          .setMessage("Failed to deserialize StreamTask: " + e.getMessage());
+          .setMessage("Failed to build StreamTask from request: " + e.getMessage());
     }
   }
 
@@ -1531,7 +1544,7 @@ public class ConfigNodeRPCServiceProcessor implements IConfigNodeRPCService.Ifac
 
   @Override
   public TSStatus startStream(TStartStreamReq req) throws TException {
-    return configManager.startStream(req.getDatabase(), req.getStreamName());
+    return configManager.startStream(req.getStreamName());
   }
 
   @Override

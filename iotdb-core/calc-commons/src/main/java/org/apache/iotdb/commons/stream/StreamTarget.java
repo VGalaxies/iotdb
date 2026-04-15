@@ -22,6 +22,9 @@ package org.apache.iotdb.commons.stream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+
+import org.apache.iotdb.commons.utils.IOUtils;
 
 public abstract class StreamTarget {
 
@@ -32,5 +35,9 @@ public abstract class StreamTarget {
   public static StreamTarget deserialize(InputStream inputStream) throws IOException {
     // TODO: implement deserialization dispatch
     throw new UnsupportedOperationException("Not implemented yet");
+  }
+
+  public static StreamTarget deserialize(ByteBuffer byteBuffer) throws IOException {
+    return deserialize(new IOUtils.ByteBufferInputStream(byteBuffer));
   }
 }

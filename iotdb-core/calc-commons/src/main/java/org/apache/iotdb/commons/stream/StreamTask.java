@@ -237,8 +237,11 @@ public class StreamTask {
       dataOutputStream.writeLong(creationTime);
       dataOutputStream.writeUTF(creator != null ? creator : "");
       dataOutputStream.writeUTF(subQuery != null ? subQuery : "");
-      // Serialize source using its serialize method
-      source.serialize(dataOutputStream);
+      // Serialize source: write presence flag first
+      dataOutputStream.writeBoolean(source != null);
+      if (source != null) {
+        source.serialize(dataOutputStream);
+      }
       // Serialize window using its serialize method
       window.serialize(dataOutputStream);
       // Serialize target using its serialize method
@@ -255,8 +258,10 @@ public class StreamTask {
       streamTask.setCreationTime(dataInputStream.readLong());
       streamTask.setCreator(dataInputStream.readUTF());
       streamTask.setSubQuery(dataInputStream.readUTF());
-      // Deserialize source using its deserialize method
-      streamTask.setSource(StreamSource.deserialize(dataInputStream));
+      // Deserialize source: read presence flag first
+      if (dataInputStream.readBoolean()) {
+        streamTask.setSource(StreamSource.deserialize(dataInputStream));
+      }
       // Deserialize window using its deserialize method
       streamTask.setWindow(StreamWindow.deserialize(dataInputStream));
       // Deserialize target using its deserialize method

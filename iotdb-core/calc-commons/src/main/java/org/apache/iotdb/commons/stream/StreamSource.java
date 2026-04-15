@@ -23,6 +23,9 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+
+import org.apache.iotdb.commons.utils.IOUtils;
 
 @SuppressWarnings("SwitchStatementWithTooFewBranches")
 public abstract class StreamSource {
@@ -41,5 +44,9 @@ public abstract class StreamSource {
       default:
         throw new IOException("Unknown StreamSourceType: " + type);
     }
+  }
+
+  public static StreamSource deserialize(ByteBuffer byteBuffer) throws IOException {
+    return deserialize(new IOUtils.ByteBufferInputStream(byteBuffer));
   }
 }
