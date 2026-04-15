@@ -168,7 +168,7 @@ public class StreamManager {
    * Record a heartbeat for the given task. Should be called whenever a heartbeat reply is received
    * from the StreamNode.
    */
-  public TSStatus recordHeartbeat(String taskName, int epoch, long leaderTerm) {
+  public TSStatus recordHeartbeat(String taskName, int epoch, long leaderTerm, String runningOn) {
     lock.readLock().lock();
     try {
       final StreamTask task = streamInfo.getTask(taskName);
@@ -192,6 +192,8 @@ public class StreamManager {
                     taskName, task.getEpoch(), task.getLeaderTerm(), epoch, leaderTerm));
       }
       task.setLastHeartbeatTime(System.currentTimeMillis());
+      task.setRunningOn(runningOn);
+      task.setStatus(StreamTaskStatus.RUNNING);
     } finally {
       lock.readLock().unlock();
     }
