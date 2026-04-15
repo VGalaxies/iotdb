@@ -91,16 +91,6 @@ public class StreamManager {
         this.streamMonitorExecutor, this::monitorStreams, 0, 5, TimeUnit.SECONDS);
   }
 
-  public TSStatus createStream(StreamTask task) {
-    streamInfo.writeLock();
-    try {
-      LOGGER.info("Creating stream task: {}", task.getTaskName());
-      return streamInfo.addTask(task);
-    } finally {
-      streamInfo.writeUnlock();
-    }
-  }
-
   public StreamInfo getStreamInfo() {
     return streamInfo;
   }

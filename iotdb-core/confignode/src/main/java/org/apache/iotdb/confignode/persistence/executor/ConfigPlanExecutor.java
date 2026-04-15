@@ -151,7 +151,6 @@ import org.apache.iotdb.confignode.consensus.response.partition.SchemaNodeManage
 import org.apache.iotdb.confignode.exception.physical.UnknownPhysicalPlanTypeException;
 import org.apache.iotdb.confignode.manager.externalservice.ExternalServiceInfo;
 import org.apache.iotdb.confignode.manager.pipe.agent.PipeConfigNodeAgent;
-import org.apache.iotdb.confignode.manager.stream.StreamManager;
 import org.apache.iotdb.confignode.persistence.ClusterInfo;
 import org.apache.iotdb.confignode.persistence.ProcedureInfo;
 import org.apache.iotdb.confignode.persistence.TTLInfo;
@@ -164,6 +163,7 @@ import org.apache.iotdb.confignode.persistence.partition.PartitionInfo;
 import org.apache.iotdb.confignode.persistence.pipe.PipeInfo;
 import org.apache.iotdb.confignode.persistence.quota.QuotaInfo;
 import org.apache.iotdb.confignode.persistence.schema.ClusterSchemaInfo;
+import org.apache.iotdb.confignode.persistence.stream.StreamInfo;
 import org.apache.iotdb.confignode.persistence.subscription.SubscriptionInfo;
 import org.apache.iotdb.confignode.rpc.thrift.TDatabaseSchema;
 import org.apache.iotdb.confignode.rpc.thrift.TShowRegionReq;
@@ -222,7 +222,7 @@ public class ConfigPlanExecutor {
 
   private final TTLInfo ttlInfo;
 
-  private final StreamManager streamManager;
+  private final StreamInfo streamInfo;
 
   public ConfigPlanExecutor(
       ClusterInfo clusterInfo,
@@ -239,7 +239,7 @@ public class ConfigPlanExecutor {
       SubscriptionInfo subscriptionInfo,
       QuotaInfo quotaInfo,
       TTLInfo ttlInfo,
-      StreamManager streamManager) {
+      StreamInfo streamInfo) {
 
     this.snapshotProcessorList = new ArrayList<>();
 
@@ -285,8 +285,8 @@ public class ConfigPlanExecutor {
     this.ttlInfo = ttlInfo;
     this.snapshotProcessorList.add(ttlInfo);
 
-    this.streamManager = streamManager;
-    this.snapshotProcessorList.add(streamManager.getStreamInfo());
+    this.streamInfo = streamInfo;
+    this.snapshotProcessorList.add(streamInfo);
 
     this.snapshotProcessorList.add(PipeConfigNodeAgent.runtime().listener());
   }
@@ -665,7 +665,7 @@ public class ConfigPlanExecutor {
       case DropExternalService:
         return externalServiceInfo.dropService((DropExternalServicePlan) physicalPlan);
       case CreateStream:
-        return streamManager.createStream(((CreateStreamPlan) physicalPlan).getStreamTask());
+        return streamInfo.addTask(((CreateStreamPlan) physicalPlan).getStreamTask());
       case CreatePipePlugin:
         return pipeInfo.getPipePluginInfo().createPipePlugin((CreatePipePluginPlan) physicalPlan);
       case DropPipePlugin:

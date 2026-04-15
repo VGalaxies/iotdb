@@ -375,7 +375,6 @@ public class ConfigManager implements IManager {
     TTLInfo ttlInfo = new TTLInfo();
     SubscriptionInfo subscriptionInfo = new SubscriptionInfo();
     StreamInfo streamInfo = new StreamInfo();
-    this.streamManager = new StreamManager(this, streamInfo);
 
     // Build state machine and executor
     ConfigPlanExecutor executor =
@@ -394,7 +393,7 @@ public class ConfigManager implements IManager {
             subscriptionInfo,
             quotaInfo,
             ttlInfo,
-            streamManager);
+            streamInfo);
     this.stateMachine = new ConfigRegionStateMachine(this, executor);
 
     // Build the manager module
@@ -415,6 +414,7 @@ public class ConfigManager implements IManager {
     this.cqManager = new CQManager(this);
     this.pipeManager = new PipeManager(this, pipeInfo);
     this.subscriptionManager = new SubscriptionManager(this, subscriptionInfo);
+    this.streamManager = new StreamManager(this, streamInfo);
     this.auditLogger = new CNAuditLogger(this);
 
     // 1. keep PipeManager initialization before LoadManager initialization, because

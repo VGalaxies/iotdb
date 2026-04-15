@@ -83,32 +83,37 @@ public class StreamInfo implements SnapshotProcessor {
   }
 
   public TSStatus addTask(StreamTask task) {
-    if (streamTaskMap.containsKey(task.getTaskName())) {
-      return new TSStatus(TSStatusCode.STREAM_ALREADY_EXISTS.getStatusCode())
-          .setMessage("Stream already exists: " + task.getTaskName());
+    lock.writeLock().lock();
+    try {
+      if (streamTaskMap.containsKey(task.getTaskName())) {
+        return new TSStatus(TSStatusCode.STREAM_ALREADY_EXISTS.getStatusCode())
+            .setMessage("Stream already exists: " + task.getTaskName());
+      }
+      task.setId(nextStreamId.getAndIncrement());
+      task.setStatus(StreamTaskStatus.UNKNOWN);
+      // Serialize the task to streams directory
+      File streamsDir = new File(ConfigNodeDescriptor.getInstance().getConf().getStreamsDir());
+      if (!streamsDir.exists()) {
+        streamsDir.mkdirs();
+      }
+      File taskFile = new File(streamsDir, task.getId() + ".stm");
+      try (FileOutputStream fos = new FileOutputStream(taskFile);
+          BufferedOutputStream bos = new BufferedOutputStream(fos)) {
+        task.serialize(bos);
+        bos.flush();
+        fos.getFD().sync();
+        LOGGER.info("Serialized StreamTask {} to {}", task.getTaskName(), taskFile.getAbsolutePath());
+      } catch (IOException e) {
+        LOGGER.error("Failed to serialize StreamTask {}", task.getTaskName(), e);
+        return new TSStatus(TSStatusCode.INTERNAL_SERVER_ERROR.getStatusCode())
+            .setMessage("Failed to serialize StreamTask: " + task.getTaskName());
+      }
+      streamTaskMap.put(task.getTaskName(), task);
+      LOGGER.info("Added stream task: {} with id {}", task.getTaskName(), task.getId());
+      return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
+    } finally {
+      lock.writeLock().unlock();
     }
-    task.setId(nextStreamId.getAndIncrement());
-    task.setStatus(StreamTaskStatus.UNKNOWN);
-    // Serialize the task to streams directory
-    File streamsDir = new File(ConfigNodeDescriptor.getInstance().getConf().getStreamsDir());
-    if (!streamsDir.exists()) {
-      streamsDir.mkdirs();
-    }
-    File taskFile = new File(streamsDir, task.getId() + ".stm");
-    try (FileOutputStream fos = new FileOutputStream(taskFile);
-        BufferedOutputStream bos = new BufferedOutputStream(fos)) {
-      task.serialize(bos);
-      bos.flush();
-      fos.getFD().sync();
-      LOGGER.info("Serialized StreamTask {} to {}", task.getTaskName(), taskFile.getAbsolutePath());
-    } catch (IOException e) {
-      LOGGER.error("Failed to serialize StreamTask {}", task.getTaskName(), e);
-      return new TSStatus(TSStatusCode.INTERNAL_SERVER_ERROR.getStatusCode())
-          .setMessage("Failed to serialize StreamTask: " + task.getTaskName());
-    }
-    streamTaskMap.put(task.getTaskName(), task);
-    LOGGER.info("Added stream task: {} with id {}", task.getTaskName(), task.getId());
-    return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
   }
 
   public TSStatus removeTask(String taskName) {
