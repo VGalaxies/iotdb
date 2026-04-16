@@ -30,13 +30,13 @@ import org.apache.iotdb.session.subscription.consumer.table.SubscriptionTablePul
 import org.apache.iotdb.session.subscription.payload.SubscriptionMessage;
 
 import org.apache.iotdb.streamnode.conf.StreamNodeConfig;
-import org.apache.iotdb.streamnode.conf.StreamNodeDescriptor;
 import org.apache.tsfile.utils.Pair;
 import org.apache.tsfile.write.record.Tablet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
@@ -156,7 +156,6 @@ public class IoTDBSubscriptionSourceInstance extends StreamSourceInstance {
             }
           }
           if (maxIdx >= 0) {
-            //TODO: message.removeUserData();
             pendingCommits.put(new Pair<>(message, maxIdx));
           }
         }
@@ -173,7 +172,7 @@ public class IoTDBSubscriptionSourceInstance extends StreamSourceInstance {
   }
 
   @Override
-  public void stop() throws Exception {
+  public void stop() {
     running.set(false);
     if (pollFuture != null) {
       pollFuture.cancel(true);
@@ -190,9 +189,20 @@ public class IoTDBSubscriptionSourceInstance extends StreamSourceInstance {
   }
 
   @Override
-  public void commit(final long idx) throws Exception {
-    // Commits are handled inline after each poll batch; this hook is for external checkpointing
-    LOGGER.debug("External commit at index {} for task {}", idx, taskName);
+  public synchronized void commit(final long idx) {
+    // Drain all pending entries whose maxIndex <= idx and commit them to the subscription
+    final List<SubscriptionMessage> toCommit = new ArrayList<>();
+    Pair<SubscriptionMessage, Long> head;
+    while ((head = pendingCommits.peek()) != null && head.right <= idx) {
+      head = pendingCommits.poll();
+      if (head != null) {
+        toCommit.add(head.left);
+      }
+    }
+    if (!toCommit.isEmpty()) {
+      consumer.commitSync(toCommit);
+      LOGGER.debug("Committed {} messages up to index {} for task {}", toCommit.size(), idx, taskName);
+    }
   }
 
   public IoTDBSubscriptionSource getSourceConfig() {
