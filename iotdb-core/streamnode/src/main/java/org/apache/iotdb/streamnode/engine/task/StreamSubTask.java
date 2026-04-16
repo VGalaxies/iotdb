@@ -19,11 +19,14 @@
 
 package org.apache.iotdb.streamnode.engine.task;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import org.apache.iotdb.commons.stream.PartitionKey;
 import org.apache.iotdb.commons.stream.StreamWindow;
 import org.apache.iotdb.streamnode.engine.window.WindowEngine;
 import org.apache.iotdb.streamnode.engine.window.WindowEvent;
 
+import org.apache.tsfile.write.record.Tablet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,11 +52,23 @@ public class StreamSubTask {
     return events;
   }
 
+  public Future<Void> offer(DataSlice dataSlice) {
+    // TODO: Implement asynchronous processing of data slice and return a Future that completes when processing is done
+    return CompletableFuture.completedFuture(null);
+  }
+
   public long getCommitId() {
     return lastCommitId.get();
   }
 
   public PartitionKey getPartitionKey() {
     return partitionKey;
+  }
+
+  public static class DataSlice {
+    private Tablet tablet;
+    private int startRow;
+    private int endRow;
+    private long tabletId;
   }
 }
