@@ -19,17 +19,33 @@
 
 package org.apache.iotdb.streamnode.engine.source;
 
-import java.util.function.BiConsumer;
+import org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory;
+import org.apache.iotdb.commons.concurrent.ThreadName;
 import org.apache.iotdb.commons.stream.IoTDBSubscriptionSource;
 import org.apache.iotdb.rpc.subscription.config.TopicConstant;
 import org.apache.iotdb.session.subscription.ISubscriptionTableSession;
 import org.apache.iotdb.session.subscription.SubscriptionTableSessionBuilder;
+import org.apache.iotdb.session.subscription.consumer.ISubscriptionTablePullConsumer;
+import org.apache.iotdb.session.subscription.consumer.table.SubscriptionTablePullConsumerBuilder;
+import org.apache.iotdb.session.subscription.payload.SubscriptionMessage;
 
+import org.apache.iotdb.streamnode.conf.StreamNodeConfig;
+import org.apache.iotdb.streamnode.conf.StreamNodeDescriptor;
+import org.apache.tsfile.utils.Pair;
 import org.apache.tsfile.write.record.Tablet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 
 public class IoTDBSubscriptionSourceInstance extends StreamSourceInstance {
 
@@ -39,17 +55,42 @@ public class IoTDBSubscriptionSourceInstance extends StreamSourceInstance {
   /** Prefix for all stream-managed subscription topics. */
   private static final String STREAM_TOPIC_PREFIX = "__stream__";
 
+  /** Shared thread pool across all instances — one thread per active source. */
+  private static final ExecutorService POLL_EXECUTOR =
+      IoTDBThreadPoolFactory.newCachedThreadPoolWithDaemon(
+          ThreadName.STREAM_SUBSCRIPTION_POLL.getName());
+
+  private static final Duration POLL_TIMEOUT = Duration.ofMillis(500);
+
   private final IoTDBSubscriptionSource sourceConfig;
   private final String taskName;
   private final String topicName;
+  private final StreamNodeConfig nodeConfig;
+
+  private volatile ISubscriptionTablePullConsumer consumer;
+  private final AtomicBoolean running = new AtomicBoolean(false);
+  private final AtomicLong commitIndex = new AtomicLong(0);
+  private Future<?> pollFuture;
+
+  /**
+   * Queue of (message, maxIndex) pairs pending commit. Each entry represents one polled
+   * SubscriptionMessage bound to the highest commitIndex assigned to any of its Tablets.
+   * The commit loop drains this queue once downstream processing has acknowledged the index.
+   */
+  private final LinkedBlockingQueue<Pair<SubscriptionMessage, Long>> pendingCommits =
+      new LinkedBlockingQueue<>();
+
 
   public IoTDBSubscriptionSourceInstance(
-      final IoTDBSubscriptionSource sourceConfig, final String taskName,
-      BiConsumer<Tablet, Long> dataConsumer) {
+      final IoTDBSubscriptionSource sourceConfig,
+      final String taskName,
+      final BiConsumer<Tablet, Long> dataConsumer,
+      final StreamNodeConfig streamNodeConfig) {
     this.sourceConfig = sourceConfig;
     this.taskName = taskName;
     this.topicName = STREAM_TOPIC_PREFIX + taskName;
     this.dataConsumer = dataConsumer;
+    this.nodeConfig = streamNodeConfig;
   }
 
   @Override
@@ -60,6 +101,7 @@ public class IoTDBSubscriptionSourceInstance extends StreamSourceInstance {
         sourceConfig.getDatabase(),
         sourceConfig.getTableName());
 
+    // 1. Create topic if not exists
     try (final ISubscriptionTableSession session =
         new SubscriptionTableSessionBuilder()
             .host(sourceConfig.getHost())

@@ -21,6 +21,8 @@ package org.apache.iotdb.streamnode.engine.task;
 
 import org.apache.iotdb.commons.stream.PartitionKey;
 import org.apache.iotdb.commons.stream.StreamTask;
+import org.apache.iotdb.streamnode.conf.StreamNodeConfig;
+import org.apache.iotdb.streamnode.conf.StreamNodeDescriptor;
 import org.apache.iotdb.streamnode.engine.computation.ComputationEngine;
 import org.apache.iotdb.streamnode.engine.dispatcher.TabletDispatcher;
 import org.apache.iotdb.streamnode.engine.sink.WriteBackEngine;
@@ -44,6 +46,8 @@ public class StreamTaskInstance {
   private final ComputationEngine computationEngine = new ComputationEngine();
   private final WriteBackEngine writeBackEngine = new WriteBackEngine();
   private final AtomicBoolean running = new AtomicBoolean(false);
+  // TODO: may try to reduce singleton pattern
+  private StreamNodeConfig nodeConfig = StreamNodeDescriptor.getInstance().getConfig();
 
   public StreamTaskInstance(StreamTask taskDefinition) {
     this.taskDefinition = taskDefinition;
@@ -68,7 +72,7 @@ public class StreamTaskInstance {
 
       // Initialize source
       if (taskDefinition.getSource() != null) {
-        sourceInstance = StreamSourceInstance.create(taskDefinition.getSource(), taskDefinition.getTaskName(), dispatcher::dispatch);
+        sourceInstance = StreamSourceInstance.create(taskDefinition.getSource(), taskDefinition.getTaskName(), dispatcher::dispatch, nodeConfig);
         sourceInstance.start();
       }
 

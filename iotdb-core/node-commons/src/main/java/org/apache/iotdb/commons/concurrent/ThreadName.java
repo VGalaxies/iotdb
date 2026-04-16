@@ -108,6 +108,7 @@ public enum ThreadName {
   CONFIG_NODE_RETRY_FAILED_TASK("Cluster-RetryFailedTasks-Service"),
   // -------------------------- ConfigNode-Stream --------------------------
   STREAM_MONITOR("StreamMonitor"),
+  STREAM_SUBSCRIPTION_POLL("StreamSubscriptionPoll"),
 
   // -------------------------- IoTConsensusV2 --------------------------
   IOT_CONSENSUS_V2_RPC_SERVICE("IoTConsensusV2RPC-Service"),
