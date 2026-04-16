@@ -19,26 +19,30 @@
 
 package org.apache.iotdb.streamnode.engine.dispatcher;
 
+import java.util.function.Function;
 import org.apache.iotdb.commons.stream.IoTDBSubscriptionSource;
 import org.apache.iotdb.commons.stream.PartitionKey;
 import org.apache.iotdb.commons.stream.StreamSource;
 import org.apache.iotdb.streamnode.engine.task.StreamSubTask;
 
 import java.util.Map;
+import org.apache.tsfile.write.record.Tablet;
 
 public abstract class TabletDispatcher {
+
+  protected Function<PartitionKey, StreamSubTask> subTaskMapper;
 
   /**
    * Dispatch a data batch to sub-tasks based on partition keys. In iteration 1, the data batch is
    * represented as an Object (will be Tablet in future).
    */
   public abstract void dispatch(
-      Object data, long dataId, Map<PartitionKey, StreamSubTask> subTasks);
+      Tablet tablet, long tabletId);
 
-  public static TabletDispatcher create(StreamSource source) {
+  public static TabletDispatcher create(StreamSource source, Function<PartitionKey, StreamSubTask> subTaskMapper) {
     if (source instanceof IoTDBSubscriptionSource) {
       IoTDBSubscriptionSource subSource = (IoTDBSubscriptionSource) source;
-      return new ColumnPartitionedTabletDispatcher(subSource.getPartitionColumns());
+      return new ColumnPartitionedTabletDispatcher(subSource.getPartitionColumns(), subTaskMapper);
     }
     throw new UnsupportedOperationException("Unsupported source type: " + source.getType());
   }

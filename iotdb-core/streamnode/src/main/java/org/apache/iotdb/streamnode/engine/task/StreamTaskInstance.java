@@ -56,20 +56,20 @@ public class StreamTaskInstance {
     }
 
     try {
-      // Initialize source
-      if (taskDefinition.getSource() != null) {
-        sourceInstance = StreamSourceInstance.create(taskDefinition.getSource(), taskDefinition.getTaskName());
-        sourceInstance.start();
+      // Initialize write-back
+      if (taskDefinition.getTarget() != null) {
+        writeBackEngine.start(taskDefinition.getTarget());
       }
 
       // Initialize dispatcher
       if (taskDefinition.getSource() != null) {
-        dispatcher = TabletDispatcher.create(taskDefinition.getSource());
+        dispatcher = TabletDispatcher.create(taskDefinition.getSource(), partitionKey -> subTasks.computeIfAbsent(partitionKey, pk -> new StreamSubTask(pk, taskDefinition.getWindow())));
       }
 
-      // Initialize write-back
-      if (taskDefinition.getTarget() != null) {
-        writeBackEngine.start(taskDefinition.getTarget());
+      // Initialize source
+      if (taskDefinition.getSource() != null) {
+        sourceInstance = StreamSourceInstance.create(taskDefinition.getSource(), taskDefinition.getTaskName(), dispatcher::dispatch);
+        sourceInstance.start();
       }
 
       LOGGER.info("Task instance started: {}", taskDefinition.getTaskName());

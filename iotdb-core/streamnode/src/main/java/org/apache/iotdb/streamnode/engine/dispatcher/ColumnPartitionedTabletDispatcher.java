@@ -19,14 +19,15 @@
 
 package org.apache.iotdb.streamnode.engine.dispatcher;
 
+import java.util.function.Function;
 import org.apache.iotdb.commons.stream.PartitionKey;
 import org.apache.iotdb.streamnode.engine.task.StreamSubTask;
 
+import org.apache.tsfile.write.record.Tablet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.Map;
 
 public class ColumnPartitionedTabletDispatcher extends TabletDispatcher {
 
@@ -35,14 +36,16 @@ public class ColumnPartitionedTabletDispatcher extends TabletDispatcher {
 
   private final List<String> partitionColumns;
 
-  public ColumnPartitionedTabletDispatcher(List<String> partitionColumns) {
+  public ColumnPartitionedTabletDispatcher(List<String> partitionColumns,
+      Function<PartitionKey, StreamSubTask> subTaskMapper) {
     this.partitionColumns = partitionColumns;
+    this.subTaskMapper = subTaskMapper;
   }
 
   @Override
-  public void dispatch(Object data, long dataId, Map<PartitionKey, StreamSubTask> subTasks) {
+  public void dispatch(Tablet tablet, long tabletId) {
     // TODO: Extract partition key from data (Tablet) and route to appropriate sub-task
-    LOGGER.debug("Dispatching data with id {} to {} sub-tasks", dataId, subTasks.size());
+    LOGGER.debug("Dispatching data with id {} to {} sub-tasks", tablet, tabletId);
   }
 
   public List<String> getPartitionColumns() {

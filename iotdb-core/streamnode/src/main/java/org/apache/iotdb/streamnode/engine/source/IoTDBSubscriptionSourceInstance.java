@@ -19,11 +19,13 @@
 
 package org.apache.iotdb.streamnode.engine.source;
 
+import java.util.function.BiConsumer;
 import org.apache.iotdb.commons.stream.IoTDBSubscriptionSource;
 import org.apache.iotdb.rpc.subscription.config.TopicConstant;
 import org.apache.iotdb.session.subscription.ISubscriptionTableSession;
 import org.apache.iotdb.session.subscription.SubscriptionTableSessionBuilder;
 
+import org.apache.tsfile.write.record.Tablet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,10 +44,12 @@ public class IoTDBSubscriptionSourceInstance extends StreamSourceInstance {
   private final String topicName;
 
   public IoTDBSubscriptionSourceInstance(
-      final IoTDBSubscriptionSource sourceConfig, final String taskName) {
+      final IoTDBSubscriptionSource sourceConfig, final String taskName,
+      BiConsumer<Tablet, Long> dataConsumer) {
     this.sourceConfig = sourceConfig;
     this.taskName = taskName;
     this.topicName = STREAM_TOPIC_PREFIX + taskName;
+    this.dataConsumer = dataConsumer;
   }
 
   @Override

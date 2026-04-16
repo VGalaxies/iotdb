@@ -19,11 +19,15 @@
 
 package org.apache.iotdb.streamnode.engine.source;
 
+import java.util.function.BiConsumer;
 import org.apache.iotdb.commons.stream.IoTDBSubscriptionSource;
 import org.apache.iotdb.commons.stream.StreamSource;
 import org.apache.iotdb.commons.stream.StreamSourceType;
+import org.apache.tsfile.write.record.Tablet;
 
 public abstract class StreamSourceInstance {
+
+  protected BiConsumer<Tablet, Long> dataConsumer;
 
   public abstract void start() throws Exception;
 
@@ -31,10 +35,10 @@ public abstract class StreamSourceInstance {
 
   public abstract void commit(long commitIndex) throws Exception;
 
-  public static StreamSourceInstance create(StreamSource source, String taskName) {
+  public static StreamSourceInstance create(StreamSource source, String taskName, BiConsumer<Tablet, Long> dataConsumer) {
     if (source.getType() == StreamSourceType.IOTDB_SUBSCRIPTION) {
       return new IoTDBSubscriptionSourceInstance(
-          (IoTDBSubscriptionSource) source, taskName);
+          (IoTDBSubscriptionSource) source, taskName, dataConsumer);
     }
     throw new UnsupportedOperationException("Unsupported source type: " + source.getType());
   }
