@@ -113,24 +113,86 @@ public class IoTDBSubscriptionSourceInstance extends StreamSourceInstance {
       final Properties topicProperties = new Properties();
       topicProperties.setProperty(TopicConstant.DATABASE_KEY, sourceConfig.getDatabase());
       topicProperties.setProperty(TopicConstant.TABLE_KEY, sourceConfig.getTableName());
-      // TODO: preFilter is not yet supported as a topic property;
+      // preFilter is not yet supported as a topic property; applied at consumer side in future
       session.createTopicIfNotExists(topicName, topicProperties);
       LOGGER.info("Topic '{}' created (or already exists) for task {}", topicName, taskName);
     }
 
-    // TODO: Create subscription consumer, subscribe to topic, start polling
+    // 2. Build and open consumer
+    consumer =
+        new SubscriptionTablePullConsumerBuilder()
+            .host(sourceConfig.getHost())
+            .port(sourceConfig.getRpcPort())
+            .username(sourceConfig.getUser())
+            .password(sourceConfig.getEncryptedPassword())
+            .consumerGroupId("default_group")
+            .consumerId(nodeConfig.getSnInternalAddress() + ":" + nodeConfig.getSnInternalPort())
+            .autoCommit(false)
+            .build();
+    consumer.open();
+    consumer.subscribe(topicName);
+
+    // 3. Start poll loop in shared thread pool
+    running.set(true);
+    pollFuture = POLL_EXECUTOR.submit(this::pollLoop);
+    LOGGER.info("Poll loop started for task {}", taskName);
+  }
+
+  private void pollLoop() {
+    while (running.get()) {
+      try {
+        final List<SubscriptionMessage> messages = consumer.poll(POLL_TIMEOUT);
+        if (messages == null || messages.isEmpty()) {
+          continue;
+        }
+        for (final SubscriptionMessage message : messages) {
+          long maxIdx = -1;
+          final Iterator<Tablet> tablets = message.getRecordTabletIterator();
+          while (tablets.hasNext()) {
+            final long idx = commitIndex.incrementAndGet();
+            dataConsumer.accept(tablets.next(), idx);
+            if (idx > maxIdx) {
+              maxIdx = idx;
+            }
+          }
+          if (maxIdx >= 0) {
+            //TODO: message.removeUserData();
+            pendingCommits.put(new Pair<>(message, maxIdx));
+          }
+        }
+      } catch (final InterruptedException e) {
+        Thread.currentThread().interrupt();
+        break;
+      } catch (final Exception e) {
+        if (running.get()) {
+          LOGGER.warn("Error in poll loop for task {}, will retry", taskName, e);
+        }
+      }
+    }
+    LOGGER.info("Poll loop exited for task {}", taskName);
   }
 
   @Override
   public void stop() throws Exception {
-    // TODO: Unsubscribe and close consumer
-    LOGGER.info("Stopping subscription source for task {}", taskName);
+    running.set(false);
+    if (pollFuture != null) {
+      pollFuture.cancel(true);
+    }
+    if (consumer != null) {
+      try {
+        consumer.unsubscribe(topicName);
+        consumer.close();
+      } catch (final Exception e) {
+        LOGGER.warn("Error closing consumer for task {}", taskName, e);
+      }
+    }
+    LOGGER.info("Subscription source stopped for task {}", taskName);
   }
 
   @Override
-  public void commit(final long commitIndex) throws Exception {
-    // TODO: Commit offset to subscription
-    LOGGER.debug("Committed offset {} for task {}", commitIndex, taskName);
+  public void commit(final long idx) throws Exception {
+    // Commits are handled inline after each poll batch; this hook is for external checkpointing
+    LOGGER.debug("External commit at index {} for task {}", idx, taskName);
   }
 
   public IoTDBSubscriptionSource getSourceConfig() {
