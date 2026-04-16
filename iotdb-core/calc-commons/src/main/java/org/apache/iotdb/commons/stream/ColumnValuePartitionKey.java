@@ -20,14 +20,13 @@
 package org.apache.iotdb.commons.stream;
 
 import java.util.Arrays;
-import java.util.Map;
 import java.util.Objects;
 
-public class ColumnPartitionKey implements PartitionKey {
+public class ColumnValuePartitionKey implements PartitionKey {
 
   private final Object[] columnValues;
 
-  public ColumnPartitionKey(Object[] columnValues) {
+  public ColumnValuePartitionKey(Object[] columnValues) {
     this.columnValues = columnValues;
   }
 
