@@ -36,6 +36,16 @@ public class ColumnPartitionKey implements PartitionKey {
   }
 
   @Override
+  public int segmentNum() {
+    return columnValues.length;
+  }
+
+  @Override
+  public Object segmentValue(int segmentIndex) {
+    return columnValues[segmentIndex];
+  }
+
+  @Override
   public int partitionHash() {
     return columnValues == null ? 0 : Arrays.hashCode(columnValues);
   }

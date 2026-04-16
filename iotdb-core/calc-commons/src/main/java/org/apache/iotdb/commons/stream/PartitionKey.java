@@ -22,4 +22,8 @@ package org.apache.iotdb.commons.stream;
 public interface PartitionKey {
 
   int partitionHash();
+
+  int segmentNum();
+
+  Object segmentValue(int segmentIndex);
 }

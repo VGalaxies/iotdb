@@ -19,6 +19,8 @@
 
 package org.apache.iotdb.streamnode.engine.dispatcher;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Function;
 import org.apache.iotdb.commons.stream.PartitionKey;
 import org.apache.iotdb.streamnode.engine.task.StreamSubTask;
@@ -35,11 +37,16 @@ public class ColumnPartitionedTabletDispatcher extends TabletDispatcher {
       LoggerFactory.getLogger(ColumnPartitionedTabletDispatcher.class);
 
   private final List<String> partitionColumns;
+  private final Map<String, Integer> columnIndexMap;
 
   public ColumnPartitionedTabletDispatcher(List<String> partitionColumns,
       Function<PartitionKey, StreamSubTask> subTaskMapper) {
     this.partitionColumns = partitionColumns;
     this.subTaskMapper = subTaskMapper;
+    this.columnIndexMap = new HashMap<>();
+    for (int i = 0; i < partitionColumns.size(); i++) {
+      columnIndexMap.put(partitionColumns.get(i), i);
+    }
   }
 
   @Override
