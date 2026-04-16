@@ -20,11 +20,14 @@
 package org.apache.iotdb.streamnode.engine.source;
 
 import org.apache.iotdb.commons.stream.IoTDBSubscriptionSource;
+import org.apache.iotdb.rpc.subscription.config.TopicConstant;
 import org.apache.iotdb.session.subscription.ISubscriptionTableSession;
 import org.apache.iotdb.session.subscription.SubscriptionTableSessionBuilder;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Properties;
 
 public class IoTDBSubscriptionSourceInstance extends StreamSourceInstance {
 
@@ -61,7 +64,11 @@ public class IoTDBSubscriptionSourceInstance extends StreamSourceInstance {
             .password(sourceConfig.getEncryptedPassword())
             .build()) {
       session.open();
-      session.createTopicIfNotExists(topicName);
+      final Properties topicProperties = new Properties();
+      topicProperties.setProperty(TopicConstant.DATABASE_KEY, sourceConfig.getDatabase());
+      topicProperties.setProperty(TopicConstant.TABLE_KEY, sourceConfig.getTableName());
+      // TODO: preFilter is not yet supported as a topic property;
+      session.createTopicIfNotExists(topicName, topicProperties);
       LOGGER.info("Topic '{}' created (or already exists) for task {}", topicName, taskName);
     }
 
