@@ -26,4 +26,16 @@ public interface PartitionKey {
   int segmentNum();
 
   Object segmentValue(int segmentIndex);
+
+  default boolean equals(PartitionKey partitionKey) {
+    if (this.segmentNum() != partitionKey.segmentNum()) {
+      return false;
+    }
+    for (int i = 0; i < this.segmentNum(); i++) {
+      if (!this.segmentValue(i).equals(partitionKey.segmentValue(i))) {
+        return false;
+      }
+    }
+    return true;
+  }
 }

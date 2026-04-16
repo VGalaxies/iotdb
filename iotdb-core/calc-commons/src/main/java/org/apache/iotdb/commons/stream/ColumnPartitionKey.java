@@ -51,18 +51,6 @@ public class ColumnPartitionKey implements PartitionKey {
   }
 
   @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-    if (o == null || getClass() != o.getClass()) {
-      return false;
-    }
-    ColumnPartitionKey that = (ColumnPartitionKey) o;
-    return Arrays.equals(columnValues, that.columnValues);
-  }
-
-  @Override
   public int hashCode() {
     return Objects.hash(columnValues);
   }
