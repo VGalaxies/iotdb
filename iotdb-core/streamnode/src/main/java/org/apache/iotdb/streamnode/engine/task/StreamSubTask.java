@@ -66,9 +66,44 @@ public class StreamSubTask {
   }
 
   public static class DataSlice {
-    private Tablet tablet;
-    private int startRow;
-    private int endRow;
-    private long tabletId;
+
+    private final PartitionKey partitionKey;
+    private final Tablet tablet;
+    private final int startRow;
+    private final int endRow;
+    private final long tabletId;
+
+    public DataSlice(
+        final PartitionKey partitionKey,
+        final Tablet tablet,
+        final int startRow,
+        final int endRow,
+        final long tabletId) {
+      this.partitionKey = partitionKey;
+      this.tablet = tablet;
+      this.startRow = startRow;
+      this.endRow = endRow;
+      this.tabletId = tabletId;
+    }
+
+    public PartitionKey getPartitionKey() {
+      return partitionKey;
+    }
+
+    public Tablet getTablet() {
+      return tablet;
+    }
+
+    public int getStartRow() {
+      return startRow;
+    }
+
+    public int getEndRow() {
+      return endRow;
+    }
+
+    public long getTabletId() {
+      return tabletId;
+    }
   }
 }
