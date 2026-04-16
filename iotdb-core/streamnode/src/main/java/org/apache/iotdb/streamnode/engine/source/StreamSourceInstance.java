@@ -31,10 +31,10 @@ public abstract class StreamSourceInstance {
 
   public abstract void commit(long commitIndex) throws Exception;
 
-  public static StreamSourceInstance create(StreamSource source) {
+  public static StreamSourceInstance create(StreamSource source, String taskName) {
     if (source.getType() == StreamSourceType.IOTDB_SUBSCRIPTION) {
       return new IoTDBSubscriptionSourceInstance(
-          (IoTDBSubscriptionSource) source);
+          (IoTDBSubscriptionSource) source, taskName);
     }
     throw new UnsupportedOperationException("Unsupported source type: " + source.getType());
   }

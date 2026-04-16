@@ -58,7 +58,7 @@ public class StreamTaskInstance {
     try {
       // Initialize source
       if (taskDefinition.getSource() != null) {
-        sourceInstance = StreamSourceInstance.create(taskDefinition.getSource());
+        sourceInstance = StreamSourceInstance.create(taskDefinition.getSource(), taskDefinition.getTaskName());
         sourceInstance.start();
       }
 

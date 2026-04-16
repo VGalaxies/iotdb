@@ -20,6 +20,8 @@
 package org.apache.iotdb.streamnode.engine.source;
 
 import org.apache.iotdb.commons.stream.IoTDBSubscriptionSource;
+import org.apache.iotdb.session.subscription.ISubscriptionTableSession;
+import org.apache.iotdb.session.subscription.SubscriptionTableSessionBuilder;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,37 +31,60 @@ public class IoTDBSubscriptionSourceInstance extends StreamSourceInstance {
   private static final Logger LOGGER =
       LoggerFactory.getLogger(IoTDBSubscriptionSourceInstance.class);
 
-  private final IoTDBSubscriptionSource sourceConfig;
+  /** Prefix for all stream-managed subscription topics. */
+  private static final String STREAM_TOPIC_PREFIX = "__stream__";
 
-  public IoTDBSubscriptionSourceInstance(IoTDBSubscriptionSource sourceConfig) {
+  private final IoTDBSubscriptionSource sourceConfig;
+  private final String taskName;
+  private final String topicName;
+
+  public IoTDBSubscriptionSourceInstance(
+      final IoTDBSubscriptionSource sourceConfig, final String taskName) {
     this.sourceConfig = sourceConfig;
+    this.taskName = taskName;
+    this.topicName = STREAM_TOPIC_PREFIX + taskName;
   }
 
   @Override
   public void start() throws Exception {
-    // TODO: Create subscription consumer, subscribe to topic, start polling
     LOGGER.info(
-        "Starting subscription source for table: {}.{}",
+        "Starting subscription source for task {}, table: {}.{}",
+        taskName,
         sourceConfig.getDatabase(),
         sourceConfig.getTableName());
+
+    try (final ISubscriptionTableSession session =
+        new SubscriptionTableSessionBuilder()
+            .host(sourceConfig.getHost())
+            .port(sourceConfig.getRpcPort())
+            .username(sourceConfig.getUser())
+            .password(sourceConfig.getEncryptedPassword())
+            .build()) {
+      session.open();
+      session.createTopicIfNotExists(topicName);
+      LOGGER.info("Topic '{}' created (or already exists) for task {}", topicName, taskName);
+    }
+
+    // TODO: Create subscription consumer, subscribe to topic, start polling
   }
 
   @Override
   public void stop() throws Exception {
     // TODO: Unsubscribe and close consumer
-    LOGGER.info(
-        "Stopping subscription source for table: {}.{}",
-        sourceConfig.getDatabase(),
-        sourceConfig.getTableName());
+    LOGGER.info("Stopping subscription source for task {}", taskName);
   }
 
   @Override
-  public void commit(long commitIndex) throws Exception {
+  public void commit(final long commitIndex) throws Exception {
     // TODO: Commit offset to subscription
-    LOGGER.debug("Committed offset: {}", commitIndex);
+    LOGGER.debug("Committed offset {} for task {}", commitIndex, taskName);
   }
 
   public IoTDBSubscriptionSource getSourceConfig() {
     return sourceConfig;
+  }
+
+  public String getTopicName() {
+    return topicName;
   }
 }
