@@ -19,24 +19,25 @@
 
 package org.apache.iotdb.commons.stream;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
 public class ColumnPartitionKey implements PartitionKey {
 
-  private final Map<String, Object> columnValues;
+  private final Object[] columnValues;
 
-  public ColumnPartitionKey(Map<String, Object> columnValues) {
+  public ColumnPartitionKey(Object[] columnValues) {
     this.columnValues = columnValues;
   }
 
-  public Map<String, Object> getColumnValues() {
+  public Object[] getColumnValues() {
     return columnValues;
   }
 
   @Override
   public int partitionHash() {
-    return columnValues == null ? 0 : columnValues.hashCode();
+    return columnValues == null ? 0 : Arrays.hashCode(columnValues);
   }
 
   @Override
@@ -48,7 +49,7 @@ public class ColumnPartitionKey implements PartitionKey {
       return false;
     }
     ColumnPartitionKey that = (ColumnPartitionKey) o;
-    return Objects.equals(columnValues, that.columnValues);
+    return Arrays.equals(columnValues, that.columnValues);
   }
 
   @Override
