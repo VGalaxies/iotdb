@@ -67,7 +67,7 @@ public class StreamTaskInstance {
 
       // Initialize dispatcher
       if (taskDefinition.getSource() != null) {
-        dispatcher = TabletDispatcher.create(taskDefinition.getSource(), partitionKey -> subTasks.computeIfAbsent(partitionKey, pk -> new StreamSubTask(pk, taskDefinition.getWindow())));
+        dispatcher = TabletDispatcher.create(taskDefinition.getSource(), this::getOrCreateSubTask);
       }
 
       // Initialize source
