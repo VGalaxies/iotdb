@@ -218,7 +218,9 @@ public class CommonConfig {
   private boolean pipeRetryLocallyForParallelOrUserConflict = true;
 
   private int pipeDataStructureTabletRowSize = 2048;
-  private int pipeDataStructureTabletSizeInBytes = 2097152;
+
+  // 60MB
+  private int pipeDataStructureTabletSizeInBytes = 60 * 1024 * 1024;
   private double pipeDataStructureTabletMemoryBlockAllocationRejectThreshold = 0.3;
   private double pipeDataStructureTsFileMemoryBlockAllocationRejectThreshold = 0.3;
   private volatile double pipeTotalFloatingMemoryProportion = 0.5;
@@ -464,9 +466,6 @@ public class CommonConfig {
   private String userEncryptTokenHint = "not set yet";
 
   private boolean enforceStrongPassword = false;
-  private long passwordExpirationDays = -1;
-  // an old password cannot be reused within the given interval if >= 0.
-  private long passwordReuseIntervalDays = -1;
   private boolean mayBypassPasswordCheckInException = true;
 
   /** whether to enable the audit log * */
@@ -2750,30 +2749,6 @@ public class CommonConfig {
 
   public void setEnforceStrongPassword(boolean enforceStrongPassword) {
     this.enforceStrongPassword = enforceStrongPassword;
-  }
-
-  public long getPasswordExpirationDays() {
-    return passwordExpirationDays;
-  }
-
-  public void setPasswordExpirationDays(long passwordExpirationDays) {
-    this.passwordExpirationDays = passwordExpirationDays;
-  }
-
-  public long getPasswordReuseIntervalDays() {
-    return passwordReuseIntervalDays;
-  }
-
-  public void setPasswordReuseIntervalDays(long passwordReuseIntervalDays) {
-    this.passwordReuseIntervalDays = passwordReuseIntervalDays;
-  }
-
-  public boolean isMayBypassPasswordCheckInException() {
-    return mayBypassPasswordCheckInException;
-  }
-
-  public void setMayBypassPasswordCheckInException(boolean mayBypassPasswordCheckInException) {
-    this.mayBypassPasswordCheckInException = mayBypassPasswordCheckInException;
   }
 
   public boolean isEnableAuditLog() {
