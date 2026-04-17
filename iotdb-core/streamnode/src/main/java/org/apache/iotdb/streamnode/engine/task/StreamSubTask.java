@@ -52,7 +52,7 @@ public class StreamSubTask {
     return events;
   }
 
-  public Future<Void> offer(DataSlice dataSlice) {
+  public Future<Void> offer(List<DataSlice> dataSlices) {
     // TODO: Implement asynchronous processing of data slice and return a Future that completes when processing is done
     return CompletableFuture.completedFuture(null);
   }

@@ -72,9 +72,7 @@ public class ColumnPartitionedTabletDispatcher extends TabletDispatcher {
     for (Entry<StreamSubTask, List<DataSlice>> streamSubTaskListEntry : slicesByPartition.entrySet()) {
       StreamSubTask subTask = streamSubTaskListEntry.getKey();
       List<DataSlice> slices = streamSubTaskListEntry.getValue();
-      for (DataSlice dataSlice : slices) {
-        futures.add(subTask.offer(dataSlice));
-      }
+      futures.add(subTask.offer(slices));
     }
     for (Future<Void> future : futures) {
       try {
