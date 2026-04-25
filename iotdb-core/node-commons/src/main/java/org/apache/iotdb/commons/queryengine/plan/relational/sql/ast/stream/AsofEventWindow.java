@@ -19,8 +19,8 @@
 
 package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream;
 
-import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.Node;
-import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.NodeLocation;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.NodeLocation;
 
 import com.google.common.collect.ImmutableList;
 

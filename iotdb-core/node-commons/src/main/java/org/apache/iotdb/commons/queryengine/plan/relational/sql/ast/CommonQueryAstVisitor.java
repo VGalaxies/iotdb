@@ -478,7 +478,6 @@ public interface CommonQueryAstVisitor<R, C> extends IAstVisitor<R, C> {
     return visitNode(node, context);
   }
 
-
   // ======================================= STREAM ===========================================
   default R visitCreateStream(CreateStream node, C context) {
     return visitStatement(node, context);

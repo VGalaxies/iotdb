@@ -36,7 +36,6 @@
         <module>datanode</module>
         <module>metrics</module>
         <module>node-commons</module>
-        <module>calc-commons</module>
         <module>streamnode</module>
         <module>relational-grammar</module>
         <module>calc-commons</module>

@@ -29,7 +29,6 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.QualifiedNam
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Query;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Statement;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Table;
-import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.AstVisitor;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.tsfile.utils.RamUsageEstimator;
