@@ -19,13 +19,13 @@ package org.apache.iotdb.rest.protocol.v2.impl;
 
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
 import org.apache.iotdb.commons.path.PartialPath;
+import org.apache.iotdb.commons.queryengine.common.SessionInfo;
 import org.apache.iotdb.db.conf.IoTDBConfig;
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
 import org.apache.iotdb.db.conf.rest.IoTDBRestServiceDescriptor;
 import org.apache.iotdb.db.protocol.session.IClientSession;
 import org.apache.iotdb.db.protocol.session.SessionManager;
 import org.apache.iotdb.db.protocol.thrift.OperationType;
-import org.apache.iotdb.db.queryengine.common.SessionInfo;
 import org.apache.iotdb.db.queryengine.plan.Coordinator;
 import org.apache.iotdb.db.queryengine.plan.analyze.ClusterPartitionFetcher;
 import org.apache.iotdb.db.queryengine.plan.analyze.IPartitionFetcher;
@@ -274,7 +274,9 @@ public class RestApiServiceImpl extends RestApiService {
     boolean finish = false;
     try {
       RequestValidationHandler.validateSQL(sql);
-      statement = StatementGenerator.createStatement(sql.getSql(), ZoneId.systemDefault());
+      IClientSession session = SESSION_MANAGER.getCurrSession();
+      ZoneId zoneId = (session != null) ? session.getZoneId() : ZoneId.systemDefault();
+      statement = StatementGenerator.createStatement(sql.getSql(), zoneId);
       if (statement == null) {
         return Response.ok()
             .entity(
@@ -314,9 +316,10 @@ public class RestApiServiceImpl extends RestApiService {
       return Response.ok().entity(ExceptionHandler.tryCatchException(e)).build();
     } finally {
       long costTime = System.nanoTime() - startTime;
-      if (statement != null)
+      if (statement != null) {
         CommonUtils.addStatementExecutionLatency(
             OperationType.EXECUTE_NON_QUERY_PLAN, statement.getType().name(), costTime);
+      }
       if (queryId != null) {
         if (finish) {
           long executionTime = COORDINATOR.getTotalExecutionTime(queryId);
@@ -336,7 +339,9 @@ public class RestApiServiceImpl extends RestApiService {
     boolean finish = false;
     try {
       RequestValidationHandler.validateSQL(sql);
-      statement = StatementGenerator.createStatement(sql.getSql(), ZoneId.systemDefault());
+      IClientSession session = SESSION_MANAGER.getCurrSession();
+      ZoneId zoneId = (session != null) ? session.getZoneId() : ZoneId.systemDefault();
+      statement = StatementGenerator.createStatement(sql.getSql(), zoneId);
 
       if (statement == null) {
         return Response.ok()

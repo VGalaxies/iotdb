@@ -39,6 +39,7 @@
         <module>calc-commons</module>
         <module>streamnode</module>
         <module>relational-grammar</module>
+        <module>calc-commons</module>
     </modules>
     <profiles>
         <profile>
