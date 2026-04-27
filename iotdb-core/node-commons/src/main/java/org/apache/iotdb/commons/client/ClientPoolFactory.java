@@ -36,6 +36,7 @@ import org.apache.iotdb.commons.client.sync.SyncConfigNodeIServiceClient;
 import org.apache.iotdb.commons.client.sync.SyncDataNodeInternalServiceClient;
 import org.apache.iotdb.commons.client.sync.SyncDataNodeMPPDataExchangeServiceClient;
 import org.apache.iotdb.commons.client.sync.SyncIoTConsensusV2ServiceClient;
+import org.apache.iotdb.commons.client.sync.SyncStreamNodeClient;
 import org.apache.iotdb.commons.concurrent.ThreadName;
 import org.apache.iotdb.commons.conf.CommonConfig;
 import org.apache.iotdb.commons.conf.CommonDescriptor;
@@ -405,6 +406,27 @@ public class ClientPoolFactory {
                       .setRpcThriftCompressionEnabled(conf.isRpcThriftCompressionEnabled())
                       .build()),
               new ClientPoolProperty.Builder<SyncAINodeClient>().build().getConfig());
+      ClientManagerMetrics.getInstance()
+          .registerClientManager(this.getClass().getSimpleName(), clientPool);
+      return clientPool;
+    }
+  }
+
+  public static class SyncStreamNodeClientPoolFactory
+      implements IClientPoolFactory<TEndPoint, SyncStreamNodeClient> {
+
+    @Override
+    public GenericKeyedObjectPool<TEndPoint, SyncStreamNodeClient> createClientPool(
+        ClientManager<TEndPoint, SyncStreamNodeClient> manager) {
+      GenericKeyedObjectPool<TEndPoint, SyncStreamNodeClient> clientPool =
+          new GenericKeyedObjectPool<>(
+              new SyncStreamNodeClient.Factory(
+                  manager,
+                  new ThriftClientProperty.Builder()
+                      .setConnectionTimeoutMs(conf.getDnConnectionTimeoutInMS())
+                      .setRpcThriftCompressionEnabled(conf.isRpcThriftCompressionEnabled())
+                      .build()),
+              new ClientPoolProperty.Builder<SyncStreamNodeClient>().build().getConfig());
       ClientManagerMetrics.getInstance()
           .registerClientManager(this.getClass().getSimpleName(), clientPool);
       return clientPool;
