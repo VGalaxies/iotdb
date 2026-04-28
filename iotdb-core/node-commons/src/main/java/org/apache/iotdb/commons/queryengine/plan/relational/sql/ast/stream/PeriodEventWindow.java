@@ -19,11 +19,14 @@
 
 package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream;
 
-import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.AstMemoryEstimationHelper;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.LongLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.NodeLocation;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TimeDurationLiteral;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.tsfile.utils.RamUsageEstimator;
 
 import javax.annotation.Nullable;
 
@@ -31,23 +34,28 @@ import java.util.List;
 import java.util.Objects;
 
 public class PeriodEventWindow extends EventWindow {
+  private static final long INSTANCE_SIZE =
+      RamUsageEstimator.shallowSizeOfInstance(PeriodEventWindow.class);
 
-  private final Expression period;
-  @Nullable private final Expression origin;
+  public static final String PERIOD_PARAMETER_NAME = "PERIOD";
+  public static final String ORIGIN_PARAMETER_NAME = "ORIGIN";
+
+  private final TimeDurationLiteral period;
+  @Nullable private final LongLiteral origin;
 
   public PeriodEventWindow(
-      @Nullable NodeLocation location, Expression period, @Nullable Expression origin) {
+      @Nullable NodeLocation location, TimeDurationLiteral period, @Nullable LongLiteral origin) {
     super(location);
     this.period = period;
     this.origin = origin;
   }
 
-  public Expression getPeriod() {
+  public TimeDurationLiteral getPeriod() {
     return period;
   }
 
   @Nullable
-  public Expression getOrigin() {
+  public LongLiteral getOrigin() {
     return origin;
   }
 
@@ -80,6 +88,13 @@ public class PeriodEventWindow extends EventWindow {
 
   @Override
   public long ramBytesUsed() {
-    return 0;
+    return INSTANCE_SIZE
+        + AstMemoryEstimationHelper.getEstimatedSizeOfNodeLocation(getLocationInternal())
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(period)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(origin);
+  }
+
+  public static List<String> getArgumentNames() {
+    return ImmutableList.of(PERIOD_PARAMETER_NAME, ORIGIN_PARAMETER_NAME);
   }
 }

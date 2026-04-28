@@ -22,6 +22,9 @@ package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast;
 import org.apache.iotdb.commons.exception.SemanticException;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CreateStream;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.DropStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PlaceHolderLiteral;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.Rows;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.ShowStreams;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StartStream;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StopStream;
 
@@ -478,6 +481,14 @@ public interface CommonQueryAstVisitor<R, C> extends IAstVisitor<R, C> {
     return visitNode(node, context);
   }
 
+  default R visitPlaceHolderLiteral(PlaceHolderLiteral node, C context) {
+    return visitExpression(node, context);
+  }
+
+  default R visitRows(Rows node, C context) {
+    return visitRelation(node, context);
+  }
+
   // ======================================= STREAM ===========================================
   default R visitCreateStream(CreateStream node, C context) {
     return visitStatement(node, context);
@@ -492,6 +503,10 @@ public interface CommonQueryAstVisitor<R, C> extends IAstVisitor<R, C> {
   }
 
   default R visitStopStream(StopStream node, C context) {
+    return visitStatement(node, context);
+  }
+
+  default R visitShowStreams(ShowStreams node, C context) {
     return visitStatement(node, context);
   }
 }

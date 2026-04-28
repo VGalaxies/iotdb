@@ -53,7 +53,8 @@ public enum TableExpressionType {
   ROW((short) 31),
   EXTRACT((short) 32),
   FLOAT_LITERAL((short) 33),
-  TIME_DURATION_LITERAL((short) 34);
+  TIME_DURATION_LITERAL((short) 34),
+  PLACEHOLDER_LITERAL((short) 35);
 
   TableExpressionType(short type) {
     this.type = type;

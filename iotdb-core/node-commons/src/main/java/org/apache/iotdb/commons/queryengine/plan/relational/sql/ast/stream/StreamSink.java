@@ -19,47 +19,50 @@
 
 package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream;
 
-import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.AstMemoryEstimationHelper;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Identifier;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.NodeLocation;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Statement;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Table;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.tsfile.utils.RamUsageEstimator;
 
-import javax.annotation.Nullable;
-
 import java.util.List;
 import java.util.Objects;
 
-public class AsofEventWindow extends EventWindow {
+import static com.google.common.base.MoreObjects.toStringHelper;
+
+public class StreamSink extends Statement {
   private static final long INSTANCE_SIZE =
-      RamUsageEstimator.shallowSizeOfInstance(AsofEventWindow.class);
+      RamUsageEstimator.shallowSizeOfInstance(StreamSink.class);
 
-  public enum AfterMatchMode {
-    KEEP,
-    CLEAR
-  }
+  private final Table table;
+  private final List<Identifier> columns;
 
-  @Nullable private final AfterMatchMode afterMatchMode;
-
-  public AsofEventWindow(@Nullable NodeLocation location, @Nullable AfterMatchMode afterMatchMode) {
+  public StreamSink(
+      final NodeLocation location, final Table table, final List<Identifier> columns) {
     super(location);
-    this.afterMatchMode = afterMatchMode;
+    this.table = table;
+    this.columns = columns;
   }
 
-  @Nullable
-  public AfterMatchMode getAfterMatchMode() {
-    return afterMatchMode;
+  public Table getTable() {
+    return table;
+  }
+
+  public List<Identifier> getColumns() {
+    return columns;
   }
 
   @Override
-  public List<? extends Node> getChildren() {
+  public List<Node> getChildren() {
     return ImmutableList.of();
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(afterMatchMode);
+    return Objects.hash(table, columns);
   }
 
   @Override
@@ -70,19 +73,17 @@ public class AsofEventWindow extends EventWindow {
     if (obj == null || getClass() != obj.getClass()) {
       return false;
     }
-    AsofEventWindow that = (AsofEventWindow) obj;
-    return Objects.equals(afterMatchMode, that.afterMatchMode);
+    StreamSink other = (StreamSink) obj;
+    return Objects.equals(table, other.table) && Objects.equals(columns, other.columns);
   }
 
   @Override
   public String toString() {
-    return "AsofEventWindow{afterMatchMode=" + afterMatchMode + "}";
+    return toStringHelper(this).add("table", table).add("columns", columns).toString();
   }
 
   @Override
   public long ramBytesUsed() {
-    return INSTANCE_SIZE
-        + AstMemoryEstimationHelper.getEstimatedSizeOfNodeLocation(getLocationInternal())
-        + RamUsageEstimator.sizeOfObject(afterMatchMode);
+    return INSTANCE_SIZE + table.ramBytesUsed() + RamUsageEstimator.sizeOfArrayList(columns);
   }
 }

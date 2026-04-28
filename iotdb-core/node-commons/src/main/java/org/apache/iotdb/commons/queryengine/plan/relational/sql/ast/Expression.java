@@ -19,6 +19,7 @@
 
 package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast;
 
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PlaceHolderLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.util.ExpressionFormatter;
 
 import org.apache.tsfile.utils.ReadWriteIOUtils;
@@ -172,6 +173,12 @@ public abstract class Expression extends Node {
         break;
       case 33:
         expression = new FloatLiteral(byteBuffer);
+        break;
+      case 34:
+        expression = new TimeDurationLiteral(byteBuffer);
+        break;
+      case 35:
+        expression = new PlaceHolderLiteral(byteBuffer);
         break;
       default:
         throw new IllegalArgumentException("Invalid expression type: " + type);

@@ -19,11 +19,15 @@
 
 package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream;
 
-import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.AstMemoryEstimationHelper;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Identifier;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.LongLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.NodeLocation;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TimeDurationLiteral;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.tsfile.utils.RamUsageEstimator;
 
 import javax.annotation.Nullable;
 
@@ -31,18 +35,20 @@ import java.util.List;
 import java.util.Objects;
 
 public class HopEventWindow extends EventWindow {
+  private static final long INSTANCE_SIZE =
+      RamUsageEstimator.shallowSizeOfInstance(HopEventWindow.class);
 
-  @Nullable private final Expression timeColumn;
-  private final Expression size;
-  private final Expression slide;
-  @Nullable private final Expression origin;
+  @Nullable private final Identifier timeColumn;
+  private final TimeDurationLiteral size;
+  private final TimeDurationLiteral slide;
+  @Nullable private final LongLiteral origin;
 
   public HopEventWindow(
       @Nullable NodeLocation location,
-      @Nullable Expression timeColumn,
-      Expression size,
-      Expression slide,
-      @Nullable Expression origin) {
+      @Nullable Identifier timeColumn,
+      TimeDurationLiteral size,
+      TimeDurationLiteral slide,
+      @Nullable LongLiteral origin) {
     super(location);
     this.timeColumn = timeColumn;
     this.size = size;
@@ -51,20 +57,20 @@ public class HopEventWindow extends EventWindow {
   }
 
   @Nullable
-  public Expression getTimeColumn() {
+  public Identifier getTimeColumn() {
     return timeColumn;
   }
 
-  public Expression getSize() {
+  public TimeDurationLiteral getSize() {
     return size;
   }
 
-  public Expression getSlide() {
+  public TimeDurationLiteral getSlide() {
     return slide;
   }
 
   @Nullable
-  public Expression getOrigin() {
+  public LongLiteral getOrigin() {
     return origin;
   }
 
@@ -108,6 +114,10 @@ public class HopEventWindow extends EventWindow {
 
   @Override
   public long ramBytesUsed() {
-    return 0;
+    return INSTANCE_SIZE
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(size)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(slide)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(timeColumn)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(origin);
   }
 }

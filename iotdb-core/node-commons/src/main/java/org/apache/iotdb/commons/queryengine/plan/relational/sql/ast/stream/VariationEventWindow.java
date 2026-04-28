@@ -19,11 +19,14 @@
 
 package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream;
 
-import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.AstMemoryEstimationHelper;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.DoubleLiteral;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Identifier;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.NodeLocation;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.tsfile.utils.RamUsageEstimator;
 
 import javax.annotation.Nullable;
 
@@ -31,23 +34,25 @@ import java.util.List;
 import java.util.Objects;
 
 public class VariationEventWindow extends EventWindow {
+  private static final long INSTANCE_SIZE =
+      RamUsageEstimator.shallowSizeOfInstance(VariationEventWindow.class);
 
-  private final Expression column;
-  @Nullable private final Expression delta;
+  private final Identifier column;
+  @Nullable private final DoubleLiteral delta;
 
   public VariationEventWindow(
-      @Nullable NodeLocation location, Expression column, @Nullable Expression delta) {
+      @Nullable NodeLocation location, Identifier column, @Nullable DoubleLiteral delta) {
     super(location);
     this.column = column;
     this.delta = delta;
   }
 
-  public Expression getColumn() {
+  public Identifier getColumn() {
     return column;
   }
 
   @Nullable
-  public Expression getDelta() {
+  public DoubleLiteral getDelta() {
     return delta;
   }
 
@@ -80,6 +85,9 @@ public class VariationEventWindow extends EventWindow {
 
   @Override
   public long ramBytesUsed() {
-    return 0;
+    return INSTANCE_SIZE
+        + AstMemoryEstimationHelper.getEstimatedSizeOfNodeLocation(getLocationInternal())
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(column)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(delta);
   }
 }

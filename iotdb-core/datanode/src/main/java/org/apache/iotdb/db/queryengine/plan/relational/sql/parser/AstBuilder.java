@@ -141,6 +141,16 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.With;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WithQuery;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.ZeroOrMoreQuantifier;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.ZeroOrOneQuantifier;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CapacityEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CreateStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.EventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PeriodEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PlaceHolderLiteral;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.Rows;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.ShowStreams;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StreamSink;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StreamSource;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.TumbleEventWindow;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.parser.ParsingException;
 import org.apache.iotdb.commons.queryengine.utils.TimestampPrecisionUtils;
 import org.apache.iotdb.commons.schema.cache.CacheClearOptions;
@@ -4031,6 +4041,257 @@ public class AstBuilder extends RelationalSqlBaseVisitor<Node> {
     }
 
     return new TypeParameter((DataType) visit(ctx.type()));
+  }
+
+  // ***************** streams *****************
+
+  @Override
+  public Node visitCreateStreamStatement(RelationalSqlParser.CreateStreamStatementContext ctx) {
+    final Identifier streamName = (Identifier) visit(ctx.identifier());
+    final boolean hasIfNotExistsCondition =
+        ctx.IF() != null && ctx.NOT() != null && ctx.EXISTS() != null;
+
+    // Stream Source
+    StreamSource source = visitStreamSourceClause(ctx.source);
+    // Stream Sink
+    StreamSink sink = visitStreamSinkClause(ctx.sink);
+    // Stream Calc Plan
+    Query calcPlan = (Query) visitQuery(ctx.calcPlan);
+
+    // Stream Event Window
+    EventWindow eventWindow = createEventWindow(ctx.eventWindow);
+
+    return new CreateStream(
+        getLocation(ctx),
+        streamName,
+        hasIfNotExistsCondition,
+        source.getTable(),
+        source.getPreFilter(),
+        source.getPartitionBy(),
+        eventWindow,
+        calcPlan,
+        sink.getTable(),
+        sink.getColumns());
+  }
+
+  public EventWindow createEventWindow(RelationalSqlParser.TableFunctionCallContext ctx) {
+    TableFunctionInvocation node = (TableFunctionInvocation) visitTableFunctionCall(ctx);
+    List<TableFunctionArgument> arguments = node.getArguments();
+
+    boolean argumentsPassedByName =
+        !arguments.isEmpty()
+            && arguments.stream().allMatch(argument -> argument.getName().isPresent());
+    boolean argumentsPassedByPosition =
+        arguments.stream().noneMatch(argument -> argument.getName().isPresent());
+    if (!argumentsPassedByName && !argumentsPassedByPosition) {
+      throw parseError(
+          "All arguments must be passed by name or all must be passed positionally", ctx);
+    }
+
+    NodeLocation location = getLocation(ctx);
+    String windowName = node.getName().toString();
+    switch (windowName.toLowerCase()) {
+      case "period":
+        {
+          Map<String, Node> argumentMap =
+              createArgumentMap(
+                  ctx, argumentsPassedByName, arguments, PeriodEventWindow.getArgumentNames());
+          if (!argumentMap.containsKey(PeriodEventWindow.PERIOD_PARAMETER_NAME)) {
+            throw parseError("Period event window requires 'period' argument", ctx);
+          }
+          try {
+            TimeDurationLiteral period =
+                (TimeDurationLiteral) argumentMap.get(PeriodEventWindow.PERIOD_PARAMETER_NAME);
+            LongLiteral origin =
+                (LongLiteral)
+                    argumentMap.getOrDefault(PeriodEventWindow.ORIGIN_PARAMETER_NAME, null);
+            return new PeriodEventWindow(location, period, origin);
+          } catch (ClassCastException e) {
+            throw parseError("Invalid argument type for period event window", ctx);
+          }
+        }
+      case "tumble":
+        {
+          Map<String, Node> argumentMap =
+              createArgumentMap(
+                  ctx, argumentsPassedByName, arguments, TumbleEventWindow.getArgumentNames());
+          if (!argumentMap.containsKey(TumbleEventWindow.SIZE_PARAMETER_NAME)) {
+            throw parseError("Tumble event window requires 'size' argument", ctx);
+          }
+          try {
+            TimeDurationLiteral size =
+                (TimeDurationLiteral) argumentMap.get(TumbleEventWindow.SIZE_PARAMETER_NAME);
+            LongLiteral origin =
+                (LongLiteral)
+                    argumentMap.getOrDefault(TumbleEventWindow.ORIGIN_PARAMETER_NAME, null);
+            Identifier timeCol = null;
+            /*
+             The TIME parameter can be specified in two forms:
+               1. time => 'ts' - parsed as StringLiteral
+               2. time => ts - parsed as Table
+             Both forms need to be converted to Identifier for TumbleEventWindow
+            */
+            if (argumentMap.containsKey(TumbleEventWindow.TIME_COL_PARAMETER_NAME)) {
+              Node tNode = argumentMap.get(TumbleEventWindow.TIME_COL_PARAMETER_NAME);
+              if (tNode instanceof StringLiteral) {
+                timeCol = new Identifier(((StringLiteral) tNode).getValue());
+              } else if (tNode instanceof Table) {
+                timeCol = new Identifier(((Table) tNode).getName().toString());
+              } else {
+                throw new ClassCastException();
+              }
+            }
+            return new TumbleEventWindow(location, size, origin, timeCol);
+          } catch (ClassCastException e) {
+            throw parseError("Invalid argument type for tumble event window", ctx);
+          }
+        }
+      case "capacity":
+        {
+          Map<String, Node> argumentMap =
+              createArgumentMap(
+                  ctx, argumentsPassedByName, arguments, CapacityEventWindow.getArgumentNames());
+          if (!argumentMap.containsKey(CapacityEventWindow.SIZE_PARAMETER_NAME)) {
+            throw parseError("Capacity event window requires 'size' argument", ctx);
+          }
+
+          try {
+            LongLiteral size =
+                (LongLiteral) argumentMap.get(CapacityEventWindow.SIZE_PARAMETER_NAME);
+            /*
+             The COLUMNS parameter can be specified in two forms:
+               1. columns => ('c1', 'c2') - parsed as List<StringLiteral>
+               2. columns => (c1, c2) - parsed as List<Identifier>
+             Both forms need to be converted to List<Identifier> for TumbleEventWindow
+            */
+            List<Identifier> columns = null;
+            if (argumentMap.containsKey(CapacityEventWindow.COLUMNS_PARAMETER_NAME)) {
+              Row row = (Row) argumentMap.get(CapacityEventWindow.COLUMNS_PARAMETER_NAME);
+              columns = new ArrayList<>();
+              for (Expression expr : row.getItems()) {
+                if (expr instanceof StringLiteral) {
+                  columns.add(new Identifier(((StringLiteral) expr).getValue()));
+                } else if (expr instanceof Identifier) {
+                  columns.add((Identifier) expr);
+                } else {
+                  throw new ClassCastException();
+                }
+              }
+            }
+            return new CapacityEventWindow(location, size, columns);
+          } catch (ClassCastException e) {
+            throw parseError("Invalid argument type for capacity event window", ctx);
+          }
+        }
+      default:
+        throw parseError("Unknown stream event window", ctx);
+    }
+  }
+
+  private Map<String, Node> createArgumentMap(
+      RelationalSqlParser.TableFunctionCallContext ctx,
+      boolean argumentsPassedByName,
+      List<TableFunctionArgument> arguments,
+      List<String> requiredArguments) {
+    Map<String, Node> passedArguments = new HashMap<>();
+    if (argumentsPassedByName) {
+      for (TableFunctionArgument argument : arguments) {
+        // it has been checked that all arguments have different names
+        String argumentName = argument.getName().get().getCanonicalValue();
+        if (!requiredArguments.contains(argumentName)) {
+          continue;
+        }
+        if (passedArguments.containsKey(argumentName)) {
+          throw parseError(
+              (String.format("Duplicate argument name: '%s'", argumentName.toLowerCase())), ctx);
+        }
+        passedArguments.put(argumentName, getArgumentValue(argument));
+      }
+    } else {
+      if (arguments.size() > requiredArguments.size()) {
+        throw parseError("Exceeding arguments provided'", ctx);
+      }
+
+      for (int i = 0; i < arguments.size(); i++) {
+        TableFunctionArgument argument = arguments.get(i);
+        String argumentName = requiredArguments.get(i);
+        if (passedArguments.containsKey(argumentName)) {
+          throw parseError(
+              (String.format("Duplicate argument name: '%s'", argumentName.toLowerCase())), ctx);
+        }
+        passedArguments.put(argumentName, getArgumentValue(argument));
+      }
+    }
+    return passedArguments;
+  }
+
+  private Node getArgumentValue(TableFunctionArgument argument) {
+    if (argument == null) {
+      return null;
+    }
+    if (argument.getValue() instanceof TableFunctionTableArgument) {
+      return ((TableFunctionTableArgument) argument.getValue()).getTable();
+    }
+    return argument.getValue();
+  }
+
+  @Override
+  public StreamSource visitStreamSourceClause(
+      final RelationalSqlParser.StreamSourceClauseContext ctx) {
+    Expression preFilter = visitIfPresent(ctx.preFilter, Expression.class).orElse(null);
+    List<Expression> partitionBy =
+        Optional.ofNullable(ctx.partition)
+            .map(expressions -> visit(expressions, Expression.class))
+            .orElse(null);
+    return new StreamSource(getLocation(ctx), getQualifiedName(ctx.table), preFilter, partitionBy);
+  }
+
+  @Override
+  public StreamSink visitStreamSinkClause(final RelationalSqlParser.StreamSinkClauseContext ctx) {
+    List<Identifier> columns =
+        Optional.ofNullable(ctx.columnAliases().identifier())
+            .map(identifiers -> visit(identifiers, Identifier.class))
+            .orElse(null);
+    Table table = new Table(getQualifiedName(ctx.table));
+    return new StreamSink(getLocation(ctx), table, columns);
+  }
+
+  @Override
+  public Node visitPlaceholderLiteral(RelationalSqlParser.PlaceholderLiteralContext ctx) {
+    RelationalSqlParser.StreamPlaceholderContext spc = ctx.streamPlaceholder();
+    if (spc.PREV_VALUE() != null) {
+      return new PlaceHolderLiteral(PlaceHolderLiteral.Type.PREV_VALUE);
+    } else if (spc.NEXT_VALUE() != null) {
+      return new PlaceHolderLiteral(PlaceHolderLiteral.Type.NEXT_VALUE);
+    } else if (spc.PREV_TIME() != null) {
+      return new PlaceHolderLiteral(PlaceHolderLiteral.Type.PREV_TIME);
+    } else if (spc.NEXT_TIME() != null) {
+      return new PlaceHolderLiteral(PlaceHolderLiteral.Type.NEXT_TIME);
+    } else if (spc.START_TIME() != null) {
+      return new PlaceHolderLiteral(PlaceHolderLiteral.Type.START_TIME);
+    } else if (spc.END_TIME() != null) {
+      return new PlaceHolderLiteral(PlaceHolderLiteral.Type.END_TIME);
+    } else if (spc.ROW_NUM() != null) {
+      return new PlaceHolderLiteral(PlaceHolderLiteral.Type.ROW_NUM);
+    } else if (spc.N() != null) {
+      return new PlaceHolderLiteral(PlaceHolderLiteral.Type.N);
+    }
+    throw parseError("Unknown stream place holder", ctx);
+  }
+
+  @Override
+  public Node visitStreamRelation(RelationalSqlParser.StreamRelationContext ctx) {
+    if (ctx.streamRows().ROWS() == null) {
+      throw parseError("ROWS should not be null", ctx);
+    }
+    return new Rows(getLocation(ctx));
+  }
+
+  @Override
+  public Node visitShowStreamsStatement(RelationalSqlParser.ShowStreamsStatementContext ctx) {
+    final QualifiedName streamName =
+        ctx.identifier() == null ? null : QualifiedName.of(ctx.identifier().getText());
+    return new ShowStreams(getLocation(ctx), streamName);
   }
 
   // ***************** helpers *****************

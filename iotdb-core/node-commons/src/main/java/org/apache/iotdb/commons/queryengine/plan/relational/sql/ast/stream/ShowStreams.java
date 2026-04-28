@@ -20,8 +20,12 @@
 package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream;
 
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.AstMemoryEstimationHelper;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.CommonQueryAstVisitor;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.IAstVisitor;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.NodeLocation;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.QualifiedName;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Statement;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.tsfile.utils.RamUsageEstimator;
@@ -31,35 +35,36 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Objects;
 
-public class AsofEventWindow extends EventWindow {
+import static com.google.common.base.MoreObjects.toStringHelper;
+
+public class ShowStreams extends Statement {
   private static final long INSTANCE_SIZE =
-      RamUsageEstimator.shallowSizeOfInstance(AsofEventWindow.class);
+      RamUsageEstimator.shallowSizeOfInstance(ShowStreams.class);
 
-  public enum AfterMatchMode {
-    KEEP,
-    CLEAR
-  }
+  private final QualifiedName name;
 
-  @Nullable private final AfterMatchMode afterMatchMode;
-
-  public AsofEventWindow(@Nullable NodeLocation location, @Nullable AfterMatchMode afterMatchMode) {
+  public ShowStreams(@Nullable NodeLocation location, @Nullable QualifiedName name) {
     super(location);
-    this.afterMatchMode = afterMatchMode;
+    this.name = name;
   }
 
-  @Nullable
-  public AfterMatchMode getAfterMatchMode() {
-    return afterMatchMode;
+  public QualifiedName getName() {
+    return name;
   }
 
   @Override
-  public List<? extends Node> getChildren() {
+  public <R, C> R accept(IAstVisitor<R, C> visitor, C context) {
+    return ((CommonQueryAstVisitor<R, C>) visitor).visitShowStreams(this, context);
+  }
+
+  @Override
+  public List<Node> getChildren() {
     return ImmutableList.of();
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(afterMatchMode);
+    return Objects.hash(name);
   }
 
   @Override
@@ -70,19 +75,19 @@ public class AsofEventWindow extends EventWindow {
     if (obj == null || getClass() != obj.getClass()) {
       return false;
     }
-    AsofEventWindow that = (AsofEventWindow) obj;
-    return Objects.equals(afterMatchMode, that.afterMatchMode);
+    final ShowStreams that = (ShowStreams) obj;
+    return Objects.equals(this.name, that.name);
   }
 
   @Override
   public String toString() {
-    return "AsofEventWindow{afterMatchMode=" + afterMatchMode + "}";
+    return toStringHelper(this).add("name", name).toString();
   }
 
   @Override
   public long ramBytesUsed() {
     return INSTANCE_SIZE
         + AstMemoryEstimationHelper.getEstimatedSizeOfNodeLocation(getLocationInternal())
-        + RamUsageEstimator.sizeOfObject(afterMatchMode);
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(name);
   }
 }

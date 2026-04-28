@@ -19,11 +19,14 @@
 
 package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream;
 
-import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.AstMemoryEstimationHelper;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Identifier;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.LongLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.NodeLocation;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.tsfile.utils.RamUsageEstimator;
 
 import javax.annotation.Nullable;
 
@@ -31,23 +34,28 @@ import java.util.List;
 import java.util.Objects;
 
 public class CapacityEventWindow extends EventWindow {
+  private static final long INSTANCE_SIZE =
+      RamUsageEstimator.shallowSizeOfInstance(CapacityEventWindow.class);
 
-  private final Expression capacity;
-  @Nullable private final List<Expression> columns;
+  public static final String SIZE_PARAMETER_NAME = "SIZE";
+  public static final String COLUMNS_PARAMETER_NAME = "COLUMNS";
+
+  private final LongLiteral size;
+  @Nullable private final List<Identifier> columns;
 
   public CapacityEventWindow(
-      @Nullable NodeLocation location, Expression capacity, @Nullable List<Expression> columns) {
+      @Nullable NodeLocation location, LongLiteral size, @Nullable List<Identifier> columns) {
     super(location);
-    this.capacity = capacity;
+    this.size = size;
     this.columns = columns;
   }
 
-  public Expression getCapacity() {
-    return capacity;
+  public LongLiteral getSize() {
+    return size;
   }
 
   @Nullable
-  public List<Expression> getColumns() {
+  public List<Identifier> getColumns() {
     return columns;
   }
 
@@ -58,7 +66,7 @@ public class CapacityEventWindow extends EventWindow {
 
   @Override
   public int hashCode() {
-    return Objects.hash(capacity, columns);
+    return Objects.hash(size, columns);
   }
 
   @Override
@@ -70,16 +78,23 @@ public class CapacityEventWindow extends EventWindow {
       return false;
     }
     CapacityEventWindow that = (CapacityEventWindow) obj;
-    return Objects.equals(capacity, that.capacity) && Objects.equals(columns, that.columns);
+    return Objects.equals(size, that.size) && Objects.equals(columns, that.columns);
   }
 
   @Override
   public String toString() {
-    return "CapacityEventWindow{capacity=" + capacity + ", columns=" + columns + "}";
+    return "CapacityEventWindow{size=" + size + ", columns=" + columns + "}";
   }
 
   @Override
   public long ramBytesUsed() {
-    return 0;
+    return INSTANCE_SIZE
+        + AstMemoryEstimationHelper.getEstimatedSizeOfNodeLocation(getLocationInternal())
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(size)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfNodeList(columns);
+  }
+
+  public static List<String> getArgumentNames() {
+    return ImmutableList.of(SIZE_PARAMETER_NAME, COLUMNS_PARAMETER_NAME);
   }
 }

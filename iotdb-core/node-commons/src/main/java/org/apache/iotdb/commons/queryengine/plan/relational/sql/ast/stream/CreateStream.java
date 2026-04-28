@@ -19,6 +19,7 @@
 
 package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream;
 
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.AstMemoryEstimationHelper;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.CommonQueryAstVisitor;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.IAstVisitor;
@@ -44,6 +45,7 @@ public class CreateStream extends Statement {
       RamUsageEstimator.shallowSizeOfInstance(CreateStream.class);
 
   private final Identifier streamName;
+  private final boolean ifNotExistsCondition;
   @Nullable private final QualifiedName sourceTableName;
   @Nullable private final Expression preFilter;
   @Nullable private final List<Expression> partitionBy;
@@ -55,27 +57,33 @@ public class CreateStream extends Statement {
 
   public CreateStream(
       @Nullable NodeLocation location,
-      @Nullable List<Identifier> columns,
       Identifier streamName,
+      boolean ifNotExistsCondition,
       @Nullable QualifiedName sourceTableName,
       @Nullable Expression preFilter,
       @Nullable List<Expression> partitionBy,
       EventWindow eventWindow,
       Query query,
-      Table table) {
+      Table table,
+      @Nullable List<Identifier> columns) {
     super(location);
-    this.columns = columns;
     this.streamName = streamName;
+    this.ifNotExistsCondition = ifNotExistsCondition;
     this.sourceTableName = sourceTableName;
     this.preFilter = preFilter;
     this.partitionBy = partitionBy;
     this.eventWindow = eventWindow;
     this.query = query;
     this.table = table;
+    this.columns = columns;
   }
 
   public Identifier getStreamName() {
     return streamName;
+  }
+
+  public boolean hasIfNotExistsCondition() {
+    return ifNotExistsCondition;
   }
 
   @Nullable
@@ -158,6 +166,15 @@ public class CreateStream extends Statement {
 
   @Override
   public long ramBytesUsed() {
-    return 0;
+    return INSTANCE_SIZE
+        + AstMemoryEstimationHelper.getEstimatedSizeOfNodeLocation(getLocationInternal())
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(streamName)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(sourceTableName)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(preFilter)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfNodeList(partitionBy)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(eventWindow)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(query)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(table)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfNodeList(columns);
   }
 }

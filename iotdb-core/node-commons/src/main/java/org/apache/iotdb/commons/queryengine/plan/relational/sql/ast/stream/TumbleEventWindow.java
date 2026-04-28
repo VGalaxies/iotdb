@@ -19,11 +19,15 @@
 
 package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream;
 
-import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.AstMemoryEstimationHelper;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Identifier;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.LongLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.NodeLocation;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TimeDurationLiteral;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.tsfile.utils.RamUsageEstimator;
 
 import javax.annotation.Nullable;
 
@@ -31,33 +35,39 @@ import java.util.List;
 import java.util.Objects;
 
 public class TumbleEventWindow extends EventWindow {
+  private static final long INSTANCE_SIZE =
+      RamUsageEstimator.shallowSizeOfInstance(TumbleEventWindow.class);
 
-  @Nullable private final Expression timeColumn;
-  private final Expression size;
-  @Nullable private final Expression origin;
+  public static final String SIZE_PARAMETER_NAME = "SIZE";
+  public static final String ORIGIN_PARAMETER_NAME = "ORIGIN";
+  public static final String TIME_COL_PARAMETER_NAME = "TIME";
+
+  private final TimeDurationLiteral size;
+  @Nullable private final LongLiteral origin;
+  @Nullable private final Identifier timeColumn;
 
   public TumbleEventWindow(
       @Nullable NodeLocation location,
-      @Nullable Expression timeColumn,
-      Expression size,
-      @Nullable Expression origin) {
+      TimeDurationLiteral size,
+      @Nullable LongLiteral origin,
+      @Nullable Identifier timeColumn) {
     super(location);
-    this.timeColumn = timeColumn;
     this.size = size;
     this.origin = origin;
+    this.timeColumn = timeColumn;
   }
 
   @Nullable
-  public Expression getTimeColumn() {
+  public Identifier getTimeColumn() {
     return timeColumn;
   }
 
-  public Expression getSize() {
+  public TimeDurationLiteral getSize() {
     return size;
   }
 
   @Nullable
-  public Expression getOrigin() {
+  public LongLiteral getOrigin() {
     return origin;
   }
 
@@ -87,17 +97,24 @@ public class TumbleEventWindow extends EventWindow {
 
   @Override
   public String toString() {
-    return "TumbleEventWindow{timeColumn="
-        + timeColumn
-        + ", size="
+    return "TumbleEventWindow{size="
         + size
         + ", origin="
         + origin
+        + ", timeColumn="
+        + timeColumn
         + "}";
   }
 
   @Override
   public long ramBytesUsed() {
-    return 0;
+    return INSTANCE_SIZE
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(size)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(origin)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(timeColumn);
+  }
+
+  public static List<String> getArgumentNames() {
+    return ImmutableList.of(SIZE_PARAMETER_NAME, ORIGIN_PARAMETER_NAME, TIME_COL_PARAMETER_NAME);
   }
 }

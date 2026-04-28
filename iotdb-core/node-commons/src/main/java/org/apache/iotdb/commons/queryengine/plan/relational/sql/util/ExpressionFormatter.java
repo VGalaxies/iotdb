@@ -83,6 +83,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Window;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WindowFrame;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WindowReference;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WindowSpecification;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PlaceHolderLiteral;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
@@ -586,6 +587,11 @@ public final class ExpressionFormatter {
     @Override
     public String visitColumns(Columns node, Void context) {
       return "COLUMNS(" + (node.isColumnsAsterisk() ? "*" : node.getPattern()) + ")";
+    }
+
+    @Override
+    public String visitPlaceHolderLiteral(PlaceHolderLiteral node, Void context) {
+      return "PLACEHOLDER(" + node.getType().getName() + ")";
     }
 
     private String formatBinaryExpression(String operator, Expression left, Expression right) {
