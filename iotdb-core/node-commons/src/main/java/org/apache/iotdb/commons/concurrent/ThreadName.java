@@ -48,7 +48,6 @@ public enum ThreadName {
   // -------------------------- StreamNode-RPC --------------------------
   STREAM_NODE_RPC_SERVICE("StreamNodeRPC-Service"),
   STREAM_NODE_RPC_PROCESSOR("StreamNodeRPC-Processor"),
-  MPP_COORDINATOR_WRITE_EXECUTOR("MPP-Coordinator-Write-Executor"),
   ASYNC_DATANODE_MPP_DATA_EXCHANGE_CLIENT_POOL("AsyncDataNodeMPPDataExchangeServiceClientPool"),
   // -------------------------- Compaction --------------------------
   COMPACTION_WORKER("Compaction-Worker"),
@@ -139,9 +138,9 @@ public enum ThreadName {
   GPRC_DEFAULT_WORKER_ELG("grpc-default-worker-ELG"),
   GROUP_MANAGEMENT("groupManagement"),
   // -------------------------- Compute --------------------------
-  PIPE_EXTRACTOR_DISRUPTOR("Pipe-Extractor-Disruptor"),
+  PIPE_SOURCE_DISRUPTOR("Pipe-Source-Disruptor"),
   PIPE_PROCESSOR_EXECUTOR_POOL("Pipe-Processor-Executor-Pool"),
-  PIPE_CONNECTOR_EXECUTOR_POOL("Pipe-Connector-Executor-Pool"),
+  PIPE_SINK_EXECUTOR_POOL("Pipe-Sink-Executor-Pool"),
   IOT_CONSENSUS_V2_EXECUTOR_POOL("Pipe-Consensus-Executor-Pool"),
   PIPE_CONFIGNODE_EXECUTOR_POOL("Pipe-ConfigNode-Executor-Pool"),
   PIPE_SUBTASK_CALLBACK_EXECUTOR_POOL("Pipe-SubTask-Callback-Executor-Pool"),
@@ -152,7 +151,7 @@ public enum ThreadName {
   PIPE_RUNTIME_PERIODICAL_JOB_EXECUTOR("Pipe-Runtime-Periodical-Job-Executor"),
   PIPE_RUNTIME_PERIODICAL_PHANTOM_REFERENCE_CLEANER(
       "Pipe-Runtime-Periodical-Phantom-Reference-Cleaner"),
-  PIPE_ASYNC_CONNECTOR_CLIENT_POOL("Pipe-Async-Connector-Client-Pool"),
+  PIPE_ASYNC_SINK_CLIENT_POOL("Pipe-Async-Sink-Client-Pool"),
   PIPE_RECEIVER_AIR_GAP_AGENT("Pipe-Receiver-Air-Gap-Agent"),
   PIPE_AIR_GAP_RECEIVER("Pipe-Air-Gap-Receiver"),
   PIPE_PARALLEL_EXECUTION_POOL("Pipe-Parallel-Execution-Pool"),
@@ -199,6 +198,7 @@ public enum ThreadName {
   INFLUXDB_RPC_PROCESSOR("InfluxdbRPC-Processor"),
   STORAGE_ENGINE_CACHED_POOL("StorageEngine"),
   DATANODE_SHUTDOWN_HOOK("DataNode-Shutdown-Hook"),
+  DATANODE_TOPOLOGY_PROBING("DataNode-Topology-Probing"),
   UPGRADE_TASK("UpgradeThread"),
   REGION_MIGRATE("Region-Migrate-Pool"),
   STORAGE_ENGINE_RECOVER_TRIGGER("StorageEngine-RecoverTrigger"),
@@ -234,7 +234,6 @@ public enum ThreadName {
               MPP_COORDINATOR_EXECUTOR_POOL,
               DATANODE_INTERNAL_RPC_SERVICE,
               DATANODE_INTERNAL_RPC_PROCESSOR,
-              MPP_COORDINATOR_WRITE_EXECUTOR,
               ASYNC_DATANODE_MPP_DATA_EXCHANGE_CLIENT_POOL));
   private static final Set<ThreadName> compactionThreadNames =
       new HashSet<>(Arrays.asList(COMPACTION_WORKER, COMPACTION_SUB_TASK, COMPACTION_SCHEDULE));
@@ -305,9 +304,9 @@ public enum ThreadName {
   private static final Set<ThreadName> computeThreadNames =
       new HashSet<>(
           Arrays.asList(
-              PIPE_EXTRACTOR_DISRUPTOR,
+              PIPE_SOURCE_DISRUPTOR,
               PIPE_PROCESSOR_EXECUTOR_POOL,
-              PIPE_CONNECTOR_EXECUTOR_POOL,
+              PIPE_SINK_EXECUTOR_POOL,
               IOT_CONSENSUS_V2_EXECUTOR_POOL,
               PIPE_CONFIGNODE_EXECUTOR_POOL,
               PIPE_SUBTASK_CALLBACK_EXECUTOR_POOL,
@@ -316,7 +315,7 @@ public enum ThreadName {
               PIPE_RUNTIME_PROCEDURE_SUBMITTER,
               PIPE_RUNTIME_PERIODICAL_JOB_EXECUTOR,
               PIPE_RUNTIME_PERIODICAL_PHANTOM_REFERENCE_CLEANER,
-              PIPE_ASYNC_CONNECTOR_CLIENT_POOL,
+              PIPE_ASYNC_SINK_CLIENT_POOL,
               PIPE_RECEIVER_AIR_GAP_AGENT,
               PIPE_AIR_GAP_RECEIVER,
               PIPE_PARALLEL_EXECUTION_POOL,

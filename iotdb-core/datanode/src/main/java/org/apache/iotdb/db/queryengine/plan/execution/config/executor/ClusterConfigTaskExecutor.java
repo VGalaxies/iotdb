@@ -188,7 +188,6 @@ import org.apache.iotdb.db.pipe.source.dataregion.DataRegionListeningFilter;
 import org.apache.iotdb.db.protocol.client.ConfigNodeClient;
 import org.apache.iotdb.db.protocol.client.ConfigNodeClientManager;
 import org.apache.iotdb.db.protocol.client.ConfigNodeInfo;
-import org.apache.iotdb.db.protocol.client.DataNodeClientPoolFactory;
 import org.apache.iotdb.db.protocol.client.an.AINodeClient;
 import org.apache.iotdb.db.protocol.client.an.AINodeClientManager;
 import org.apache.iotdb.db.protocol.session.IClientSession;
@@ -405,13 +404,6 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
       ConfigNodeClientManager.getInstance();
   private static final IClientManager<Integer, AINodeClient> AI_NODE_CLIENT_MANAGER =
       AINodeClientManager.getInstance();
-
-  /** FIXME Consolidate this clientManager with the upper one. */
-  private static final IClientManager<ConfigRegionId, ConfigNodeClient>
-      CLUSTER_DELETION_CONFIG_NODE_CLIENT_MANAGER =
-          new IClientManager.Factory<ConfigRegionId, ConfigNodeClient>()
-              .createClientManager(
-                  new DataNodeClientPoolFactory.ClusterDeletionConfigNodeClientPoolFactory());
 
   private static final class ClusterConfigTaskExecutorHolder {
 
@@ -1459,6 +1451,27 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
   }
 
   @Override
+  public SettableFuture<ConfigTaskResult> repairDataPartitionTable() {
+    SettableFuture<ConfigTaskResult> future = SettableFuture.create();
+    TSStatus tsStatus = new TSStatus();
+
+    try (ConfigNodeClient client =
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+      // Send request to ConfigNode to trigger DataPartitionTableIntegrityCheckProcedure
+      tsStatus = client.dataPartitionTableIntegrityCheck();
+    } catch (ClientManagerException | TException e) {
+      future.setException(e);
+    }
+
+    if (tsStatus.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+      future.set(new ConfigTaskResult(TSStatusCode.SUCCESS_STATUS));
+    } else {
+      future.setException(new IoTDBException(tsStatus));
+    }
+    return future;
+  }
+
+  @Override
   public SettableFuture<ConfigTaskResult> loadConfiguration(boolean onCluster) {
     SettableFuture<ConfigTaskResult> future = SettableFuture.create();
     TSStatus tsStatus = new TSStatus();
@@ -1966,7 +1979,7 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
     req.setPathPatternTree(
         serializePatternListToByteBuffer(deactivateTemplateStatement.getPathPatternList()));
     try (final ConfigNodeClient client =
-        CLUSTER_DELETION_CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
       TSStatus tsStatus;
       do {
         try {
@@ -2058,7 +2071,7 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
             alterSchemaTemplateStatement.getOperationType(),
             alterSchemaTemplateStatement.getTemplateAlterInfo()));
     try (final ConfigNodeClient client =
-        CLUSTER_DELETION_CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
       TSStatus tsStatus;
       do {
         try {
@@ -2109,7 +2122,7 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
     req.setTemplateName(unsetSchemaTemplateStatement.getTemplateName());
     req.setPath(unsetSchemaTemplateStatement.getPath().getFullPath());
     try (final ConfigNodeClient client =
-        CLUSTER_DELETION_CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
       TSStatus tsStatus;
       do {
         try {
@@ -2239,6 +2252,19 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
         }
 
         // 2. Send request to create the historical data synchronization pipeline
+        final Map<String, String> historySinkAttributes =
+            sinkPipeParameters.hasAnyAttributes(
+                    PipeSinkConstant.SINK_ENABLE_SEND_TSFILE_LIMIT,
+                    PipeSinkConstant.CONNECTOR_ENABLE_SEND_TSFILE_LIMIT)
+                ? createPipeStatement.getSinkAttributes()
+                : sinkPipeParameters
+                    .addOrReplaceEquivalentAttributesWithClone(
+                        new PipeParameters(
+                            Collections.singletonMap(
+                                PipeSinkConstant.SINK_ENABLE_SEND_TSFILE_LIMIT,
+                                Boolean.TRUE.toString())))
+                    .getAttribute();
+
         final TCreatePipeReq historyReq =
             new TCreatePipeReq()
                 // Append suffix to the pipeline name for historical data
@@ -2271,14 +2297,7 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
                                     PipeSourceConstant.EXTRACTOR_EXCLUSION_DEFAULT_VALUE)))
                         .getAttribute())
                 .setProcessorAttributes(createPipeStatement.getProcessorAttributes())
-                .setConnectorAttributes(
-                    sinkPipeParameters
-                        .addOrReplaceEquivalentAttributesWithClone(
-                            new PipeParameters(
-                                Collections.singletonMap(
-                                    PipeSinkConstant.SINK_ENABLE_SEND_TSFILE_LIMIT,
-                                    Boolean.TRUE.toString())))
-                        .getAttribute());
+                .setConnectorAttributes(historySinkAttributes);
 
         final TSStatus historyTsStatus = configNodeClient.createPipe(historyReq);
         // If creation fails, immediately return with exception
@@ -2940,7 +2959,7 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
             alterEncodingCompressorStatement.ifExists(),
             alterEncodingCompressorStatement.isWithAudit());
     try (final ConfigNodeClient client =
-        CLUSTER_DELETION_CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
       TSStatus tsStatus;
       do {
         try {
@@ -2983,7 +3002,7 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
             serializePatternListToByteBuffer(deleteTimeSeriesStatement.getPathPatternList()));
     req.setMayDeleteAudit(deleteTimeSeriesStatement.isMayDeleteAudit());
     try (ConfigNodeClient client =
-        CLUSTER_DELETION_CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
       TSStatus tsStatus;
       do {
         try {
@@ -3025,7 +3044,7 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
             queryId,
             serializePatternListToByteBuffer(deleteLogicalViewStatement.getPathPatternList()));
     try (final ConfigNodeClient client =
-        CLUSTER_DELETION_CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
       TSStatus tsStatus;
       do {
         try {
@@ -3111,7 +3130,7 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
         new TDeleteLogicalViewReq(
             queryId, serializePatternListToByteBuffer(Collections.singletonList(oldName)));
     try (ConfigNodeClient client =
-        CLUSTER_DELETION_CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
       TSStatus tsStatus;
       do {
         try {
@@ -3183,7 +3202,7 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
         new TAlterLogicalViewReq(
             context.getQueryId().getId(), ByteBuffer.wrap(stream.toByteArray()));
     try (final ConfigNodeClient client =
-        CLUSTER_DELETION_CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
       TSStatus tsStatus;
       do {
         try {
@@ -3241,7 +3260,7 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
             .setIsGeneratedByPipe(shouldMarkAsPipeRequest);
     TSStatus tsStatus;
     try (final ConfigNodeClient client =
-        CLUSTER_DELETION_CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
       do {
         try {
           tsStatus = client.alterLogicalView(req);
@@ -4395,7 +4414,7 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
       final boolean isView) {
     final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
     try (final ConfigNodeClient client =
-        CLUSTER_DELETION_CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
 
       final ByteArrayOutputStream stream = new ByteArrayOutputStream();
       try {
@@ -4439,7 +4458,7 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
       final boolean isView) {
     final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
     try (final ConfigNodeClient client =
-        CLUSTER_DELETION_CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
 
       final TSStatus tsStatus =
           sendAlterReq2ConfigNode(
@@ -4478,7 +4497,7 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
       final boolean isView) {
     final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
     try (final ConfigNodeClient client =
-        CLUSTER_DELETION_CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
 
       final TSStatus tsStatus =
           sendAlterReq2ConfigNode(
@@ -4517,7 +4536,7 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
       final boolean isView) {
     final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
     try (final ConfigNodeClient client =
-        CLUSTER_DELETION_CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
 
       final ByteArrayOutputStream stream = new ByteArrayOutputStream();
       try {
@@ -4563,7 +4582,7 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
       final boolean isView) {
     final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
     try (final ConfigNodeClient client =
-        CLUSTER_DELETION_CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
 
       final ByteArrayOutputStream stream = new ByteArrayOutputStream();
       try {
@@ -4607,7 +4626,7 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
       final boolean isView) {
     final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
     try (final ConfigNodeClient client =
-        CLUSTER_DELETION_CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
 
       final ByteArrayOutputStream stream = new ByteArrayOutputStream();
       try {
@@ -4649,7 +4668,7 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
       final boolean isView) {
     final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
     try (final ConfigNodeClient client =
-        CLUSTER_DELETION_CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
 
       final ByteArrayOutputStream stream = new ByteArrayOutputStream();
       try {
@@ -4693,7 +4712,7 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
       final boolean isView) {
     final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
     try (final ConfigNodeClient client =
-        CLUSTER_DELETION_CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
 
       final ByteArrayOutputStream stream = new ByteArrayOutputStream();
       try {
@@ -4737,7 +4756,7 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
       final boolean isView) {
     final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
     try (final ConfigNodeClient client =
-        CLUSTER_DELETION_CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
 
       final TSStatus tsStatus =
           sendAlterReq2ConfigNode(
@@ -4772,7 +4791,7 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
     }
 
     try (final ConfigNodeClient client =
-        CLUSTER_DELETION_CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
 
       final ByteArrayOutputStream patternStream = new ByteArrayOutputStream();
       try (final DataOutputStream outputStream = new DataOutputStream(patternStream)) {
