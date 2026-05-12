@@ -19,18 +19,39 @@
 
 package org.apache.iotdb.commons.stream;
 
+import org.apache.tsfile.utils.ReadWriteIOUtils;
+
+import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.nio.ByteBuffer;
 
 public abstract class StreamWindow {
 
   public abstract StreamWindowType getType();
 
-  public abstract void serialize(OutputStream outputStream) throws IOException;
+  public abstract void serialize(DataOutputStream stream) throws IOException;
 
-  public static StreamWindow deserialize(InputStream inputStream) throws IOException {
-    // TODO: implement deserialization dispatch
-    throw new UnsupportedOperationException("Not implemented yet");
+  public static StreamWindow deserialize(ByteBuffer byteBuffer) throws IOException {
+    int typeOrdinal = ReadWriteIOUtils.readInt(byteBuffer);
+    if (typeOrdinal < 0 || typeOrdinal >= StreamWindowType.values().length) {
+      throw new IOException("unsupported stream window type ordinal: " + typeOrdinal);
+    }
+    StreamWindowType type = StreamWindowType.values()[typeOrdinal];
+    switch (type) {
+      case PERIOD:
+        return PeriodWindow.deserialize(byteBuffer);
+      case TUMBLE:
+        return TumbleWindow.deserialize(byteBuffer);
+      case HOP:
+        return HopWindow.deserialize(byteBuffer);
+      case VARIATION:
+        return VariationWindow.deserialize(byteBuffer);
+      case CAPACITY:
+        return CapacityWindow.deserialize(byteBuffer);
+      case ASOF:
+        return AsofWindow.deserialize(byteBuffer);
+      default:
+        throw new IOException("unsupported stream window type: " + type);
+    }
   }
 }

@@ -89,6 +89,7 @@ import org.apache.iotdb.commons.schema.template.Template;
 import org.apache.iotdb.commons.schema.tree.AlterTimeSeriesOperationType;
 import org.apache.iotdb.commons.schema.view.LogicalViewSchema;
 import org.apache.iotdb.commons.schema.view.viewExpression.ViewExpression;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.commons.subscription.config.SubscriptionConfig;
 import org.apache.iotdb.commons.subscription.meta.topic.TopicMeta;
 import org.apache.iotdb.commons.trigger.service.TriggerExecutableManager;
@@ -113,6 +114,7 @@ import org.apache.iotdb.confignode.rpc.thrift.TCreateCQReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateFunctionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreatePipePluginReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreatePipeReq;
+import org.apache.iotdb.confignode.rpc.thrift.TCreateStreamReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateTableViewReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateTopicReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateTriggerReq;
@@ -5057,11 +5059,48 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
 
   // ===================================== STREAM =============================
   @Override
-  public SettableFuture<ConfigTaskResult> createStream(
-      org.apache.iotdb.commons.stream.StreamTask streamTask) {
-    // TODO: implement RPC to ConfigNode
+  public SettableFuture<ConfigTaskResult> createStream(StreamTask streamTask) {
     SettableFuture<ConfigTaskResult> future = SettableFuture.create();
-    future.setException(new UnsupportedOperationException("createStream not implemented yet"));
+    TSStatus tsStatus;
+    try {
+      TCreateStreamReq req = new TCreateStreamReq();
+      req.setStreamName(streamTask.getTaskName());
+      req.setCreator(streamTask.getCreator() != null ? streamTask.getCreator() : "");
+      if (streamTask.getSource() != null) {
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            DataOutputStream dos = new DataOutputStream(baos)) {
+          streamTask.getSource().serialize(dos);
+          dos.flush();
+          req.setStreamSource(ByteBuffer.wrap(baos.toByteArray()));
+        }
+      }
+      try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+          DataOutputStream dos = new DataOutputStream(baos)) {
+        streamTask.getWindow().serialize(dos);
+        dos.flush();
+        req.setEventWindow(ByteBuffer.wrap(baos.toByteArray()));
+      }
+      req.setCalcSql(streamTask.getSubQuery() != null ? streamTask.getSubQuery() : "");
+      req.setCalcPlan(streamTask.getCalcPlan().duplicate());
+      try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+          DataOutputStream dos = new DataOutputStream(baos)) {
+        streamTask.getTarget().serialize(dos);
+        dos.flush();
+        req.setStreamSink(ByteBuffer.wrap(baos.toByteArray()));
+      }
+      try (ConfigNodeClient client =
+          CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        tsStatus = client.createStream(req);
+      }
+    } catch (ClientManagerException | IOException | TException e) {
+      future.setException(e);
+      return future;
+    }
+    if (tsStatus.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+      future.set(new ConfigTaskResult(TSStatusCode.SUCCESS_STATUS));
+    } else {
+      future.setException(new IoTDBException(tsStatus));
+    }
     return future;
   }
 

@@ -35,6 +35,7 @@ import org.apache.iotdb.db.queryengine.plan.relational.analyzer.Analysis;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.AggregationTableScanNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.CteScanNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.DeviceTableScanNode;
+import org.apache.iotdb.db.queryengine.plan.relational.planner.node.EventScanNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.InformationSchemaTableScanNode;
 
 import java.util.Map;
@@ -147,6 +148,12 @@ public class TransformSortToStreamSort implements PlanOptimizer {
     @Override
     public PlanNode visitInformationSchemaTableScan(
         InformationSchemaTableScanNode node, Context context) {
+      context.setCanTransform(false);
+      return node;
+    }
+
+    @Override
+    public PlanNode visitEventScan(EventScanNode node, Context context) {
       context.setCanTransform(false);
       return node;
     }

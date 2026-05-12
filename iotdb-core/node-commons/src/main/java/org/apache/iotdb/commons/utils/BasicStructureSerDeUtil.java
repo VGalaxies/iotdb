@@ -59,6 +59,22 @@ public class BasicStructureSerDeUtil {
     return stringList;
   }
 
+  /**
+   * Write nullable string list: {@code -1} if {@code stringList} is null; otherwise size then each
+   * string via {@link #write(String, DataOutputStream)} (entries may be null).
+   */
+  public static void writeNullableStringList(List<String> stringList, DataOutputStream stream)
+      throws IOException {
+    if (stringList == null) {
+      write(-1, stream);
+      return;
+    }
+    write(stringList.size(), stream);
+    for (String s : stringList) {
+      write(s, stream);
+    }
+  }
+
   /** read a int var from byteBuffer. */
   public static int readInt(ByteBuffer buffer) {
     return buffer.getInt();

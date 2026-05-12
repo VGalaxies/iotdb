@@ -19,9 +19,9 @@
 
 package org.apache.iotdb.commons.stream;
 
+import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.nio.ByteBuffer;
 
 public class StreamProperties {
 
@@ -102,13 +102,52 @@ public class StreamProperties {
     this.eventType = eventType;
   }
 
-  public void serialize(OutputStream outputStream) throws IOException {
-    // TODO: implement serialization
-    throw new UnsupportedOperationException("Not implemented yet");
+  public void serialize(DataOutputStream stream) throws IOException {
+    writeNullableLong(stream, watermarkMs);
+    writeNullableLong(stream, expiredTimeMs);
+    stream.writeBoolean(ignoreDisorder);
+    writeNullableLong(stream, fillHistoryStartTime);
+    writeNullableLong(stream, maxDelayMs);
+    if (eventType == null) {
+      stream.writeShort(-1);
+    } else {
+      stream.writeShort(eventType.ordinal());
+    }
   }
 
-  public static StreamProperties deserialize(InputStream inputStream) throws IOException {
-    // TODO: implement deserialization
-    throw new UnsupportedOperationException("Not implemented yet");
+  public static StreamProperties deserialize(ByteBuffer byteBuffer) throws IOException {
+    StreamProperties p = new StreamProperties();
+    p.setWatermarkMs(readNullableLong(byteBuffer));
+    p.setExpiredTimeMs(readNullableLong(byteBuffer));
+    p.setIgnoreDisorder(byteBuffer.get() != 0);
+    p.setFillHistoryStartTime(readNullableLong(byteBuffer));
+    p.setMaxDelayMs(readNullableLong(byteBuffer));
+    short eventOrdinal = byteBuffer.getShort();
+    if (eventOrdinal >= 0 && eventOrdinal < EventType.values().length) {
+      p.setEventType(EventType.values()[eventOrdinal]);
+    }
+    return p;
+  }
+
+  private static void writeNullableLong(DataOutputStream stream, Long value) throws IOException {
+    if (value == null) {
+      stream.writeBoolean(false);
+    } else {
+      stream.writeBoolean(true);
+      stream.writeLong(value);
+    }
+  }
+
+  private static Long readNullableLong(ByteBuffer buf) throws IOException {
+    if (buf.remaining() < 1) {
+      throw new IOException("unexpected end of buffer");
+    }
+    if (buf.get() == 0) {
+      return null;
+    }
+    if (buf.remaining() < Long.BYTES) {
+      throw new IOException("unexpected end of buffer");
+    }
+    return buf.getLong();
   }
 }

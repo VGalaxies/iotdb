@@ -19,8 +19,11 @@
 
 package org.apache.iotdb.commons.stream;
 
+import org.apache.tsfile.utils.ReadWriteIOUtils;
+
+import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
+import java.nio.ByteBuffer;
 
 public class AsofWindow extends StreamWindow {
 
@@ -45,8 +48,16 @@ public class AsofWindow extends StreamWindow {
   }
 
   @Override
-  public void serialize(OutputStream outputStream) throws IOException {
-    // TODO: implement serialization
-    throw new UnsupportedOperationException("Not implemented yet");
+  public void serialize(DataOutputStream stream) throws IOException {
+    ReadWriteIOUtils.write(getType().ordinal(), stream);
+    stream.writeByte(afterMatchMode.ordinal());
+  }
+
+  public static AsofWindow deserialize(ByteBuffer byteBuffer) throws IOException {
+    int modeOrdinal = byteBuffer.get();
+    if (modeOrdinal < 0 || modeOrdinal >= AfterMatchMode.values().length) {
+      throw new IOException("unsupported ASOF after-match mode ordinal: " + modeOrdinal);
+    }
+    return new AsofWindow(AfterMatchMode.values()[modeOrdinal]);
   }
 }

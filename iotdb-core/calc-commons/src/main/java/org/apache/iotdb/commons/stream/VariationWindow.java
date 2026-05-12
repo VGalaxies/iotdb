@@ -19,8 +19,13 @@
 
 package org.apache.iotdb.commons.stream;
 
+import org.apache.iotdb.commons.utils.BasicStructureSerDeUtil;
+
+import org.apache.tsfile.utils.ReadWriteIOUtils;
+
+import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
+import java.nio.ByteBuffer;
 
 public class VariationWindow extends StreamWindow {
 
@@ -46,8 +51,18 @@ public class VariationWindow extends StreamWindow {
   }
 
   @Override
-  public void serialize(OutputStream outputStream) throws IOException {
-    // TODO: implement serialization
-    throw new UnsupportedOperationException("Not implemented yet");
+  public void serialize(DataOutputStream stream) throws IOException {
+    ReadWriteIOUtils.write(getType().ordinal(), stream);
+    BasicStructureSerDeUtil.write(column, stream);
+    stream.writeDouble(delta);
+  }
+
+  public static VariationWindow deserialize(ByteBuffer byteBuffer) throws IOException {
+    String column = BasicStructureSerDeUtil.readString(byteBuffer);
+    if (column == null) {
+      throw new IOException("unexpected null column in variation window payload");
+    }
+    double delta = byteBuffer.getDouble();
+    return new VariationWindow(column, delta);
   }
 }

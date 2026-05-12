@@ -65,6 +65,7 @@ import org.apache.iotdb.db.queryengine.plan.relational.planner.ir.PredicateWithU
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.CopyToNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.ExplainAnalyzeNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.IntoNode;
+import org.apache.iotdb.db.queryengine.plan.relational.planner.node.SessionScanNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.schema.CreateOrUpdateTableDeviceNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.schema.TableDeviceAttributeUpdateNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.schema.TableDeviceFetchNode;
@@ -175,6 +176,11 @@ public class TableLogicalPlanner {
       QueryPlanCostMetricSet.getInstance()
           .recordTablePlanCost(LOGICAL_PLANNER, logicalPlanCostTime);
       queryContext.setLogicalPlanCost(logicalPlanCostTime);
+
+      // don't need to optimize when planNode is SessionScanNode
+      if (planNode instanceof SessionScanNode) {
+        return new LogicalQueryPlan(queryContext, planNode);
+      }
 
       startTime = System.nanoTime();
       for (PlanOptimizer optimizer : planOptimizers) {

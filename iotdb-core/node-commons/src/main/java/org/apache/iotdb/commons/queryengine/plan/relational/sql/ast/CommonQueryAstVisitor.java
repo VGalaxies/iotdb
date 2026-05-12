@@ -20,13 +20,20 @@
 package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast;
 
 import org.apache.iotdb.commons.exception.SemanticException;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.AsofEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CapacityEventWindow;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CreateStream;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.DropStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.EventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.HopEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PeriodEventWindow;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PlaceHolderLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.Rows;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.ShowStreams;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StartStream;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StopStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.TumbleEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.VariationEventWindow;
 
 import javax.annotation.Nullable;
 
@@ -508,5 +515,33 @@ public interface CommonQueryAstVisitor<R, C> extends IAstVisitor<R, C> {
 
   default R visitShowStreams(ShowStreams node, C context) {
     return visitStatement(node, context);
+  }
+
+  default R visitEventWindow(EventWindow node, C context) {
+    return visitNode(node, context);
+  }
+
+  default R visitPeriodEventWindow(PeriodEventWindow node, C context) {
+    return visitEventWindow(node, context);
+  }
+
+  default R visitTumbleEventWindow(TumbleEventWindow node, C context) {
+    return visitEventWindow(node, context);
+  }
+
+  default R visitHopEventWindow(HopEventWindow node, C context) {
+    return visitEventWindow(node, context);
+  }
+
+  default R visitVariationEventWindow(VariationEventWindow node, C context) {
+    return visitEventWindow(node, context);
+  }
+
+  default R visitCapacityEventWindow(CapacityEventWindow node, C context) {
+    return visitEventWindow(node, context);
+  }
+
+  default R visitAsofEventWindow(AsofEventWindow node, C context) {
+    return visitEventWindow(node, context);
   }
 }

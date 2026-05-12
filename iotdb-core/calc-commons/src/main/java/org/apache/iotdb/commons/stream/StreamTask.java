@@ -19,9 +19,12 @@
 
 package org.apache.iotdb.commons.stream;
 
+import org.apache.iotdb.commons.utils.BasicStructureSerDeUtil;
+
+import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.util.Objects;
 
 public class StreamTask {
 
@@ -33,6 +36,9 @@ public class StreamTask {
   private StreamSource source;
   private StreamWindow window;
   private String subQuery;
+
+  private ByteBuffer calcPlan;
+
   private StreamTarget target;
   private StreamTaskStatus status;
   private String runningOn;
@@ -54,7 +60,8 @@ public class StreamTask {
       StreamTaskStatus status,
       String runningOn,
       int epoch,
-      StreamProperties properties) {
+      StreamProperties properties,
+      ByteBuffer calcPlan) {
     this.id = id;
     this.taskName = taskName;
     this.database = database;
@@ -63,6 +70,7 @@ public class StreamTask {
     this.source = source;
     this.window = window;
     this.subQuery = subQuery;
+    setCalcPlan(calcPlan);
     this.target = target;
     this.status = status;
     this.runningOn = runningOn;
@@ -134,6 +142,14 @@ public class StreamTask {
     this.subQuery = subQuery;
   }
 
+  public ByteBuffer getCalcPlan() {
+    return calcPlan;
+  }
+
+  public void setCalcPlan(ByteBuffer calcPlan) {
+    this.calcPlan = Objects.requireNonNull(calcPlan, "calcPlan");
+  }
+
   public StreamTarget getTarget() {
     return target;
   }
@@ -174,13 +190,130 @@ public class StreamTask {
     this.properties = properties;
   }
 
-  public void serialize(OutputStream outputStream) throws IOException {
-    // TODO: implement serialization
-    throw new UnsupportedOperationException("Not implemented yet");
+  public void serialize(DataOutputStream stream) throws IOException {
+    stream.writeLong(id);
+    BasicStructureSerDeUtil.write(taskName, stream);
+    BasicStructureSerDeUtil.write(database, stream);
+    stream.writeLong(creationTime);
+    BasicStructureSerDeUtil.write(creator, stream);
+    if (source == null) {
+      stream.writeBoolean(false);
+    } else {
+      stream.writeBoolean(true);
+      source.serialize(stream);
+    }
+    if (window == null) {
+      throw new IOException("stream window is required for serialization");
+    }
+    window.serialize(stream);
+    BasicStructureSerDeUtil.write(subQuery, stream);
+    writeCalcPlan(stream, calcPlan);
+    if (target == null) {
+      throw new IOException("stream target is required for serialization");
+    }
+    target.serialize(stream);
+    if (status == null) {
+      stream.writeShort(-1);
+    } else {
+      stream.writeShort(status.ordinal());
+    }
+    BasicStructureSerDeUtil.write(runningOn, stream);
+    stream.writeInt(epoch);
+    if (properties == null) {
+      stream.writeBoolean(false);
+    } else {
+      stream.writeBoolean(true);
+      properties.serialize(stream);
+    }
   }
 
-  public static StreamTask deserialize(InputStream inputStream) throws IOException {
-    // TODO: implement deserialization
-    throw new UnsupportedOperationException("Not implemented yet");
+  public static StreamTask deserialize(ByteBuffer byteBuffer) throws IOException {
+    StreamTask task = new StreamTask();
+    task.setId(byteBuffer.getLong());
+    String taskNameDes = BasicStructureSerDeUtil.readString(byteBuffer);
+    if (taskNameDes == null) {
+      throw new IOException("unexpected null task name in stream task deserialization");
+    }
+    task.setTaskName(taskNameDes);
+    task.setDatabase(BasicStructureSerDeUtil.readString(byteBuffer));
+    task.setCreationTime(byteBuffer.getLong());
+    task.setCreator(BasicStructureSerDeUtil.readString(byteBuffer));
+    if (byteBuffer.get() != 0) {
+      task.setSource(StreamSource.deserialize(byteBuffer));
+    }
+    task.setWindow(StreamWindow.deserialize(byteBuffer));
+    task.setSubQuery(BasicStructureSerDeUtil.readString(byteBuffer));
+    task.setCalcPlan(readCalcPlan(byteBuffer));
+    task.setTarget(StreamTarget.deserialize(byteBuffer));
+    short statusOrdinal = byteBuffer.getShort();
+    if (statusOrdinal >= 0 && statusOrdinal < StreamTaskStatus.values().length) {
+      task.setStatus(StreamTaskStatus.values()[statusOrdinal]);
+    }
+
+    task.setRunningOn(BasicStructureSerDeUtil.readString(byteBuffer));
+    task.setEpoch(byteBuffer.getInt());
+    if (byteBuffer.get() != 0) {
+      task.setProperties(StreamProperties.deserialize(byteBuffer));
+    }
+    return task;
+  }
+
+  /**
+   * Assembles a {@link StreamTask} from the DN→CN {@code createStream} RPC payload (see {@code
+   * TCreateStreamReq}).
+   */
+  public static StreamTask readFromDistributedCreate(
+      String streamName,
+      String creator,
+      ByteBuffer streamSource,
+      ByteBuffer eventWindow,
+      String calcSql,
+      ByteBuffer calcPlan,
+      ByteBuffer streamSink)
+      throws IOException {
+    StreamTask task = new StreamTask();
+    task.setTaskName(streamName);
+    task.setCreator(creator);
+    task.setSubQuery(calcSql);
+    task.setCalcPlan(calcPlan);
+    if (streamSource != null && streamSource.hasRemaining()) {
+      task.setSource(StreamSource.deserialize(streamSource.duplicate()));
+    }
+    if (eventWindow == null || !eventWindow.hasRemaining()) {
+      throw new IOException("eventWindow is required");
+    }
+    task.setWindow(StreamWindow.deserialize(eventWindow.duplicate()));
+    if (streamSink == null || !streamSink.hasRemaining()) {
+      throw new IOException("streamSink is required");
+    }
+    task.setTarget(StreamTarget.deserialize(streamSink.duplicate()));
+    return task;
+  }
+
+  private static void writeCalcPlan(DataOutputStream stream, ByteBuffer calcPlan)
+      throws IOException {
+    int len = calcPlan.remaining();
+    stream.writeInt(len);
+    if (len > 0) {
+      byte[] chunk = new byte[len];
+      calcPlan.get(chunk);
+      stream.write(chunk);
+    }
+  }
+
+  private static ByteBuffer readCalcPlan(ByteBuffer buf) throws IOException {
+    if (buf.remaining() < Integer.BYTES) {
+      throw new IOException("unexpected end of buffer");
+    }
+    int len = buf.getInt();
+    if (len <= 0) {
+      throw new IOException("invalid calcPlan length: " + len);
+    }
+    if (buf.remaining() < len) {
+      throw new IOException("unexpected end of buffer reading calcPlan payload");
+    }
+    byte[] b = new byte[len];
+    buf.get(b);
+    return ByteBuffer.wrap(b);
   }
 }

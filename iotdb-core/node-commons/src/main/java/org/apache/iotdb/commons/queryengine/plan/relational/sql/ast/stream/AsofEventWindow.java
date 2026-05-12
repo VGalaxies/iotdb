@@ -20,6 +20,8 @@
 package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream;
 
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.AstMemoryEstimationHelper;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.CommonQueryAstVisitor;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.IAstVisitor;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.NodeLocation;
 
@@ -45,6 +47,11 @@ public class AsofEventWindow extends EventWindow {
   public AsofEventWindow(@Nullable NodeLocation location, @Nullable AfterMatchMode afterMatchMode) {
     super(location);
     this.afterMatchMode = afterMatchMode;
+  }
+
+  @Override
+  public <R, C> R accept(IAstVisitor<R, C> visitor, C context) {
+    return ((CommonQueryAstVisitor<R, C>) visitor).visitAsofEventWindow(this, context);
   }
 
   @Nullable

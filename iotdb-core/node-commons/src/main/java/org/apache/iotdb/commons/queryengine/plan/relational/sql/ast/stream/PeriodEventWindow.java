@@ -20,6 +20,8 @@
 package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream;
 
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.AstMemoryEstimationHelper;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.CommonQueryAstVisitor;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.IAstVisitor;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.LongLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.NodeLocation;
@@ -48,6 +50,11 @@ public class PeriodEventWindow extends EventWindow {
     super(location);
     this.period = period;
     this.origin = origin;
+  }
+
+  @Override
+  public <R, C> R accept(IAstVisitor<R, C> visitor, C context) {
+    return ((CommonQueryAstVisitor<R, C>) visitor).visitPeriodEventWindow(this, context);
   }
 
   public TimeDurationLiteral getPeriod() {

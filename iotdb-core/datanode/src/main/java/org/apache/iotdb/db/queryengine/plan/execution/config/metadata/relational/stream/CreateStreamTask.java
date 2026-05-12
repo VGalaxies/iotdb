@@ -26,12 +26,32 @@ import org.apache.iotdb.db.queryengine.plan.execution.config.executor.IConfigTas
 
 import com.google.common.util.concurrent.ListenableFuture;
 
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+
 public class CreateStreamTask implements IConfigTask {
 
   private final StreamTask streamTask;
 
   public CreateStreamTask(StreamTask streamTask) {
     this.streamTask = streamTask;
+  }
+
+  public StreamTask getStreamTask() {
+    return streamTask;
+  }
+
+  /**
+   * Serializes this task as a versioned blob: {@code [version=1][stream task bytes]} where stream
+   * task bytes are produced by {@link StreamTask#serialize(DataOutputStream)}.
+   */
+  public void serialize(DataOutputStream stream) throws IOException {
+    streamTask.serialize(stream);
+  }
+
+  public static CreateStreamTask deserialize(ByteBuffer byteBuffer) throws IOException {
+    return new CreateStreamTask(StreamTask.deserialize(byteBuffer));
   }
 
   @Override

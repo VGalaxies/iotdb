@@ -71,6 +71,7 @@ import org.apache.iotdb.db.queryengine.plan.relational.planner.SymbolAllocator;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.SymbolsExtractor;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.ir.ReplaceSymbolInExpression;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.DeviceTableScanNode;
+import org.apache.iotdb.db.queryengine.plan.relational.planner.node.EventScanNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.InformationSchemaTableScanNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.TableScanNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.TreeDeviceViewScanNode;
@@ -469,6 +470,15 @@ public class PushPredicateIntoTableScan implements PlanOptimizer {
 
       // has predicate, deal with split predicate
       return combineFilterAndScan(tableScanNode, context.inheritedPredicate);
+    }
+
+    @Override
+    public PlanNode visitEventScan(EventScanNode node, RewriteContext context) {
+      if (TRUE_LITERAL.equals(context.inheritedPredicate)) {
+        return node;
+      }
+
+      return new FilterNode(queryId.genPlanNodeId(), node, context.inheritedPredicate);
     }
 
     public PlanNode combineFilterAndScan(TableScanNode tableScanNode, Expression predicate) {

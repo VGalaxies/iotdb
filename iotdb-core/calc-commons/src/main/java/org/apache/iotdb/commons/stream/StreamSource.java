@@ -19,18 +19,29 @@
 
 package org.apache.iotdb.commons.stream;
 
+import org.apache.tsfile.utils.ReadWriteIOUtils;
+
+import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.nio.ByteBuffer;
 
 public abstract class StreamSource {
 
   public abstract StreamSourceType getType();
 
-  public abstract void serialize(OutputStream outputStream) throws IOException;
+  public abstract void serialize(DataOutputStream stream) throws IOException;
 
-  public static StreamSource deserialize(InputStream inputStream) throws IOException {
-    // TODO: implement deserialization dispatch
-    throw new UnsupportedOperationException("Not implemented yet");
+  public static StreamSource deserialize(ByteBuffer byteBuffer) throws IOException {
+    int typeOrdinal = ReadWriteIOUtils.readInt(byteBuffer);
+    if (typeOrdinal < 0 || typeOrdinal >= StreamSourceType.values().length) {
+      throw new IOException("unsupported stream source type ordinal: " + typeOrdinal);
+    }
+    StreamSourceType type = StreamSourceType.values()[typeOrdinal];
+    switch (type) {
+      case IOTDB_SUBSCRIPTION:
+        return IoTDBSubscriptionSource.deserialize(byteBuffer);
+      default:
+        throw new IOException("unsupported stream source type: " + type);
+    }
   }
 }

@@ -36,16 +36,28 @@ import org.apache.iotdb.commons.pipe.agent.plugin.builtin.BuiltinPipePlugin;
 import org.apache.iotdb.commons.pipe.config.constant.PipeSinkConstant;
 import org.apache.iotdb.commons.pipe.config.constant.PipeSourceConstant;
 import org.apache.iotdb.commons.pipe.config.constant.SystemConstant;
+import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.PlanNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.CommonQueryAstVisitor;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.DataType;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Identifier;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Literal;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.LongLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.QualifiedName;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Query;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.AsofEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CapacityEventWindow;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CreateStream;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.DropStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.HopEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PeriodEventWindow;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StartStream;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StopStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.TumbleEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.VariationEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.util.CommonQuerySqlFormatter;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.util.ExpressionFormatter;
 import org.apache.iotdb.commons.queryengine.plan.relational.type.TypeManager;
 import org.apache.iotdb.commons.queryengine.plan.relational.type.TypeNotFoundException;
 import org.apache.iotdb.commons.schema.table.TreeViewSchema;
@@ -53,7 +65,16 @@ import org.apache.iotdb.commons.schema.table.TsTable;
 import org.apache.iotdb.commons.schema.table.column.TimeColumnSchema;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnCategory;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnSchema;
+import org.apache.iotdb.commons.stream.AsofWindow;
+import org.apache.iotdb.commons.stream.CapacityWindow;
+import org.apache.iotdb.commons.stream.HopWindow;
+import org.apache.iotdb.commons.stream.IoTDBSubscriptionSource;
+import org.apache.iotdb.commons.stream.IoTDBTarget;
+import org.apache.iotdb.commons.stream.PeriodWindow;
 import org.apache.iotdb.commons.stream.StreamTask;
+import org.apache.iotdb.commons.stream.StreamWindow;
+import org.apache.iotdb.commons.stream.TumbleWindow;
+import org.apache.iotdb.commons.stream.VariationWindow;
 import org.apache.iotdb.confignode.rpc.thrift.TDatabaseSchema;
 import org.apache.iotdb.db.audit.DNAuditLogger;
 import org.apache.iotdb.db.auth.AuthorityChecker;
@@ -61,6 +82,7 @@ import org.apache.iotdb.db.conf.IoTDBConfig;
 import org.apache.iotdb.db.protocol.session.IClientSession;
 import org.apache.iotdb.db.queryengine.common.MPPQueryContext;
 import org.apache.iotdb.db.queryengine.execution.warnings.WarningCollector;
+import org.apache.iotdb.db.queryengine.plan.analyze.IAnalysis;
 import org.apache.iotdb.db.queryengine.plan.analyze.QueryType;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.CreateFunctionTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.CreatePipePluginTask;
@@ -151,11 +173,13 @@ import org.apache.iotdb.db.queryengine.plan.execution.config.sys.subscription.Dr
 import org.apache.iotdb.db.queryengine.plan.execution.config.sys.subscription.DropTopicTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.sys.subscription.ShowSubscriptionsTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.sys.subscription.ShowTopicsTask;
+import org.apache.iotdb.db.queryengine.plan.relational.analyzer.Analysis;
 import org.apache.iotdb.db.queryengine.plan.relational.analyzer.Analyzer;
 import org.apache.iotdb.db.queryengine.plan.relational.analyzer.StatementAnalyzerFactory;
 import org.apache.iotdb.db.queryengine.plan.relational.metadata.Metadata;
 import org.apache.iotdb.db.queryengine.plan.relational.metadata.QualifiedObjectName;
 import org.apache.iotdb.db.queryengine.plan.relational.metadata.fetcher.TableHeaderSchemaValidator;
+import org.apache.iotdb.db.queryengine.plan.relational.planner.TableModelPlanner;
 import org.apache.iotdb.db.queryengine.plan.relational.security.AccessControl;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.AddColumn;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.AlterColumnDataType;
@@ -267,6 +291,8 @@ import org.apache.tsfile.utils.Binary;
 import org.apache.tsfile.utils.Pair;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -278,6 +304,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 import static org.apache.iotdb.commons.conf.IoTDBConstant.MAX_DATABASE_NAME_LENGTH;
@@ -293,6 +320,7 @@ import static org.apache.iotdb.db.queryengine.plan.execution.config.metadata.rel
 import static org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.CreateDBTask.SCHEMA_REGION_GROUP_NUM_KEY;
 import static org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.CreateDBTask.TIME_PARTITION_INTERVAL_KEY;
 import static org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.CreateDBTask.TTL_KEY;
+import static org.apache.iotdb.db.queryengine.plan.relational.planner.RelationPlanner.getQualifiedObjectName;
 import static org.apache.tsfile.common.constant.TsFileConstant.PATH_SEPARATOR;
 
 public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryContext> {
@@ -306,6 +334,7 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
   private final AccessControl accessControl;
 
   private final TypeManager typeManager;
+  private TableModelPlanner streamQueryPlanner;
 
   public TableConfigTaskVisitor(
       final IClientSession clientSession,
@@ -316,6 +345,11 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
     this.metadata = metadata;
     this.accessControl = accessControl;
     this.typeManager = typeManager;
+  }
+
+  public TableConfigTaskVisitor withStreamQueryPlanner(TableModelPlanner streamQueryPlanner) {
+    this.streamQueryPlanner = streamQueryPlanner;
+    return this;
   }
 
   @Override
@@ -1616,7 +1650,7 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
     context.setQueryType(QueryType.OTHER);
     accessControl.checkUserGlobalSysPrivilege(context);
     String uri = node.getUri();
-    if (uri != null && ExecutableManager.isUriTrusted(uri)) {
+    if (uri != null && isUriTrusted(uri)) {
       // user specified uri and that uri is trusted
       return new CreateModelTask(node.getModelId(), uri);
     }
@@ -1669,12 +1703,10 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
   @Override
   public IConfigTask visitCreateStream(CreateStream node, MPPQueryContext context) {
     context.setQueryType(QueryType.WRITE);
-
-    // TODO: implement analyze, logical planner, optimizer
-    // For now, construct a stub StreamTask
-    StreamTask streamTask = new StreamTask();
-    streamTask.setTaskName(node.getStreamName().getValue());
-
+    TableModelPlanner planner = streamQueryPlanner;
+    IAnalysis analysis = planner.analyze(context);
+    PlanNode logicalPlan = planner.doLogicalPlan(analysis, context).getRootNode();
+    StreamTask streamTask = buildStreamTask(node, context, logicalPlan, (Analysis) analysis);
     return new CreateStreamTask(streamTask);
   }
 
@@ -1700,5 +1732,139 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
     String database = context.getDatabaseName().orElse(null);
     String streamName = node.getName().toString();
     return new StopStreamTask(database, streamName);
+  }
+
+  private static final CommonQueryAstVisitor<StreamWindow, Void>
+      CREATE_STREAM_EVENT_WINDOW_VISITOR =
+          new CommonQueryAstVisitor<StreamWindow, Void>() {
+
+            @Override
+            public StreamWindow visitNode(Node node, Void context) {
+              throw new SemanticException(
+                  "Unsupported event window: " + node.getClass().getSimpleName());
+            }
+
+            @Override
+            public StreamWindow visitPeriodEventWindow(PeriodEventWindow p, Void context) {
+              long periodMs = p.getPeriod().getValue().getTotalDuration(TimeUnit.MILLISECONDS);
+              long originMs = p.getOrigin() == null ? 0L : p.getOrigin().getParsedValue();
+              return new PeriodWindow(periodMs, originMs);
+            }
+
+            @Override
+            public StreamWindow visitTumbleEventWindow(TumbleEventWindow t, Void context) {
+              String timeCol =
+                  t.getTimeColumn() == null
+                      ? null
+                      : ExpressionFormatter.formatExpression(t.getTimeColumn());
+              long sizeMs = t.getSize().getValue().getTotalDuration(TimeUnit.MILLISECONDS);
+              long originMs = t.getOrigin() == null ? 0L : t.getOrigin().getParsedValue();
+              return new TumbleWindow(timeCol, sizeMs, originMs);
+            }
+
+            @Override
+            public StreamWindow visitHopEventWindow(HopEventWindow h, Void context) {
+              String timeCol =
+                  h.getTimeColumn() == null
+                      ? null
+                      : ExpressionFormatter.formatExpression(h.getTimeColumn());
+              long sizeMs = h.getSize().getValue().getTotalDuration(TimeUnit.MILLISECONDS);
+              long slideMs = h.getSlide().getValue().getTotalDuration(TimeUnit.MILLISECONDS);
+              long originMs = h.getOrigin() == null ? 0L : h.getOrigin().getParsedValue();
+              return new HopWindow(timeCol, sizeMs, slideMs, originMs);
+            }
+
+            @Override
+            public StreamWindow visitVariationEventWindow(VariationEventWindow v, Void context) {
+              String col = ExpressionFormatter.formatExpression(v.getColumn());
+              double delta = v.getDelta() == null ? 0.0 : v.getDelta().getValue();
+              return new VariationWindow(col, delta);
+            }
+
+            @Override
+            public StreamWindow visitCapacityEventWindow(CapacityEventWindow c, Void context) {
+              long sizeLong = c.getSize().getParsedValue();
+              if (sizeLong > Integer.MAX_VALUE || sizeLong < Integer.MIN_VALUE) {
+                throw new SemanticException("capacity window size out of range");
+              }
+              List<String> cols = null;
+              if (c.getColumns() != null && !c.getColumns().isEmpty()) {
+                cols = new ArrayList<>();
+                for (Identifier id : c.getColumns()) {
+                  cols.add(ExpressionFormatter.formatExpression(id));
+                }
+              }
+              return new CapacityWindow((int) sizeLong, cols);
+            }
+
+            @Override
+            public StreamWindow visitAsofEventWindow(AsofEventWindow a, Void context) {
+              AsofWindow.AfterMatchMode mode = null;
+              if (a.getAfterMatchMode() != null) {
+                mode = AsofWindow.AfterMatchMode.valueOf(a.getAfterMatchMode().name());
+              }
+              return new AsofWindow(mode);
+            }
+          };
+
+  private static StreamTask buildStreamTask(
+      CreateStream node, MPPQueryContext context, PlanNode logicalPlan, Analysis analysis) {
+    String defaultDb =
+        context
+            .getDatabaseName()
+            .orElseThrow(() -> new SemanticException("database is not specified"));
+
+    StreamWindow window = CREATE_STREAM_EVENT_WINDOW_VISITOR.process(node.getEventWindow(), null);
+
+    IoTDBSubscriptionSource source = null;
+    if (node.getSourceTableName() != null) {
+      QualifiedObjectName sourceName = getQualifiedObjectName(node.getTable(), analysis);
+      List<String> partitionColumns = null;
+      if (node.getPartitionBy() != null && !node.getPartitionBy().isEmpty()) {
+        partitionColumns = new ArrayList<>();
+        for (Expression e : node.getPartitionBy()) {
+          partitionColumns.add(ExpressionFormatter.formatExpression(e));
+        }
+      }
+      source =
+          new IoTDBSubscriptionSource(
+              sourceName.getDatabaseName(),
+              sourceName.getObjectName(),
+              node.getPreFilter(),
+              partitionColumns);
+    }
+
+    QualifiedObjectName sinkName = getQualifiedObjectName(node.getTable(), analysis);
+    List<String> outCols = null;
+    if (node.getColumns() != null && !node.getColumns().isEmpty()) {
+      outCols = new ArrayList<>();
+      for (Identifier c : node.getColumns()) {
+        outCols.add(ExpressionFormatter.formatExpression(c));
+      }
+    }
+    IoTDBTarget target =
+        new IoTDBTarget(sinkName.getDatabaseName(), sinkName.getObjectName(), outCols);
+
+    String calcSql = formatCreateStreamQuerySql(node.getQuery());
+    ByteBuffer calcPlan = logicalPlan.serializeToByteBuffer();
+
+    StreamTask task = new StreamTask();
+    task.setTaskName(node.getStreamName().getValue());
+    task.setDatabase(defaultDb);
+    task.setCreationTime(System.currentTimeMillis());
+    task.setCreator(context.getSession().getUserName());
+    task.setSource(source);
+    task.setWindow(window);
+    task.setSubQuery(calcSql);
+    task.setCalcPlan(calcPlan);
+    task.setTarget(target);
+    task.setEpoch(0);
+    return task;
+  }
+
+  private static String formatCreateStreamQuerySql(Query query) {
+    StringBuilder builder = new StringBuilder();
+    new CommonQuerySqlFormatter(builder).visitQuery(query, 0);
+    return builder.toString();
   }
 }

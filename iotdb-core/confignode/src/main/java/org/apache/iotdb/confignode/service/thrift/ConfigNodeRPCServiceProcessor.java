@@ -46,6 +46,7 @@ import org.apache.iotdb.commons.consensus.ConsensusGroupId;
 import org.apache.iotdb.commons.path.PartialPath;
 import org.apache.iotdb.commons.path.PathPatternTree;
 import org.apache.iotdb.commons.schema.SchemaConstant;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.commons.utils.AuthUtils;
 import org.apache.iotdb.commons.utils.StatusUtils;
 import org.apache.iotdb.commons.utils.TestOnly;
@@ -1523,7 +1524,21 @@ public class ConfigNodeRPCServiceProcessor implements IConfigNodeRPCService.Ifac
 
   @Override
   public TSStatus createStream(TCreateStreamReq req) throws TException {
-    return null;
+    try {
+      StreamTask task =
+          StreamTask.readFromDistributedCreate(
+              req.getStreamName(),
+              req.getCreator(),
+              req.isSetStreamSource() ? req.bufferForStreamSource() : null,
+              req.bufferForEventWindow(),
+              req.getCalcSql(),
+              req.bufferForCalcPlan(),
+              req.bufferForStreamSink());
+      return configManager.getStreamManager().createStream(task);
+    } catch (IOException e) {
+      LOGGER.warn("Failed to decode create stream RPC payload.", e);
+      return RpcUtils.getStatus(TSStatusCode.EXECUTE_STATEMENT_ERROR, e.getMessage());
+    }
   }
 
   @Override

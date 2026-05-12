@@ -19,20 +19,27 @@
 
 package org.apache.iotdb.commons.stream;
 
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
+import org.apache.iotdb.commons.utils.BasicStructureSerDeUtil;
+
+import org.apache.tsfile.utils.ReadWriteIOUtils;
+
+import javax.annotation.Nullable;
+
+import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.util.List;
 
 public class IoTDBSubscriptionSource extends StreamSource {
 
   private String database;
   private String tableName;
-  private String preFilter; // nullable, serialized WHERE expression
-  private List<String> partitionColumns; // nullable
+  @Nullable private Expression preFilter;
+  @Nullable private List<String> partitionColumns;
 
   public IoTDBSubscriptionSource(
-      String database, String tableName, String preFilter, List<String> partitionColumns) {
+      String database, String tableName, Expression preFilter, List<String> partitionColumns) {
     this.database = database;
     this.tableName = tableName;
     this.preFilter = preFilter;
@@ -52,7 +59,7 @@ public class IoTDBSubscriptionSource extends StreamSource {
     return tableName;
   }
 
-  public String getPreFilter() {
+  public Expression getPreFilter() {
     return preFilter;
   }
 
@@ -61,13 +68,22 @@ public class IoTDBSubscriptionSource extends StreamSource {
   }
 
   @Override
-  public void serialize(OutputStream outputStream) throws IOException {
-    // TODO: implement serialization
-    throw new UnsupportedOperationException("Not implemented yet");
+  public void serialize(DataOutputStream stream) throws IOException {
+    ReadWriteIOUtils.write(getType().ordinal(), stream);
+    BasicStructureSerDeUtil.write(database, stream);
+    BasicStructureSerDeUtil.write(tableName, stream);
+    Expression.serialize(preFilter, stream);
+    BasicStructureSerDeUtil.writeNullableStringList(partitionColumns, stream);
   }
 
-  public static IoTDBSubscriptionSource deserialize(InputStream inputStream) throws IOException {
-    // TODO: implement deserialization
-    throw new UnsupportedOperationException("Not implemented yet");
+  public static IoTDBSubscriptionSource deserialize(ByteBuffer byteBuffer) throws IOException {
+    String database = BasicStructureSerDeUtil.readString(byteBuffer);
+    String tableName = BasicStructureSerDeUtil.readString(byteBuffer);
+    if (database == null || tableName == null) {
+      throw new IOException("unexpected null database or table name in stream source payload");
+    }
+    Expression preFilter = Expression.deserialize(byteBuffer);
+    List<String> partitionColumns = BasicStructureSerDeUtil.readStringList(byteBuffer);
+    return new IoTDBSubscriptionSource(database, tableName, preFilter, partitionColumns);
   }
 }

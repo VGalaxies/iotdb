@@ -19,9 +19,13 @@
 
 package org.apache.iotdb.commons.stream;
 
+import org.apache.iotdb.commons.utils.BasicStructureSerDeUtil;
+
+import org.apache.tsfile.utils.ReadWriteIOUtils;
+
+import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.util.List;
 
 public class IoTDBTarget extends StreamTarget {
@@ -54,13 +58,17 @@ public class IoTDBTarget extends StreamTarget {
   }
 
   @Override
-  public void serialize(OutputStream outputStream) throws IOException {
-    // TODO: implement serialization
-    throw new UnsupportedOperationException("Not implemented yet");
+  public void serialize(DataOutputStream stream) throws IOException {
+    ReadWriteIOUtils.write(getType().ordinal(), stream);
+    BasicStructureSerDeUtil.write(database, stream);
+    BasicStructureSerDeUtil.write(tableName, stream);
+    BasicStructureSerDeUtil.writeNullableStringList(columnNames, stream);
   }
 
-  public static IoTDBTarget deserialize(InputStream inputStream) throws IOException {
-    // TODO: implement deserialization
-    throw new UnsupportedOperationException("Not implemented yet");
+  public static IoTDBTarget deserialize(ByteBuffer byteBuffer) throws IOException {
+    String database = BasicStructureSerDeUtil.readString(byteBuffer);
+    String tableName = BasicStructureSerDeUtil.readString(byteBuffer);
+    List<String> columnNames = BasicStructureSerDeUtil.readStringList(byteBuffer);
+    return new IoTDBTarget(database, tableName, columnNames);
   }
 }

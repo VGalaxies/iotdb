@@ -19,8 +19,11 @@
 
 package org.apache.iotdb.commons.stream;
 
+import org.apache.tsfile.utils.ReadWriteIOUtils;
+
+import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
+import java.nio.ByteBuffer;
 
 public class PeriodWindow extends StreamWindow {
 
@@ -46,8 +49,15 @@ public class PeriodWindow extends StreamWindow {
   }
 
   @Override
-  public void serialize(OutputStream outputStream) throws IOException {
-    // TODO: implement serialization
-    throw new UnsupportedOperationException("Not implemented yet");
+  public void serialize(DataOutputStream stream) throws IOException {
+    ReadWriteIOUtils.write(getType().ordinal(), stream);
+    stream.writeLong(periodMs);
+    stream.writeLong(originMs);
+  }
+
+  public static PeriodWindow deserialize(ByteBuffer byteBuffer) throws IOException {
+    long periodMs = byteBuffer.getLong();
+    long originMs = byteBuffer.getLong();
+    return new PeriodWindow(periodMs, originMs);
   }
 }

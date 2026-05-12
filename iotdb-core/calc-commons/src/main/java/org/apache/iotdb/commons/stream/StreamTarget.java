@@ -19,18 +19,29 @@
 
 package org.apache.iotdb.commons.stream;
 
+import org.apache.tsfile.utils.ReadWriteIOUtils;
+
+import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.nio.ByteBuffer;
 
 public abstract class StreamTarget {
 
   public abstract StreamTargetType getType();
 
-  public abstract void serialize(OutputStream outputStream) throws IOException;
+  public abstract void serialize(DataOutputStream stream) throws IOException;
 
-  public static StreamTarget deserialize(InputStream inputStream) throws IOException {
-    // TODO: implement deserialization dispatch
-    throw new UnsupportedOperationException("Not implemented yet");
+  public static StreamTarget deserialize(ByteBuffer byteBuffer) throws IOException {
+    int typeOrdinal = ReadWriteIOUtils.readInt(byteBuffer);
+    if (typeOrdinal < 0 || typeOrdinal >= StreamTargetType.values().length) {
+      throw new IOException("unsupported stream target type ordinal: " + typeOrdinal);
+    }
+    StreamTargetType type = StreamTargetType.values()[typeOrdinal];
+    switch (type) {
+      case IOTDB_LOCAL:
+        return IoTDBTarget.deserialize(byteBuffer);
+      default:
+        throw new IOException("Unsupported stream target type: " + type);
+    }
   }
 }
