@@ -1463,7 +1463,7 @@ public class PushPredicateIntoTableScan implements PlanOptimizer {
 
     if (!expression.getChildren().isEmpty()) {
       for (Node node : expression.getChildren()) {
-        if (containsDiffFunction((Expression) node)) {
+        if (node instanceof Expression && containsDiffFunction((Expression) node)) {
           return true;
         }
       }
