@@ -19,13 +19,13 @@
 
 package org.apache.iotdb.commons.stream;
 
+import org.apache.iotdb.commons.utils.IOUtils;
+
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
-
-import org.apache.iotdb.commons.utils.IOUtils;
 
 @SuppressWarnings("SwitchStatementWithTooFewBranches")
 public abstract class StreamSource {

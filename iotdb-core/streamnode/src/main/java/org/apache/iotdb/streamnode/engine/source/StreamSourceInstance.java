@@ -19,12 +19,14 @@
 
 package org.apache.iotdb.streamnode.engine.source;
 
-import java.util.function.BiConsumer;
 import org.apache.iotdb.commons.stream.IoTDBSubscriptionSource;
 import org.apache.iotdb.commons.stream.StreamSource;
 import org.apache.iotdb.commons.stream.StreamSourceType;
 import org.apache.iotdb.streamnode.conf.StreamNodeConfig;
+
 import org.apache.tsfile.write.record.Tablet;
+
+import java.util.function.BiConsumer;
 
 public abstract class StreamSourceInstance {
 
@@ -36,7 +38,11 @@ public abstract class StreamSourceInstance {
 
   public abstract void commit(long commitIndex) throws Exception;
 
-  public static StreamSourceInstance create(StreamSource source, String taskName, BiConsumer<Tablet, Long> dataConsumer, StreamNodeConfig nodeConfig) {
+  public static StreamSourceInstance create(
+      StreamSource source,
+      String taskName,
+      BiConsumer<Tablet, Long> dataConsumer,
+      StreamNodeConfig nodeConfig) {
     if (source.getType() == StreamSourceType.IOTDB_SUBSCRIPTION) {
       return new IoTDBSubscriptionSourceInstance(
           (IoTDBSubscriptionSource) source, taskName, dataConsumer, nodeConfig);

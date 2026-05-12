@@ -19,16 +19,6 @@
 
 package org.apache.iotdb.streamnode.engine.dispatcher;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.function.Function;
 import org.apache.iotdb.commons.stream.PartitionKey;
 import org.apache.iotdb.commons.stream.TabletPositionPartitionKey;
 import org.apache.iotdb.streamnode.engine.task.StreamSubTask;
@@ -39,7 +29,16 @@ import org.apache.tsfile.write.schema.IMeasurementSchema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.function.Function;
 
 public class ColumnPartitionedTabletDispatcher extends TabletDispatcher {
 
@@ -49,8 +48,8 @@ public class ColumnPartitionedTabletDispatcher extends TabletDispatcher {
   private final List<String> partitionColumns;
   private final Map<String, Integer> columnIndexMap;
 
-  public ColumnPartitionedTabletDispatcher(List<String> partitionColumns,
-      Function<PartitionKey, StreamSubTask> subTaskMapper) {
+  public ColumnPartitionedTabletDispatcher(
+      List<String> partitionColumns, Function<PartitionKey, StreamSubTask> subTaskMapper) {
     this.partitionColumns = partitionColumns == null ? Collections.emptyList() : partitionColumns;
     this.subTaskMapper = subTaskMapper;
     this.columnIndexMap = new HashMap<>();
@@ -64,12 +63,16 @@ public class ColumnPartitionedTabletDispatcher extends TabletDispatcher {
     LOGGER.debug("Dispatching data with id {} to {} sub-tasks", tablet, tabletId);
     List<DataSlice> split = split(tablet, tabletId);
     Map<StreamSubTask, List<DataSlice>> slicesByPartition = new HashMap<>();
-    split.forEach(slice -> {
-      slicesByPartition.computeIfAbsent(subTaskMapper.apply(slice.getPartitionKey()), k -> new ArrayList<>()).add(slice);
-    });
+    split.forEach(
+        slice -> {
+          slicesByPartition
+              .computeIfAbsent(subTaskMapper.apply(slice.getPartitionKey()), k -> new ArrayList<>())
+              .add(slice);
+        });
 
     List<Future<Void>> futures = new ArrayList<>();
-    for (Entry<StreamSubTask, List<DataSlice>> streamSubTaskListEntry : slicesByPartition.entrySet()) {
+    for (Entry<StreamSubTask, List<DataSlice>> streamSubTaskListEntry :
+        slicesByPartition.entrySet()) {
       StreamSubTask subTask = streamSubTaskListEntry.getKey();
       List<DataSlice> slices = streamSubTaskListEntry.getValue();
       futures.add(subTask.offer(slices));
@@ -90,10 +93,10 @@ public class ColumnPartitionedTabletDispatcher extends TabletDispatcher {
    * Split a Tablet into {@link DataSlice}s based on the partition columns.
    *
    * <p>Scans the tablet row by row and records a boundary whenever the combined value of all
-   * partition columns changes. Each resulting {@link DataSlice} carries the
-   * {@link TabletPositionPartitionKey} built from the first row of that group.
+   * partition columns changes. Each resulting {@link DataSlice} carries the {@link
+   * TabletPositionPartitionKey} built from the first row of that group.
    *
-   * @param tablet   the source tablet (rows must already be sorted by partition columns)
+   * @param tablet the source tablet (rows must already be sorted by partition columns)
    * @param tabletId the identifier of the tablet, forwarded to each slice
    * @return one {@link DataSlice} per distinct partition-key group
    */
@@ -132,16 +135,24 @@ public class ColumnPartitionedTabletDispatcher extends TabletDispatcher {
         }
       }
       if (boundary) {
-        slices.add(new DataSlice(
-            new TabletPositionPartitionKey(tablet, groupStart, colIndicesInTablet),
-            tablet, groupStart, row, tabletId));
+        slices.add(
+            new DataSlice(
+                new TabletPositionPartitionKey(tablet, groupStart, colIndicesInTablet),
+                tablet,
+                groupStart,
+                row,
+                tabletId));
         groupStart = row;
       }
     }
     // Last (or only) group
-    slices.add(new DataSlice(
-        new TabletPositionPartitionKey(tablet, groupStart, colIndicesInTablet),
-        tablet, groupStart, rowSize, tabletId));
+    slices.add(
+        new DataSlice(
+            new TabletPositionPartitionKey(tablet, groupStart, colIndicesInTablet),
+            tablet,
+            groupStart,
+            rowSize,
+            tabletId));
     return slices;
   }
 

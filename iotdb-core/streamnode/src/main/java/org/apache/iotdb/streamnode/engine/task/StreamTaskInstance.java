@@ -72,7 +72,12 @@ public class StreamTaskInstance {
 
       // Initialize source
       if (taskDefinition.getSource() != null) {
-        sourceInstance = StreamSourceInstance.create(taskDefinition.getSource(), taskDefinition.getTaskName(), dispatcher::dispatch, nodeConfig);
+        sourceInstance =
+            StreamSourceInstance.create(
+                taskDefinition.getSource(),
+                taskDefinition.getTaskName(),
+                dispatcher::dispatch,
+                nodeConfig);
         sourceInstance.start();
       }
 

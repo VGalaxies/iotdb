@@ -327,7 +327,8 @@ public class IOUtils {
 
   /**
    * An {@link InputStream} backed by a {@link ByteBuffer} that advances the buffer's position on
-   * every read, ensuring the caller's ByteBuffer position is correctly updated after deserialization.
+   * every read, ensuring the caller's ByteBuffer position is correctly updated after
+   * deserialization.
    */
   public static final class ByteBufferInputStream extends InputStream {
     private final ByteBuffer buf;

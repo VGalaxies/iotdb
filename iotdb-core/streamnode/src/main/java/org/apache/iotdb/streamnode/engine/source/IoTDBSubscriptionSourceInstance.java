@@ -28,8 +28,8 @@ import org.apache.iotdb.session.subscription.SubscriptionTableSessionBuilder;
 import org.apache.iotdb.session.subscription.consumer.ISubscriptionTablePullConsumer;
 import org.apache.iotdb.session.subscription.consumer.table.SubscriptionTablePullConsumerBuilder;
 import org.apache.iotdb.session.subscription.payload.SubscriptionMessage;
-
 import org.apache.iotdb.streamnode.conf.StreamNodeConfig;
+
 import org.apache.tsfile.utils.Pair;
 import org.apache.tsfile.write.record.Tablet;
 import org.slf4j.Logger;
@@ -74,12 +74,11 @@ public class IoTDBSubscriptionSourceInstance extends StreamSourceInstance {
 
   /**
    * Queue of (message, maxIndex) pairs pending commit. Each entry represents one polled
-   * SubscriptionMessage bound to the highest commitIndex assigned to any of its Tablets.
-   * The commit loop drains this queue once downstream processing has acknowledged the index.
+   * SubscriptionMessage bound to the highest commitIndex assigned to any of its Tablets. The commit
+   * loop drains this queue once downstream processing has acknowledged the index.
    */
   private final LinkedBlockingQueue<Pair<SubscriptionMessage, Long>> pendingCommits =
       new LinkedBlockingQueue<>();
-
 
   public IoTDBSubscriptionSourceInstance(
       final IoTDBSubscriptionSource sourceConfig,
@@ -102,13 +101,7 @@ public class IoTDBSubscriptionSourceInstance extends StreamSourceInstance {
         sourceConfig.getTableName());
 
     // 1. Create topic if not exists
-    try (final ISubscriptionTableSession session =
-        new SubscriptionTableSessionBuilder()
-            .host(sourceConfig.getHost())
-            .port(sourceConfig.getRpcPort())
-            .username(sourceConfig.getUser())
-            .password(sourceConfig.getEncryptedPassword())
-            .build()) {
+    try (final ISubscriptionTableSession session = buildSession()) {
       session.open();
       final Properties topicProperties = new Properties();
       topicProperties.setProperty(TopicConstant.DATABASE_KEY, sourceConfig.getDatabase());
@@ -119,16 +112,7 @@ public class IoTDBSubscriptionSourceInstance extends StreamSourceInstance {
     }
 
     // 2. Build and open consumer
-    consumer =
-        new SubscriptionTablePullConsumerBuilder()
-            .host(sourceConfig.getHost())
-            .port(sourceConfig.getRpcPort())
-            .username(sourceConfig.getUser())
-            .password(sourceConfig.getEncryptedPassword())
-            .consumerGroupId("default_group")
-            .consumerId(nodeConfig.getSnInternalAddress() + ":" + nodeConfig.getSnInternalPort())
-            .autoCommit(false)
-            .build();
+    consumer = buildConsumer();
     consumer.open();
     consumer.subscribe(topicName);
 
@@ -201,8 +185,34 @@ public class IoTDBSubscriptionSourceInstance extends StreamSourceInstance {
     }
     if (!toCommit.isEmpty()) {
       consumer.commitSync(toCommit);
-      LOGGER.debug("Committed {} messages up to index {} for task {}", toCommit.size(), idx, taskName);
+      LOGGER.debug(
+          "Committed {} messages up to index {} for task {}", toCommit.size(), idx, taskName);
     }
+  }
+
+  /** Creates the pull consumer. Overridable for testing. */
+  protected ISubscriptionTablePullConsumer buildConsumer() {
+    return new SubscriptionTablePullConsumerBuilder()
+        .host(sourceConfig.getHost())
+        .port(sourceConfig.getRpcPort())
+        .username(sourceConfig.getUser())
+        // TODO: use encrypted password after supporting it in session builder
+        .password(sourceConfig.getEncryptedPassword())
+        .consumerGroupId("default_group")
+        .consumerId(nodeConfig.getSnInternalAddress() + ":" + nodeConfig.getSnInternalPort())
+        .autoCommit(false)
+        .build();
+  }
+
+  /** Creates the session used for topic management. Overridable for testing. */
+  protected ISubscriptionTableSession buildSession() throws Exception {
+    return new SubscriptionTableSessionBuilder()
+        .host(sourceConfig.getHost())
+        .port(sourceConfig.getRpcPort())
+        .username(sourceConfig.getUser())
+        // TODO: use encrypted password after supporting it in session builder
+        .password(sourceConfig.getEncryptedPassword())
+        .build();
   }
 
   public IoTDBSubscriptionSource getSourceConfig() {

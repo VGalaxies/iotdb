@@ -85,6 +85,10 @@ import org.apache.iotdb.commons.schema.template.Template;
 import org.apache.iotdb.commons.schema.tree.AlterTimeSeriesOperationType;
 import org.apache.iotdb.commons.schema.view.LogicalViewSchema;
 import org.apache.iotdb.commons.schema.view.viewExpression.ViewExpression;
+import org.apache.iotdb.commons.stream.StreamSource;
+import org.apache.iotdb.commons.stream.StreamTarget;
+import org.apache.iotdb.commons.stream.StreamTask;
+import org.apache.iotdb.commons.stream.StreamWindow;
 import org.apache.iotdb.commons.subscription.config.SubscriptionConfig;
 import org.apache.iotdb.commons.subscription.meta.topic.TopicMeta;
 import org.apache.iotdb.commons.trigger.service.TriggerExecutableManager;
@@ -109,6 +113,7 @@ import org.apache.iotdb.confignode.rpc.thrift.TCreateCQReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateFunctionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreatePipePluginReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreatePipeReq;
+import org.apache.iotdb.confignode.rpc.thrift.TCreateStreamReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateTableViewReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateTopicReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateTriggerReq;
@@ -172,8 +177,6 @@ import org.apache.iotdb.confignode.rpc.thrift.TSpaceQuotaResp;
 import org.apache.iotdb.confignode.rpc.thrift.TStartPipeReq;
 import org.apache.iotdb.confignode.rpc.thrift.TStartStreamReq;
 import org.apache.iotdb.confignode.rpc.thrift.TStopPipeReq;
-import org.apache.iotdb.confignode.rpc.thrift.TCreateStreamReq;
-import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.confignode.rpc.thrift.TThrottleQuotaResp;
 import org.apache.iotdb.confignode.rpc.thrift.TUnsetSchemaTemplateReq;
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
@@ -357,6 +360,7 @@ import org.apache.tsfile.enums.TSDataType;
 import org.apache.tsfile.external.commons.codec.digest.DigestUtils;
 import org.apache.tsfile.read.common.block.TsBlockBuilder;
 import org.apache.tsfile.read.common.block.column.TimeColumnBuilder;
+import org.apache.tsfile.utils.PublicBAOS;
 import org.apache.tsfile.utils.ReadWriteIOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -5049,20 +5053,56 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
     SettableFuture<ConfigTaskResult> future = SettableFuture.create();
     try (ConfigNodeClient client =
         CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
-      TCreateStreamReq req = new TCreateStreamReq(streamTask.toByteBuffer());
+      final TCreateStreamReq req =
+          new TCreateStreamReq(
+              streamTask.getTaskName(),
+              streamTask.getCreator(),
+              serializeToByteBuffer(streamTask.getWindow()),
+              streamTask.getSubQuery(),
+              // TODO: replace with calcPlan
+              ByteBuffer.allocate(0), // calcPlan: not used on ConfigNode side
+              serializeToByteBuffer(streamTask.getTarget()));
+      if (streamTask.getSource() != null) {
+        req.setStreamSource(serializeToByteBuffer(streamTask.getSource()));
+      }
       TSStatus tsStatus = client.createStream(req);
       if (TSStatusCode.SUCCESS_STATUS.getStatusCode() != tsStatus.getCode()) {
         LOGGER.warn(
             "Failed to create stream {} in config node, status is {}.",
-            streamTask.getTaskName(), tsStatus);
+            streamTask.getTaskName(),
+            tsStatus);
         future.setException(new IoTDBException(tsStatus));
       } else {
         future.set(new ConfigTaskResult(TSStatusCode.SUCCESS_STATUS));
       }
-    } catch (ClientManagerException | TException e) {
+    } catch (ClientManagerException | TException | IOException e) {
       future.setException(e);
     }
     return future;
+  }
+
+  private static ByteBuffer serializeToByteBuffer(StreamWindow window) throws IOException {
+    try (PublicBAOS baos = new PublicBAOS();
+        DataOutputStream dos = new DataOutputStream(baos)) {
+      window.serialize(dos);
+      return ByteBuffer.wrap(baos.getBuf(), 0, baos.size());
+    }
+  }
+
+  private static ByteBuffer serializeToByteBuffer(StreamTarget target) throws IOException {
+    try (PublicBAOS baos = new PublicBAOS();
+        DataOutputStream dos = new DataOutputStream(baos)) {
+      target.serialize(dos);
+      return ByteBuffer.wrap(baos.getBuf(), 0, baos.size());
+    }
+  }
+
+  private static ByteBuffer serializeToByteBuffer(StreamSource source) throws IOException {
+    try (PublicBAOS baos = new PublicBAOS();
+        DataOutputStream dos = new DataOutputStream(baos)) {
+      source.serialize(dos);
+      return ByteBuffer.wrap(baos.getBuf(), 0, baos.size());
+    }
   }
 
   @Override
@@ -5081,7 +5121,9 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
       if (TSStatusCode.SUCCESS_STATUS.getStatusCode() != tsStatus.getCode()) {
         LOGGER.warn(
             "Failed to start stream {}.{} in config node, status is {}.",
-            database, streamName, tsStatus);
+            database,
+            streamName,
+            tsStatus);
         future.setException(new IoTDBException(tsStatus));
       } else {
         future.set(new ConfigTaskResult(TSStatusCode.SUCCESS_STATUS));

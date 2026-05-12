@@ -27,8 +27,8 @@ import java.util.Objects;
  * A {@link PartitionKey} that reads segment values lazily from a specific row of a {@link Tablet}.
  *
  * <p>Instead of copying column values up front, this key holds a reference to the tablet, the row
- * index, and the pre-resolved column indices ({@code colIndicesInTablet}). Each call to
- * {@link #segmentValue(int)} reads directly from {@code tablet.getValues()[colIndicesInTablet[i]][row]}.
+ * index, and the pre-resolved column indices ({@code colIndicesInTablet}). Each call to {@link
+ * #segmentValue(int)} reads directly from {@code tablet.getValues()[colIndicesInTablet[i]][row]}.
  *
  * <p>The number of segments equals the length of {@code colIndicesInTablet}. A column index of
  * {@code -1} means the partition column is absent from this tablet; {@link #segmentValue(int)}

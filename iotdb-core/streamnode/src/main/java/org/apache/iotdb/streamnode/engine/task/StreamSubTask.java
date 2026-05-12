@@ -19,8 +19,6 @@
 
 package org.apache.iotdb.streamnode.engine.task;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Future;
 import org.apache.iotdb.commons.stream.PartitionKey;
 import org.apache.iotdb.commons.stream.StreamWindow;
 import org.apache.iotdb.streamnode.engine.window.WindowEngine;
@@ -31,6 +29,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class StreamSubTask {
@@ -53,7 +53,8 @@ public class StreamSubTask {
   }
 
   public Future<Void> offer(List<DataSlice> dataSlices) {
-    // TODO: Implement asynchronous processing of data slice and return a Future that completes when processing is done
+    // TODO: Implement asynchronous processing of data slice and return a Future that completes when
+    // processing is done
     return CompletableFuture.completedFuture(null);
   }
 
