@@ -40,6 +40,7 @@ public class PlaceHolderLiteral extends Literal {
       RamUsageEstimator.shallowSizeOfInstance(PlaceHolderLiteral.class);
 
   private final Type type;
+  private int value;
 
   public enum Type {
     PREV_VALUE("prev_value"),
@@ -69,6 +70,15 @@ public class PlaceHolderLiteral extends Literal {
 
   public Type getType() {
     return type;
+  }
+
+  public PlaceHolderLiteral withValue(int value) {
+    this.value = value;
+    return this;
+  }
+
+  public int getValue() {
+    return value;
   }
 
   public <R, C> R accept(IAstVisitor<R, C> visitor, C context) {

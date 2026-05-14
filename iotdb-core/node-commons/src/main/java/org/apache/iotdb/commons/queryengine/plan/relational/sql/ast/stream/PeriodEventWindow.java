@@ -19,12 +19,14 @@
 
 package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream;
 
+import org.apache.iotdb.commons.exception.SemanticException;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.AstMemoryEstimationHelper;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.CommonQueryAstVisitor;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.IAstVisitor;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.LongLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.NodeLocation;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TableFunctionArgument;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TimeDurationLiteral;
 
 import com.google.common.collect.ImmutableList;
@@ -33,17 +35,25 @@ import org.apache.tsfile.utils.RamUsageEstimator;
 import javax.annotation.Nullable;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class PeriodEventWindow extends EventWindow {
   private static final long INSTANCE_SIZE =
       RamUsageEstimator.shallowSizeOfInstance(PeriodEventWindow.class);
 
-  public static final String PERIOD_PARAMETER_NAME = "PERIOD";
-  public static final String ORIGIN_PARAMETER_NAME = "ORIGIN";
+  private static final String PERIOD_PARAMETER_NAME = "PERIOD";
+  private static final String ORIGIN_PARAMETER_NAME = "ORIGIN";
+  private static final List<String> argumentNames =
+      ImmutableList.of(PERIOD_PARAMETER_NAME, ORIGIN_PARAMETER_NAME);
 
-  private final TimeDurationLiteral period;
-  @Nullable private final LongLiteral origin;
+  private TimeDurationLiteral period;
+  @Nullable private LongLiteral origin;
+
+  public PeriodEventWindow(@Nullable NodeLocation location, List<TableFunctionArgument> arguments) {
+    super(location);
+    this.arguments = arguments;
+  }
 
   public PeriodEventWindow(
       @Nullable NodeLocation location, TimeDurationLiteral period, @Nullable LongLiteral origin) {
@@ -101,7 +111,22 @@ public class PeriodEventWindow extends EventWindow {
         + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(origin);
   }
 
-  public static List<String> getArgumentNames() {
-    return ImmutableList.of(PERIOD_PARAMETER_NAME, ORIGIN_PARAMETER_NAME);
+  @Override
+  public void parseArguments(Map<String, Node> argumentMap) {
+    if (!argumentMap.containsKey(PERIOD_PARAMETER_NAME)) {
+      throw new SemanticException("Period event window requires 'period' argument");
+    }
+    try {
+      TimeDurationLiteral period = (TimeDurationLiteral) argumentMap.get(PERIOD_PARAMETER_NAME);
+      LongLiteral origin = (LongLiteral) argumentMap.getOrDefault(ORIGIN_PARAMETER_NAME, null);
+      this.period = period;
+      this.origin = origin;
+    } catch (ClassCastException e) {
+      throw new SemanticException("Invalid argument type for period event window");
+    }
+  }
+
+  public List<String> getArgumentNames() {
+    return argumentNames;
   }
 }

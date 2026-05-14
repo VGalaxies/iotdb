@@ -85,6 +85,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.SymbolRefere
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Trim;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WhenClause;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WindowFrame;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PlaceHolderLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.type.TypeNotFoundException;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnCategory;
 import org.apache.iotdb.db.queryengine.common.MPPQueryContext;
@@ -379,12 +380,17 @@ public class ExpressionAnalyzer {
             Context.notInLambda(scope, CorrelationSupport.ALLOWED)));
   }
 
-  public Type analyze(Expression expression, Scope scope, CorrelationSupport correlationSupport) {
+  public Type analyze(
+      Expression expression,
+      Scope scope,
+      CorrelationSupport correlationSupport,
+      Analysis analysis) {
     Visitor visitor = new Visitor(scope, warningCollector);
     return visitor.process(
         expression,
         new StackableAstVisitor.StackableAstVisitorContext<>(
-            Context.notInLambda(scope, correlationSupport)));
+                Context.notInLambda(scope, correlationSupport))
+            .withAnalysis(analysis));
   }
 
   private Type analyze(Expression expression, Scope scope, Set<String> labels) {
@@ -2116,6 +2122,38 @@ public class ExpressionAnalyzer {
     }
 
     @Override
+    public Type visitPlaceHolderLiteral(
+        PlaceHolderLiteral node, StackableAstVisitorContext<Context> context) {
+      switch (node.getType()) {
+        case PREV_TIME:
+        case NEXT_TIME:
+        case START_TIME:
+        case END_TIME:
+          return setExpressionType(node, TIMESTAMP);
+        case ROW_NUM:
+          return setExpressionType(node, INT64);
+        case N:
+          Analysis analysis = context.getAnalysis();
+          List<Expression> partitionByExpressions = analysis.getPartitionByExpressions();
+          if (partitionByExpressions == null) {
+            throw new IllegalStateException("partitionByExpressions should not be null");
+          }
+
+          int n = node.getValue();
+          if (n < 1 || n > partitionByExpressions.size()) {
+            throw new SemanticException(
+                String.format(
+                    "N must be between 1 and partition by size %d (inclusive), but got %d",
+                    partitionByExpressions.size(), n));
+          }
+          Type columnType = analysis.getType(partitionByExpressions.get(n - 1));
+          return setExpressionType(node, columnType);
+        default:
+          throw new SemanticException("Unknown Type");
+      }
+    }
+
+    @Override
     public Type visitNode(Node node, StackableAstVisitorContext<Context> context) {
       throw new SemanticException(
           String.format("not yet implemented: %s", node.getClass().getName()));
@@ -2542,7 +2580,7 @@ public class ExpressionAnalyzer {
             session,
             TypeProvider.empty(),
             warningCollector);
-    analyzer.analyze(expression, scope, correlationSupport);
+    analyzer.analyze(expression, scope, correlationSupport, analysis);
 
     updateAnalysis(analysis, analyzer, session, accessControl);
     analysis.addExpressionFields(expression, analyzer.getSourceFields());
@@ -2582,7 +2620,7 @@ public class ExpressionAnalyzer {
             warningCollector,
             analysis::getType,
             analysis::getWindow);
-    analyzer.analyze(expression, scope, correlationSupport);
+    analyzer.analyze(expression, scope, correlationSupport, analysis);
 
     updateAnalysis(analysis, analyzer, session, accessControl);
     analysis.addExpressionFields(expression, analyzer.getSourceFields());

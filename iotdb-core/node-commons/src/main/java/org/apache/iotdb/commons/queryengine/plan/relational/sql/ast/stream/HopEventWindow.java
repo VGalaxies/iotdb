@@ -26,6 +26,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Identifier;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.LongLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.NodeLocation;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TableFunctionArgument;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TimeDurationLiteral;
 
 import com.google.common.collect.ImmutableList;
@@ -34,16 +35,24 @@ import org.apache.tsfile.utils.RamUsageEstimator;
 import javax.annotation.Nullable;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class HopEventWindow extends EventWindow {
   private static final long INSTANCE_SIZE =
       RamUsageEstimator.shallowSizeOfInstance(HopEventWindow.class);
 
-  @Nullable private final Identifier timeColumn;
-  private final TimeDurationLiteral size;
-  private final TimeDurationLiteral slide;
-  @Nullable private final LongLiteral origin;
+  private static final List<String> argumentNames = ImmutableList.of();
+
+  @Nullable private Identifier timeColumn;
+  private TimeDurationLiteral size;
+  private TimeDurationLiteral slide;
+  @Nullable private LongLiteral origin;
+
+  public HopEventWindow(@Nullable NodeLocation location, List<TableFunctionArgument> arguments) {
+    super(location);
+    this.arguments = arguments;
+  }
 
   public HopEventWindow(
       @Nullable NodeLocation location,
@@ -127,4 +136,12 @@ public class HopEventWindow extends EventWindow {
         + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(timeColumn)
         + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(origin);
   }
+
+  @Override
+  public List<String> getArgumentNames() {
+    return argumentNames;
+  }
+
+  @Override
+  public void parseArguments(Map<String, Node> argumentMap) {}
 }

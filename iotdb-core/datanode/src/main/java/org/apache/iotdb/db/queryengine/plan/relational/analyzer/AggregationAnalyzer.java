@@ -54,6 +54,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.SimpleCaseEx
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.SubqueryExpression;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Trim;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WhenClause;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PlaceHolderLiteral;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.ScopeAware;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.AstVisitor;
 
@@ -171,6 +172,11 @@ class AggregationAnalyzer {
     public Boolean visitExpression(Expression node, Void context) {
       throw new UnsupportedOperationException(
           "aggregation analysis not yet implemented for: " + node.getClass().getName());
+    }
+
+    @Override
+    public Boolean visitPlaceHolderLiteral(PlaceHolderLiteral node, Void context) {
+      return true;
     }
 
     @Override

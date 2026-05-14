@@ -59,6 +59,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Table;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TableFunctionInvocation;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WindowFrame;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.With;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.EventWindow;
 import org.apache.iotdb.commons.queryengine.plan.statement.component.FillPolicy;
 import org.apache.iotdb.commons.schema.table.InformationSchema;
 import org.apache.iotdb.db.queryengine.common.MPPQueryContext;
@@ -146,6 +147,10 @@ public class Analysis implements IAnalysis {
   // a map of users to the columns per table that they access
   private final Map<AccessControlInfo, Map<QualifiedObjectName, Set<String>>>
       tableColumnReferences = new LinkedHashMap<>();
+
+  // Record columns accessed by stream source table
+  private final Map<QualifiedObjectName, Set<String>> streamSourceColumnReferences =
+      new LinkedHashMap<>();
 
   // Record fields prefixed with labels in row pattern recognition context
   private final Map<NodeRef<Expression>, Optional<String>> labels = new LinkedHashMap<>();
@@ -236,6 +241,11 @@ public class Analysis implements IAnalysis {
       new LinkedHashMap<>();
 
   private Insert insert;
+
+  @Nullable private EventWindow currentEventWindow;
+
+  // partition by expressions
+  @Nullable private List<Expression> partitionByExpressions;
 
   private DataPartition dataPartition;
 
@@ -738,6 +748,17 @@ public class Analysis implements IAnalysis {
 
   public Map<AccessControlInfo, Map<QualifiedObjectName, Set<String>>> getTableColumnReferences() {
     return tableColumnReferences;
+  }
+
+  public void addStreamSourceColumnReference(QualifiedObjectName table, String columnName) {
+    if (!streamSourceColumnReferences.containsKey(table)) {
+      streamSourceColumnReferences.put(table, new HashSet<>());
+    }
+    streamSourceColumnReferences.get(table).add(columnName);
+  }
+
+  public Set<String> getStreamSourceColumnReferences(QualifiedObjectName table) {
+    return streamSourceColumnReferences.get(table);
   }
 
   public void addLabels(Map<NodeRef<Expression>, Optional<String>> labels) {
@@ -1562,6 +1583,24 @@ public class Analysis implements IAnalysis {
 
   public Insert getInsert() {
     return insert;
+  }
+
+  public void setCurrentEventWindow(@Nullable EventWindow eventWindow) {
+    this.currentEventWindow = eventWindow;
+  }
+
+  @Nullable
+  public EventWindow getCurrentEventWindow() {
+    return currentEventWindow;
+  }
+
+  public void setPartitionByExpressions(List<Expression> partitionByExpressions) {
+    this.partitionByExpressions = partitionByExpressions;
+  }
+
+  @Nullable
+  public List<Expression> getPartitionByExpressions() {
+    return partitionByExpressions;
   }
 
   public static final class Insert {

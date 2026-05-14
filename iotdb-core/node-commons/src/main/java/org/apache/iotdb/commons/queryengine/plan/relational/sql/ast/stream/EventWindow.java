@@ -21,11 +21,25 @@ package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream;
 
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.NodeLocation;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TableFunctionArgument;
 
 import javax.annotation.Nullable;
 
+import java.util.List;
+import java.util.Map;
+
 public abstract class EventWindow extends Node {
+  protected List<TableFunctionArgument> arguments;
+
   protected EventWindow(@Nullable NodeLocation location) {
     super(location);
   }
+
+  public List<TableFunctionArgument> getArguments() {
+    return arguments;
+  }
+
+  public abstract List<String> getArgumentNames();
+
+  public abstract void parseArguments(Map<String, Node> argumentMap);
 }

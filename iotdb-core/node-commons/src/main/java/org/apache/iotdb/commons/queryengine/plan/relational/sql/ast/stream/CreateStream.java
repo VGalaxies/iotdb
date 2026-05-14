@@ -26,7 +26,6 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.IAstVisitor;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Identifier;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.NodeLocation;
-import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.QualifiedName;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Query;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Statement;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Table;
@@ -46,35 +45,35 @@ public class CreateStream extends Statement {
 
   private final Identifier streamName;
   private final boolean ifNotExistsCondition;
-  @Nullable private final QualifiedName sourceTableName;
+  @Nullable private final Table sourceTable;
   @Nullable private final Expression preFilter;
   @Nullable private final List<Expression> partitionBy;
   private final EventWindow eventWindow;
   private final Query query;
 
-  private final Table table;
+  private final Table sinkTable;
   @Nullable private final List<Identifier> columns;
 
   public CreateStream(
       @Nullable NodeLocation location,
       Identifier streamName,
       boolean ifNotExistsCondition,
-      @Nullable QualifiedName sourceTableName,
+      @Nullable Table sourceTable,
       @Nullable Expression preFilter,
       @Nullable List<Expression> partitionBy,
       EventWindow eventWindow,
       Query query,
-      Table table,
+      Table sinkTable,
       @Nullable List<Identifier> columns) {
     super(location);
     this.streamName = streamName;
     this.ifNotExistsCondition = ifNotExistsCondition;
-    this.sourceTableName = sourceTableName;
+    this.sourceTable = sourceTable;
     this.preFilter = preFilter;
     this.partitionBy = partitionBy;
     this.eventWindow = eventWindow;
     this.query = query;
-    this.table = table;
+    this.sinkTable = sinkTable;
     this.columns = columns;
   }
 
@@ -87,8 +86,8 @@ public class CreateStream extends Statement {
   }
 
   @Nullable
-  public QualifiedName getSourceTableName() {
-    return sourceTableName;
+  public Table getSourceTable() {
+    return sourceTable;
   }
 
   @Nullable
@@ -109,8 +108,8 @@ public class CreateStream extends Statement {
     return query;
   }
 
-  public Table getTable() {
-    return table;
+  public Table getSinkTable() {
+    return sinkTable;
   }
 
   @Nullable
@@ -131,7 +130,7 @@ public class CreateStream extends Statement {
   @Override
   public int hashCode() {
     return Objects.hash(
-        streamName, sourceTableName, preFilter, partitionBy, eventWindow, query, table, columns);
+        streamName, sourceTable, preFilter, partitionBy, eventWindow, query, sinkTable, columns);
   }
 
   @Override
@@ -144,12 +143,12 @@ public class CreateStream extends Statement {
     }
     CreateStream that = (CreateStream) obj;
     return Objects.equals(streamName, that.streamName)
-        && Objects.equals(sourceTableName, that.sourceTableName)
+        && Objects.equals(sourceTable, that.sourceTable)
         && Objects.equals(preFilter, that.preFilter)
         && Objects.equals(partitionBy, that.partitionBy)
         && Objects.equals(eventWindow, that.eventWindow)
         && Objects.equals(query, that.query)
-        && Objects.equals(table, that.table)
+        && Objects.equals(sinkTable, that.sinkTable)
         && Objects.equals(columns, that.columns);
   }
 
@@ -157,8 +156,8 @@ public class CreateStream extends Statement {
   public String toString() {
     return "CreateStream{streamName="
         + streamName
-        + ", sourceTableName="
-        + sourceTableName
+        + ", sourceTable="
+        + sourceTable
         + ", eventWindow="
         + eventWindow
         + "}";
@@ -169,12 +168,12 @@ public class CreateStream extends Statement {
     return INSTANCE_SIZE
         + AstMemoryEstimationHelper.getEstimatedSizeOfNodeLocation(getLocationInternal())
         + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(streamName)
-        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(sourceTableName)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(sourceTable)
         + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(preFilter)
         + AstMemoryEstimationHelper.getEstimatedSizeOfNodeList(partitionBy)
         + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(eventWindow)
         + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(query)
-        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(table)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(sinkTable)
         + AstMemoryEstimationHelper.getEstimatedSizeOfNodeList(columns);
   }
 }

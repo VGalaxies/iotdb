@@ -114,6 +114,11 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WindowRefere
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WindowSpecification;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.With;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WithQuery;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CreateStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.EventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PeriodEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.Rows;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.VariationEventWindow;
 import org.apache.iotdb.commons.queryengine.plan.relational.type.TypeManager;
 import org.apache.iotdb.commons.queryengine.plan.statement.component.FillPolicy;
 import org.apache.iotdb.commons.queryengine.utils.cte.CteDataStore;
@@ -241,6 +246,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -3910,6 +3916,13 @@ public class StatementAnalyzer {
       }
     }
 
+    private void recordStreamSourceColumnAccess(Field field) {
+      if (field.getOriginTable().isPresent() && field.getOriginColumnName().isPresent()) {
+        analysis.addStreamSourceColumnReference(
+            field.getOriginTable().get(), field.getOriginColumnName().get());
+      }
+    }
+
     private void analyzeFill(Fill node, Scope scope) {
       Analysis.FillAnalysis fillAnalysis;
       if (node.getFillMethod() == FillPolicy.PREVIOUS) {
@@ -4962,6 +4975,318 @@ public class StatementAnalyzer {
       return createAndAssignScope(node, scope, fields.build());
     }
 
+    @Override
+    public Scope visitRows(Rows node, Optional<Scope> context) {
+      EventWindow eventWindow = analysis.getCurrentEventWindow();
+      if (eventWindow == null) {
+        throw new SemanticException("Placeholder ${rows} must be used with an event window.");
+      }
+      if (eventWindow instanceof PeriodEventWindow) {
+        throw new SemanticException("Placeholder ${rows} cannot be used with period event window.");
+      }
+      return createAndAssignScope(node, context);
+    }
+
+    @Override
+    public Scope visitCreateStream(CreateStream node, Optional<Scope> context) {
+      accessControl.checkUserGlobalSysPrivilege(queryContext);
+
+      analyzeStreamEventWindow(node.getEventWindow());
+      analyzeStreamSource(node.getSourceTable(), node.getPreFilter(), node.getPartitionBy());
+      Scope calcPlanScope = analyzeCalcPlan(node.getQuery(), context);
+      List<Field> calcPlanOutputs =
+          calcPlanScope.getRelationType().getVisibleFields().stream().collect(toImmutableList());
+      analyzeStreamSink(node.getSinkTable(), node.getColumns(), calcPlanOutputs);
+
+      return createAndAssignScope(node, Optional.of(calcPlanScope));
+    }
+
+    private Scope analyzeCalcPlan(Query query, Optional<Scope> context) {
+      Scope queryScope = process(query, context);
+      RelationType relationType = queryScope.getRelationType();
+      return createAndAssignScope(query, Optional.of(queryScope), relationType);
+    }
+
+    private void analyzeStreamSink(
+        Table sinkTable, List<Identifier> columns, List<Field> calcPlanOutputs) {
+      Scope sinkScope = analyzeTable(sinkTable, false);
+
+      // Create a map of sink fields for efficient lookup
+      Map<String, Field> sinkFieldMap = new LinkedHashMap<>();
+      for (Field field : sinkScope.getRelationType().getVisibleFields()) {
+        if (field.getName().isPresent()) {
+          sinkFieldMap.put(field.getName().get().toLowerCase(ENGLISH), field);
+        }
+      }
+
+      if (columns == null) {
+        // Check column count matches between calculation plan and sink table
+        if (calcPlanOutputs.size() != sinkFieldMap.size()) {
+          throw new SemanticException(
+              String.format(
+                  "Column count mismatch: calculation plan has %d columns, but sink table has %d columns",
+                  calcPlanOutputs.size(), sinkFieldMap.size()));
+        }
+
+        List<Field> sinkFields = sinkFieldMap.values().stream().collect(toImmutableList());
+        for (int i = 0; i < calcPlanOutputs.size(); i++) {
+          Field calcField = calcPlanOutputs.get(i);
+          Field sinkField = sinkFields.get(i);
+          if (!calcField.getType().equals(sinkField.getType())) {
+            throw new SemanticException(
+                String.format(
+                    "Type mismatch at column %d: calculation plan output type is %s, but sink table column type is %s",
+                    i + 1, calcField.getType(), sinkField.getType()));
+          }
+        }
+      } else {
+        // Check column count matches between specified columns and calculation plan outputs
+        if (columns.size() != calcPlanOutputs.size()) {
+          throw new SemanticException(
+              String.format(
+                  "Column count mismatch: %d columns specified, but calculation plan has %d outputs",
+                  columns.size(), calcPlanOutputs.size()));
+        }
+        // Check specified columns exist in sink table
+        for (int i = 0; i < columns.size(); i++) {
+          String columnName = columns.get(i).getCanonicalValue();
+          Field sinkField = sinkFieldMap.get(columnName.toLowerCase(ENGLISH));
+          if (sinkField == null) {
+            throw new SemanticException(
+                String.format("Column '%s' does not exist in sink table", columnName));
+          }
+          Field calcField = calcPlanOutputs.get(i);
+          if (!calcField.getType().equals(sinkField.getType())) {
+            throw new SemanticException(
+                String.format(
+                    "Type mismatch for column '%s': calculation plan output type is %s, but sink table column type is %s",
+                    columnName, calcField.getType(), sinkField.getType()));
+          }
+        }
+      }
+    }
+
+    private Scope analyzeTable(final Table table, boolean isRead) {
+      SessionInfo sessionContext = queryContext.getSession();
+      QualifiedObjectName tableName = createQualifiedObjectName(sessionContext, table.getName());
+
+      // access control
+      if (isRead) {
+        accessControl.checkCanSelectFromTable(
+            sessionContext.getUserName(), tableName, queryContext);
+      } else {
+        accessControl.checkCanInsertIntoTable(
+            sessionContext.getUserName(), tableName, queryContext);
+      }
+      analysis.setRelationName(
+          table, QualifiedName.of(tableName.getDatabaseName(), tableName.getObjectName()));
+
+      Optional<TableSchema> tableSchema = metadata.getTableSchema(sessionContext, tableName);
+      if (!tableSchema.isPresent()) {
+        CommonMetadataUtils.throwTableNotExistsException(
+            tableName.getDatabaseName(), tableName.getObjectName());
+      }
+      analysis.addEmptyColumnReferencesForTable(
+          accessControl, sessionContext.getIdentity(), tableName);
+      analysis.registerTable(table, tableSchema, tableName);
+
+      ImmutableList.Builder<Field> fields = ImmutableList.builder();
+      fields.addAll(analyzeTableOutputFields(table, tableName, tableSchema.get()));
+      List<Field> outputFields = fields.build();
+
+      RelationType relationType = new RelationType(outputFields);
+      return createAndAssignScope(table, Optional.empty(), relationType);
+    }
+
+    private void analyzeStreamEventWindow(EventWindow eventWindow) {
+      List<TableFunctionArgument> arguments = eventWindow.getArguments();
+
+      boolean argumentsPassedByName =
+          !arguments.isEmpty()
+              && arguments.stream().allMatch(argument -> argument.getName().isPresent());
+      boolean argumentsPassedByPosition =
+          arguments.stream().noneMatch(argument -> argument.getName().isPresent());
+      if (!argumentsPassedByName && !argumentsPassedByPosition) {
+        throw new SemanticException(
+            "All arguments must be passed by name or all must be passed positionally");
+      }
+
+      Map<String, Node> argumentMap =
+          createArgumentMap(argumentsPassedByName, arguments, eventWindow.getArgumentNames());
+      eventWindow.parseArguments(argumentMap);
+
+      analysis.setCurrentEventWindow(eventWindow);
+    }
+
+    private Map<String, Node> createArgumentMap(
+        boolean argumentsPassedByName,
+        List<TableFunctionArgument> arguments,
+        List<String> requiredArguments) {
+      Map<String, Node> passedArguments = new HashMap<>();
+      if (argumentsPassedByName) {
+        for (TableFunctionArgument argument : arguments) {
+          // it has been checked that all arguments have different names
+          String argumentName = argument.getName().get().getCanonicalValue();
+          if (!requiredArguments.contains(argumentName)) {
+            continue;
+          }
+          if (passedArguments.containsKey(argumentName)) {
+            throw new SemanticException(
+                (String.format("Duplicate argument name: '%s'", argumentName.toLowerCase())));
+          }
+          passedArguments.put(argumentName, getArgumentValue(argument));
+        }
+      } else {
+        if (arguments.size() > requiredArguments.size()) {
+          throw new SemanticException("Exceeding arguments provided");
+        }
+
+        for (int i = 0; i < arguments.size(); i++) {
+          TableFunctionArgument argument = arguments.get(i);
+          String argumentName = requiredArguments.get(i);
+          if (passedArguments.containsKey(argumentName)) {
+            throw new SemanticException(
+                (String.format("Duplicate argument name: '%s'", argumentName.toLowerCase())));
+          }
+          passedArguments.put(argumentName, getArgumentValue(argument));
+        }
+      }
+      return passedArguments;
+    }
+
+    private Node getArgumentValue(TableFunctionArgument argument) {
+      if (argument == null) {
+        return null;
+      }
+      if (argument.getValue() instanceof TableFunctionTableArgument) {
+        return ((TableFunctionTableArgument) argument.getValue()).getTable();
+      }
+      return argument.getValue();
+    }
+
+    private void analyzeStreamSource(
+        Table sourceTable, Expression preFilter, List<Expression> partitionBy) {
+      // StreamSource
+      if (sourceTable == null) {
+        return;
+      }
+      Scope sourceScope = analyzeTable(sourceTable, true);
+
+      // preFilter
+      analyzePreFilter(sourceScope, preFilter);
+
+      // get field expressions of source table
+      RelationType relationType = sourceScope.getRelationType();
+      List<Field> fields = relationType.getVisibleFields().stream().collect(toImmutableList());
+      ImmutableList.Builder<Expression> outputExpressionBuilder = ImmutableList.builder();
+      for (Field field : fields) {
+        Expression fieldExpression;
+        fieldExpression = new FieldReference(relationType.indexOf(field));
+        analyzeExpression(fieldExpression, sourceScope);
+        outputExpressionBuilder.add(fieldExpression);
+      }
+
+      // partitionBy
+      analyzePartitionBy(
+          sourceScope,
+          sourceTable,
+          analysis.getCurrentEventWindow(),
+          partitionBy,
+          outputExpressionBuilder.build());
+    }
+
+    private void analyzePreFilter(Scope scope, Expression preFilter) {
+      if (preFilter == null) {
+        return;
+      }
+      verifyNoAggregateWindowOrGroupingFunctions(preFilter, "PreFilter clause");
+
+      ExpressionAnalysis expressionAnalysis = analyzeExpression(preFilter, scope);
+
+      Type predicateType = expressionAnalysis.getType(preFilter);
+      if (!predicateType.equals(BOOLEAN)) {
+        throw new SemanticException(
+            String.format(
+                "PreFilter clause must evaluate to a boolean: actual type %s", predicateType));
+      }
+
+      //      for (ResolvedField field : expressionAnalysis.getColumnReferences().values()) {
+      //        recordStreamSourceColumnAccess(field.getField());
+      //      }
+    }
+
+    private void analyzePartitionBy(
+        Scope scope,
+        Table sourceTable,
+        EventWindow eventWindow,
+        List<Expression> partitionBy,
+        List<Expression> outputExpressions) {
+      TableSchema tableSchema = analysis.getTableHandle(sourceTable);
+      if (partitionBy == null || partitionBy.isEmpty()) {
+        if ((eventWindow instanceof VariationEventWindow)
+            && !tableSchema.getTagColumns().isEmpty()) {
+          throw new SemanticException(
+              "PARTITION BY must be specified for variation event window when tag columns exist");
+        }
+        return;
+      }
+
+      ImmutableList.Builder<Expression> partitionByExpressions = ImmutableList.builder();
+      Set<String> partitionByColumnNames = new HashSet<>();
+
+      for (Expression column : partitionBy) {
+        if (column instanceof LongLiteral) {
+          long ordinal = ((LongLiteral) column).getParsedValue();
+          if (ordinal < 1 || ordinal > outputExpressions.size()) {
+            throw new SemanticException(
+                String.format("GROUP BY position %s is not in select list", ordinal));
+          }
+          column = outputExpressions.get(toIntExact(ordinal - 1));
+        } else {
+          analyzeExpression(column, scope);
+        }
+
+        ResolvedField resolvedField = analysis.getColumnReferenceFields().get(NodeRef.of(column));
+        if (resolvedField == null) {
+          throw new SemanticException("PARTITION BY must be a column reference");
+        }
+
+        Field field = resolvedField.getField();
+        String fieldName = field.getOriginColumnName().orElse(field.getName().orElse(""));
+        validatePartitionByColumn(eventWindow, field.getColumnCategory(), fieldName);
+
+        // Record column access for access control
+        // recordStreamSourceColumnAccess(field.getField());
+
+        partitionByColumnNames.add(fieldName);
+        partitionByExpressions.add(column);
+      }
+
+      List<Expression> expressions = partitionByExpressions.build();
+      for (Expression expression : expressions) {
+        Type type = analysis.getType(expression);
+        if (!type.isComparable()) {
+          throw new SemanticException(
+              String.format(
+                  "%s is not comparable, and therefore cannot be used in PARTITION BY", type));
+        }
+      }
+      analysis.setPartitionByExpressions(expressions);
+
+      // If VariationEventWindow exists and source table has Tag columns, partitionBy must include
+      // all Tag columns
+      if (eventWindow instanceof VariationEventWindow) {
+        for (ColumnSchema tagColumn : tableSchema.getTagColumns()) {
+          if (!partitionByColumnNames.contains(tagColumn.getName())) {
+            throw new SemanticException(
+                String.format(
+                    "PARTITION BY must include all Tag columns. Missing Tag column: %s",
+                    tagColumn.getName()));
+          }
+        }
+      }
+    }
+
     private String castNameAsSpecification(Set<String> specifiedNames, String passedName) {
       if (specifiedNames.contains(passedName)) {
         return passedName;
@@ -5388,6 +5713,23 @@ public class StatementAnalyzer {
       }
 
       return field.get().getField();
+    }
+  }
+
+  private void validatePartitionByColumn(
+      EventWindow eventWindow, TsTableColumnCategory columnCategory, String fieldName) {
+    if (eventWindow instanceof VariationEventWindow
+        && columnCategory != TsTableColumnCategory.TAG) {
+      throw new SemanticException(
+          String.format(
+              "PARTITION BY column must be TAG column when using variation event window, but %s is %s column",
+              fieldName, columnCategory));
+    } else if (columnCategory != TsTableColumnCategory.TAG
+        && columnCategory != TsTableColumnCategory.ATTRIBUTE) {
+      throw new SemanticException(
+          String.format(
+              "PARTITION BY column must be TAG or ATTRIBUTE column, but %s is %s column",
+              fieldName, columnCategory));
     }
   }
 

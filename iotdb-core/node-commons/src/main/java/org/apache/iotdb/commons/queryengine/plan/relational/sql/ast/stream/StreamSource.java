@@ -23,8 +23,8 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.AstMemoryEst
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.NodeLocation;
-import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.QualifiedName;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Statement;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Table;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.tsfile.utils.RamUsageEstimator;
@@ -38,13 +38,13 @@ public class StreamSource extends Statement {
   private static final long INSTANCE_SIZE =
       RamUsageEstimator.shallowSizeOfInstance(StreamSource.class);
 
-  private final QualifiedName table;
+  private final Table table;
   private final Expression preFilter;
   private final List<Expression> partitionBy;
 
   public StreamSource(
       final NodeLocation location,
-      final QualifiedName table,
+      final Table table,
       final Expression preFilter,
       final List<Expression> partitionBy) {
     super(location);
@@ -53,7 +53,7 @@ public class StreamSource extends Statement {
     this.partitionBy = partitionBy;
   }
 
-  public QualifiedName getTable() {
+  public Table getTable() {
     return table;
   }
 

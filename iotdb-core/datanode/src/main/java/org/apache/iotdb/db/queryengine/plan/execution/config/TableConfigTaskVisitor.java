@@ -1817,8 +1817,8 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
     StreamWindow window = CREATE_STREAM_EVENT_WINDOW_VISITOR.process(node.getEventWindow(), null);
 
     IoTDBSubscriptionSource source = null;
-    if (node.getSourceTableName() != null) {
-      QualifiedObjectName sourceName = getQualifiedObjectName(node.getTable(), analysis);
+    if (node.getSourceTable() != null) {
+      QualifiedObjectName sourceName = getQualifiedObjectName(node.getSourceTable(), analysis);
       List<String> partitionColumns = null;
       if (node.getPartitionBy() != null && !node.getPartitionBy().isEmpty()) {
         partitionColumns = new ArrayList<>();
@@ -1834,7 +1834,7 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
               partitionColumns);
     }
 
-    QualifiedObjectName sinkName = getQualifiedObjectName(node.getTable(), analysis);
+    QualifiedObjectName sinkName = getQualifiedObjectName(node.getSinkTable(), analysis);
     List<String> outCols = null;
     if (node.getColumns() != null && !node.getColumns().isEmpty()) {
       outCols = new ArrayList<>();

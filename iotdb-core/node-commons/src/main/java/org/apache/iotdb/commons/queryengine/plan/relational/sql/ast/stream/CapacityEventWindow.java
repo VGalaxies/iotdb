@@ -19,31 +19,46 @@
 
 package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream;
 
+import org.apache.iotdb.commons.exception.SemanticException;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.AstMemoryEstimationHelper;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.CommonQueryAstVisitor;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.IAstVisitor;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Identifier;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.LongLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.NodeLocation;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Row;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.StringLiteral;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TableFunctionArgument;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.tsfile.utils.RamUsageEstimator;
 
 import javax.annotation.Nullable;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class CapacityEventWindow extends EventWindow {
   private static final long INSTANCE_SIZE =
       RamUsageEstimator.shallowSizeOfInstance(CapacityEventWindow.class);
 
-  public static final String SIZE_PARAMETER_NAME = "SIZE";
-  public static final String COLUMNS_PARAMETER_NAME = "COLUMNS";
+  private static final String SIZE_PARAMETER_NAME = "SIZE";
+  private static final String COLUMNS_PARAMETER_NAME = "COLUMNS";
+  private static final List<String> argumentNames =
+      ImmutableList.of(SIZE_PARAMETER_NAME, COLUMNS_PARAMETER_NAME);
 
-  private final LongLiteral size;
-  @Nullable private final List<Identifier> columns;
+  private LongLiteral size;
+  @Nullable private List<Identifier> columns;
+
+  public CapacityEventWindow(
+      @Nullable NodeLocation location, List<TableFunctionArgument> arguments) {
+    super(location);
+    this.arguments = arguments;
+  }
 
   public CapacityEventWindow(
       @Nullable NodeLocation location, LongLiteral size, @Nullable List<Identifier> columns) {
@@ -101,7 +116,41 @@ public class CapacityEventWindow extends EventWindow {
         + AstMemoryEstimationHelper.getEstimatedSizeOfNodeList(columns);
   }
 
-  public static List<String> getArgumentNames() {
-    return ImmutableList.of(SIZE_PARAMETER_NAME, COLUMNS_PARAMETER_NAME);
+  @Override
+  public void parseArguments(Map<String, Node> argumentMap) {
+    if (!argumentMap.containsKey(SIZE_PARAMETER_NAME)) {
+      throw new SemanticException("Capacity event window requires 'size' argument");
+    }
+    try {
+      LongLiteral size = (LongLiteral) argumentMap.get(SIZE_PARAMETER_NAME);
+      /*
+        The COLUMNS parameter can be specified in two forms:
+          1. columns => ('c1', 'c2') - parsed as List<StringLiteral>
+          2. columns => (c1, c2) - parsed as List<Identifier>
+        Both forms need to be converted to List<Identifier> for TumbleEventWindow
+      */
+      List<Identifier> columns = null;
+      if (argumentMap.containsKey(COLUMNS_PARAMETER_NAME)) {
+        Row row = (Row) argumentMap.get(COLUMNS_PARAMETER_NAME);
+        columns = new ArrayList<>();
+        for (Expression expr : row.getItems()) {
+          if (expr instanceof StringLiteral) {
+            columns.add(new Identifier(((StringLiteral) expr).getValue()));
+          } else if (expr instanceof Identifier) {
+            columns.add((Identifier) expr);
+          } else {
+            throw new ClassCastException();
+          }
+        }
+      }
+      this.size = size;
+      this.columns = columns;
+    } catch (ClassCastException e) {
+      throw new SemanticException("Invalid argument type for capacity event window");
+    }
+  }
+
+  public List<String> getArgumentNames() {
+    return argumentNames;
   }
 }

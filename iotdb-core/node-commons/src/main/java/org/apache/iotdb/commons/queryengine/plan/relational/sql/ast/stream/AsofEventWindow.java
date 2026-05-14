@@ -24,6 +24,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.CommonQueryA
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.IAstVisitor;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.NodeLocation;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TableFunctionArgument;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.tsfile.utils.RamUsageEstimator;
@@ -31,18 +32,26 @@ import org.apache.tsfile.utils.RamUsageEstimator;
 import javax.annotation.Nullable;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class AsofEventWindow extends EventWindow {
   private static final long INSTANCE_SIZE =
       RamUsageEstimator.shallowSizeOfInstance(AsofEventWindow.class);
 
+  private static final List<String> argumentNames = ImmutableList.of();
+
   public enum AfterMatchMode {
     KEEP,
     CLEAR
   }
 
-  @Nullable private final AfterMatchMode afterMatchMode;
+  @Nullable private AfterMatchMode afterMatchMode;
+
+  public AsofEventWindow(@Nullable NodeLocation location, List<TableFunctionArgument> arguments) {
+    super(location);
+    this.arguments = arguments;
+  }
 
   public AsofEventWindow(@Nullable NodeLocation location, @Nullable AfterMatchMode afterMatchMode) {
     super(location);
@@ -92,4 +101,12 @@ public class AsofEventWindow extends EventWindow {
         + AstMemoryEstimationHelper.getEstimatedSizeOfNodeLocation(getLocationInternal())
         + RamUsageEstimator.sizeOfObject(afterMatchMode);
   }
+
+  @Override
+  public List<String> getArgumentNames() {
+    return argumentNames;
+  }
+
+  @Override
+  public void parseArguments(Map<String, Node> argumentMap) {}
 }
