@@ -70,6 +70,17 @@ public class StreamSerDeTest {
     Assert.assertEquals(
         ((Identifier) src.getPreFilter()).getValue(),
         ((Identifier) copy.getPreFilter()).getValue());
+
+    IoTDBSubscriptionSource nullFilterSource =
+        new IoTDBSubscriptionSource("db1", "t2", null, Arrays.asList("p3"));
+    IoTDBSubscriptionSource nullFilterCopy =
+        (IoTDBSubscriptionSource)
+            StreamSource.deserialize(writeSingleSourceBuffer(nullFilterSource).duplicate());
+    Assert.assertEquals(nullFilterSource.getDatabase(), nullFilterCopy.getDatabase());
+    Assert.assertEquals(nullFilterSource.getTableName(), nullFilterCopy.getTableName());
+    Assert.assertNull(nullFilterCopy.getPreFilter());
+    Assert.assertEquals(
+        nullFilterSource.getPartitionColumns(), nullFilterCopy.getPartitionColumns());
   }
 
   @Test

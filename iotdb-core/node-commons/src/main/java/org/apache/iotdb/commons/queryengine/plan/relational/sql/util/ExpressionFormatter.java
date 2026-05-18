@@ -591,7 +591,10 @@ public final class ExpressionFormatter {
 
     @Override
     public String visitPlaceHolderLiteral(PlaceHolderLiteral node, Void context) {
-      return "PLACEHOLDER(" + node.getType().getName() + ")";
+      if (node.getType() == PlaceHolderLiteral.Type.N) {
+        return "${" + node.getValue() + "}";
+      }
+      return "${" + node.getType().name() + "}";
     }
 
     private String formatBinaryExpression(String operator, Expression left, Expression right) {

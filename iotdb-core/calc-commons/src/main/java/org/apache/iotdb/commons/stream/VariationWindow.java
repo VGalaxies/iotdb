@@ -27,13 +27,15 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import static java.util.Objects.requireNonNull;
+
 public class VariationWindow extends StreamWindow {
 
   private String column;
   private double delta;
 
   public VariationWindow(String column, double delta) {
-    this.column = column;
+    this.column = requireNonNull(column, "column is null");
     this.delta = delta;
   }
 

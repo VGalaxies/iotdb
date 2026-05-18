@@ -243,6 +243,7 @@ public class Analysis implements IAnalysis {
   private Insert insert;
 
   @Nullable private EventWindow currentEventWindow;
+  private boolean containsRowsPlaceholder;
 
   // partition by expressions
   @Nullable private List<Expression> partitionByExpressions;
@@ -1592,6 +1593,14 @@ public class Analysis implements IAnalysis {
   @Nullable
   public EventWindow getCurrentEventWindow() {
     return currentEventWindow;
+  }
+
+  public void setContainsRowsPlaceholder(boolean containsRowsPlaceholder) {
+    this.containsRowsPlaceholder = containsRowsPlaceholder;
+  }
+
+  public boolean containsRowsPlaceholder() {
+    return containsRowsPlaceholder;
   }
 
   public void setPartitionByExpressions(List<Expression> partitionByExpressions) {

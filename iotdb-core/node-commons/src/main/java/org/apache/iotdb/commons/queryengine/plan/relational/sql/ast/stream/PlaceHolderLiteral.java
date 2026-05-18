@@ -23,6 +23,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.AstMemoryEst
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.CommonQueryAstVisitor;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.IAstVisitor;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Literal;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TableExpressionType;
 
 import org.apache.tsfile.utils.RamUsageEstimator;
@@ -105,6 +106,14 @@ public class PlaceHolderLiteral extends Literal {
     }
     PlaceHolderLiteral that = (PlaceHolderLiteral) obj;
     return (type == that.type);
+  }
+
+  @Override
+  public boolean shallowEquals(Node other) {
+    if (!sameClass(this, other)) {
+      return false;
+    }
+    return type == ((PlaceHolderLiteral) other).type;
   }
 
   @Override

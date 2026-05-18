@@ -25,6 +25,8 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import static java.util.Objects.requireNonNull;
+
 public class AsofWindow extends StreamWindow {
 
   public enum AfterMatchMode {
@@ -35,7 +37,7 @@ public class AsofWindow extends StreamWindow {
   private AfterMatchMode afterMatchMode;
 
   public AsofWindow(AfterMatchMode afterMatchMode) {
-    this.afterMatchMode = afterMatchMode;
+    this.afterMatchMode = requireNonNull(afterMatchMode, "afterMatchMode is null");
   }
 
   @Override

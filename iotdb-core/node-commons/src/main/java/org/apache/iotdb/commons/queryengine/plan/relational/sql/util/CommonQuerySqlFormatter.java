@@ -53,6 +53,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TableSubquer
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Union;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Values;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WithQuery;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.Rows;
 import org.apache.iotdb.commons.queryengine.plan.statement.component.FillPolicy;
 
 import com.google.common.base.Joiner;
@@ -445,6 +446,12 @@ public class CommonQuerySqlFormatter implements CommonQueryAstVisitor<Void, Inte
   @Override
   public Void visitTable(Table node, Integer indent) {
     builder.append(formatName(node.getName()));
+    return null;
+  }
+
+  @Override
+  public Void visitRows(Rows node, Integer indent) {
+    builder.append("${rows}");
     return null;
   }
 

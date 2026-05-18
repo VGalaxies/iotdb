@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package org.apache.iotdb.db.queryengine.plan.relational.planner.node;
+package org.apache.iotdb.commons.queryengine.plan.relational.planner.node;
 
 import org.apache.iotdb.common.rpc.thrift.TRegionReplicaSet;
+import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.ICoreQueryPlanVisitor;
 import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.IPlanVisitor;
 import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.PlanNode;
 import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.PlanNodeId;
@@ -29,7 +30,6 @@ import org.apache.iotdb.commons.queryengine.plan.relational.metadata.ColumnSchem
 import org.apache.iotdb.commons.queryengine.plan.relational.metadata.QualifiedObjectName;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.Symbol;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
-import org.apache.iotdb.db.queryengine.plan.planner.plan.node.PlanVisitor;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -74,21 +74,19 @@ public class EventScanNode extends TableScanNode {
 
   @Override
   public <R, C> R accept(IPlanVisitor<R, C> visitor, C context) {
-    return ((PlanVisitor<R, C>) visitor).visitEventScan(this, context);
+    return ((ICoreQueryPlanVisitor<R, C>) visitor).visitEventScan(this, context);
   }
 
   @Override
   public PlanNode clone() {
-    EventScanNode node =
-        new EventScanNode(
-            id,
-            outputSymbols,
-            assignments,
-            pushDownPredicate,
-            pushDownLimit,
-            pushDownOffset,
-            regionReplicaSet);
-    return node;
+    return new EventScanNode(
+        id,
+        outputSymbols,
+        assignments,
+        pushDownPredicate,
+        pushDownLimit,
+        pushDownOffset,
+        regionReplicaSet);
   }
 
   @Override

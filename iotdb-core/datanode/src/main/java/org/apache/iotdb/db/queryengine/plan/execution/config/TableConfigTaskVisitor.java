@@ -38,6 +38,9 @@ import org.apache.iotdb.commons.pipe.config.constant.PipeSourceConstant;
 import org.apache.iotdb.commons.pipe.config.constant.SystemConstant;
 import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.PlanNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.metadata.QualifiedObjectName;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.Symbol;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.EventScanNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.SessionScanNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.CommonQueryAstVisitor;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.DataType;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
@@ -83,7 +86,6 @@ import org.apache.iotdb.db.conf.IoTDBConfig;
 import org.apache.iotdb.db.protocol.session.IClientSession;
 import org.apache.iotdb.db.queryengine.common.MPPQueryContext;
 import org.apache.iotdb.db.queryengine.execution.warnings.WarningCollector;
-import org.apache.iotdb.db.queryengine.plan.analyze.IAnalysis;
 import org.apache.iotdb.db.queryengine.plan.analyze.QueryType;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.CreateFunctionTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.CreatePipePluginTask;
@@ -298,6 +300,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1702,11 +1705,15 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
 
   @Override
   public IConfigTask visitCreateStream(CreateStream node, MPPQueryContext context) {
-    context.setQueryType(QueryType.WRITE);
+    context.setQueryType(QueryType.READ_WRITE);
     TableModelPlanner planner = streamQueryPlanner;
-    IAnalysis analysis = planner.analyze(context);
-    PlanNode logicalPlan = planner.doLogicalPlan(analysis, context).getRootNode();
-    StreamTask streamTask = buildStreamTask(node, context, logicalPlan, (Analysis) analysis);
+    Analysis analysis = (Analysis) planner.analyze(context);
+    String calcSql = formatCreateStreamQuerySql(node.getQuery());
+    PlanNode calcPlanNode =
+        analysis.containsRowsPlaceholder()
+            ? planner.doLogicalPlan(analysis, context).getRootNode()
+            : new SessionScanNode(context.getQueryId().genPlanNodeId(), calcSql);
+    StreamTask streamTask = buildStreamTask(node, context, calcSql, calcPlanNode, analysis);
     return new CreateStreamTask(streamTask);
   }
 
@@ -1784,9 +1791,6 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
             @Override
             public StreamWindow visitCapacityEventWindow(CapacityEventWindow c, Void context) {
               long sizeLong = c.getSize().getParsedValue();
-              if (sizeLong > Integer.MAX_VALUE || sizeLong < Integer.MIN_VALUE) {
-                throw new SemanticException("capacity window size out of range");
-              }
               List<String> cols = null;
               if (c.getColumns() != null && !c.getColumns().isEmpty()) {
                 cols = new ArrayList<>();
@@ -1808,7 +1812,11 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
           };
 
   private static StreamTask buildStreamTask(
-      CreateStream node, MPPQueryContext context, PlanNode logicalPlan, Analysis analysis) {
+      CreateStream node,
+      MPPQueryContext context,
+      String calcSql,
+      PlanNode calcPlanNode,
+      Analysis analysis) {
     String defaultDb =
         context
             .getDatabaseName()
@@ -1819,13 +1827,7 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
     IoTDBSubscriptionSource source = null;
     if (node.getSourceTable() != null) {
       QualifiedObjectName sourceName = getQualifiedObjectName(node.getSourceTable(), analysis);
-      List<String> partitionColumns = null;
-      if (node.getPartitionBy() != null && !node.getPartitionBy().isEmpty()) {
-        partitionColumns = new ArrayList<>();
-        for (Expression e : node.getPartitionBy()) {
-          partitionColumns.add(ExpressionFormatter.formatExpression(e));
-        }
-      }
+      List<String> partitionColumns = getSourceColumns(node, calcPlanNode);
       source =
           new IoTDBSubscriptionSource(
               sourceName.getDatabaseName(),
@@ -1845,8 +1847,7 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
     IoTDBTarget target =
         new IoTDBTarget(sinkName.getDatabaseName(), sinkName.getObjectName(), outCols);
 
-    String calcSql = formatCreateStreamQuerySql(node.getQuery());
-    ByteBuffer calcPlan = logicalPlan.serializeToByteBuffer();
+    ByteBuffer calcPlan = calcPlanNode.serializeToByteBuffer();
 
     StreamTask task = new StreamTask();
     task.setTaskName(node.getStreamName().getValue());
@@ -1860,6 +1861,44 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
     task.setTarget(target);
     task.setEpoch(0);
     return task;
+  }
+
+  private static List<String> getSourceColumns(CreateStream node, PlanNode calcPlanNode) {
+    EventScanNode eventScanNode = findEventScanNode(calcPlanNode);
+    if (eventScanNode != null) {
+      LinkedHashSet<String> columns = new LinkedHashSet<>();
+      for (Symbol symbol : eventScanNode.getOutputSymbols()) {
+        if (eventScanNode.getAssignments().containsKey(symbol)
+            && eventScanNode.getAssignments().get(symbol) != null) {
+          columns.add(eventScanNode.getAssignments().get(symbol).getName());
+        } else {
+          columns.add(symbol.getName());
+        }
+      }
+      return new ArrayList<>(columns);
+    }
+
+    if (node.getPartitionBy() != null && !node.getPartitionBy().isEmpty()) {
+      List<String> partitionColumns = new ArrayList<>();
+      for (Expression e : node.getPartitionBy()) {
+        partitionColumns.add(ExpressionFormatter.formatExpression(e));
+      }
+      return partitionColumns;
+    }
+    return null;
+  }
+
+  private static EventScanNode findEventScanNode(PlanNode node) {
+    if (node instanceof EventScanNode) {
+      return (EventScanNode) node;
+    }
+    for (PlanNode child : node.getChildren()) {
+      EventScanNode matched = findEventScanNode(child);
+      if (matched != null) {
+        return matched;
+      }
+    }
+    return null;
   }
 
   private static String formatCreateStreamQuerySql(Query query) {

@@ -30,6 +30,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.ApplyNo
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.AssignUniqueId;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.CorrelatedJoinNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.EnforceSingleRowNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.EventScanNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.ExceptNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.FilterNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.GapFillNode;
@@ -65,7 +66,6 @@ import org.apache.iotdb.db.queryengine.plan.relational.planner.ir.DeterminismEva
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.CopyToNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.CteScanNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.DeviceTableScanNode;
-import org.apache.iotdb.db.queryengine.plan.relational.planner.node.EventScanNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.ExplainAnalyzeNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.InformationSchemaTableScanNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.IntoNode;

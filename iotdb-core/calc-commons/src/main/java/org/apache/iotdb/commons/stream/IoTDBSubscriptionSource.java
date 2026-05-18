@@ -72,7 +72,10 @@ public class IoTDBSubscriptionSource extends StreamSource {
     ReadWriteIOUtils.write(getType().ordinal(), stream);
     BasicStructureSerDeUtil.write(database, stream);
     BasicStructureSerDeUtil.write(tableName, stream);
-    Expression.serialize(preFilter, stream);
+    ReadWriteIOUtils.write(preFilter != null, stream);
+    if (preFilter != null) {
+      Expression.serialize(preFilter, stream);
+    }
     BasicStructureSerDeUtil.writeNullableStringList(partitionColumns, stream);
   }
 
@@ -82,7 +85,10 @@ public class IoTDBSubscriptionSource extends StreamSource {
     if (database == null || tableName == null) {
       throw new IOException("unexpected null database or table name in stream source payload");
     }
-    Expression preFilter = Expression.deserialize(byteBuffer);
+    Expression preFilter = null;
+    if (ReadWriteIOUtils.readBool(byteBuffer)) {
+      preFilter = Expression.deserialize(byteBuffer);
+    }
     List<String> partitionColumns = BasicStructureSerDeUtil.readStringList(byteBuffer);
     return new IoTDBSubscriptionSource(database, tableName, preFilter, partitionColumns);
   }

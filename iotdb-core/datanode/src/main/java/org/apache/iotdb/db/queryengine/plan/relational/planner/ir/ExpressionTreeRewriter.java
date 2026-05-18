@@ -58,6 +58,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.SymbolRefere
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Trim;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TypeParameter;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WhenClause;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PlaceHolderLiteral;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.AstVisitor;
 
 import com.google.common.collect.ImmutableList;
@@ -575,6 +576,18 @@ public final class ExpressionTreeRewriter<C> {
         }
       }
 
+      return node;
+    }
+
+    @Override
+    public Expression visitPlaceHolderLiteral(PlaceHolderLiteral node, Context<C> context) {
+      if (!context.isDefaultRewrite()) {
+        Expression result =
+            rewriter.rewriteLiteral(node, context.get(), ExpressionTreeRewriter.this);
+        if (result != null) {
+          return result;
+        }
+      }
       return node;
     }
 

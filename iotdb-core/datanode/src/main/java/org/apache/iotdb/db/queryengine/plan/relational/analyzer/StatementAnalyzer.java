@@ -4984,6 +4984,7 @@ public class StatementAnalyzer {
       if (eventWindow instanceof PeriodEventWindow) {
         throw new SemanticException("Placeholder ${rows} cannot be used with period event window.");
       }
+      analysis.setContainsRowsPlaceholder(true);
       return createAndAssignScope(node, context);
     }
 

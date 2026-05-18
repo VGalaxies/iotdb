@@ -31,6 +31,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.planner.DataOrganiza
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.OrderingScheme;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.SortOrder;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.Symbol;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.EventScanNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.ExceptNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.FilterNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.IntersectNode;
@@ -85,6 +86,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TableSubquer
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Union;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Values;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.VariableDefinition;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.Rows;
 import org.apache.iotdb.commons.queryengine.plan.relational.type.InternalTypeManager;
 import org.apache.iotdb.commons.queryengine.utils.cte.CteDataStore;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnCategory;
@@ -271,6 +273,32 @@ public class RelationPlanner implements AstVisitor<RelationPlan, Void> {
     }
 
     return processPhysicalTable(table, scope);
+  }
+
+  @Override
+  public RelationPlan visitRows(final Rows rows, final Void context) {
+    final Scope scope = analysis.getScope(rows);
+    final ImmutableList.Builder<Symbol> outputSymbolsBuilder = ImmutableList.builder();
+    final ImmutableMap.Builder<Symbol, ColumnSchema> symbolToColumnSchema = ImmutableMap.builder();
+    final Collection<Field> fields = scope.getRelationType().getAllFields();
+    for (final Field field : fields) {
+      final Symbol symbol = symbolAllocator.newSymbol(field);
+      outputSymbolsBuilder.add(symbol);
+      symbolToColumnSchema.put(
+          symbol,
+          new ColumnSchema(
+              field.getName().orElse(null),
+              field.getType(),
+              field.isHidden(),
+              field.getColumnCategory()));
+    }
+    final List<Symbol> outputSymbols = outputSymbolsBuilder.build();
+    final Map<Symbol, ColumnSchema> tableColumnSchema = symbolToColumnSchema.build();
+    return new RelationPlan(
+        new EventScanNode(idAllocator.genPlanNodeId(), outputSymbols, tableColumnSchema),
+        scope,
+        outputSymbols,
+        outerContext);
   }
 
   private RelationPlan processNamedQuery(Table table, Query namedQuery, Scope scope) {

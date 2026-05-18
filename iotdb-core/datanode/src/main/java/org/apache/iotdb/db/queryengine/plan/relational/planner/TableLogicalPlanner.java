@@ -35,9 +35,11 @@ import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.LimitNo
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.OffsetNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.OutputNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.ProjectNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.SessionScanNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Query;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Statement;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Table;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CreateStream;
 import org.apache.iotdb.commons.queryengine.plan.relational.type.InternalTypeManager;
 import org.apache.iotdb.commons.schema.column.ColumnHeader;
 import org.apache.iotdb.commons.schema.column.ColumnHeaderConstant;
@@ -65,7 +67,6 @@ import org.apache.iotdb.db.queryengine.plan.relational.planner.ir.PredicateWithU
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.CopyToNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.ExplainAnalyzeNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.IntoNode;
-import org.apache.iotdb.db.queryengine.plan.relational.planner.node.SessionScanNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.schema.CreateOrUpdateTableDeviceNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.schema.TableDeviceAttributeUpdateNode;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.node.schema.TableDeviceFetchNode;
@@ -245,6 +246,9 @@ public class TableLogicalPlanner {
   private RelationPlan planStatementWithoutOutput(Analysis analysis, Statement statement) {
     if (statement instanceof Query) {
       return createRelationPlan(analysis, (Query) statement);
+    }
+    if (statement instanceof CreateStream) {
+      return createRelationPlan(analysis, ((CreateStream) statement).getQuery());
     }
     if (statement instanceof Explain) {
       return createRelationPlan(analysis, (Query) ((Explain) statement).getStatement());
