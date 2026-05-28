@@ -23,15 +23,22 @@ import org.apache.iotdb.common.rpc.thrift.TDataNodeConfiguration;
 import org.apache.iotdb.common.rpc.thrift.TDataNodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TEndPoint;
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeConfiguration;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.commons.conf.CommonConfig;
 import org.apache.iotdb.confignode.conf.ConfigNodeConfig;
 import org.apache.iotdb.confignode.consensus.response.datanode.DataNodeRegisterResp;
+import org.apache.iotdb.confignode.consensus.response.streamnode.StreamNodeRegisterResp;
 import org.apache.iotdb.confignode.manager.ConfigManager;
 import org.apache.iotdb.confignode.rpc.thrift.TDataNodeRegisterReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDataNodeRegisterResp;
 import org.apache.iotdb.confignode.rpc.thrift.TDataNodeRestartReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDataNodeRestartResp;
 import org.apache.iotdb.confignode.rpc.thrift.TRuntimeConfiguration;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRegisterReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRegisterResp;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRestartReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRestartResp;
 import org.apache.iotdb.confignode.service.ConfigNode;
 import org.apache.iotdb.rpc.TSStatusCode;
 import org.apache.iotdb.rpc.TimeoutChangeableTFastFramedTransport;
@@ -160,5 +167,90 @@ public class ConfigNodeRPCServiceProcessorTest extends TestCase {
     Assert.assertEquals(
         "1.2.3.4",
         sentRequest.getDataNodeConfiguration().getLocation().getClientRpcEndPoint().getIp());
+  }
+
+  /**
+   * This test verifies that a StreamNode registration request is properly delegated to the
+   * ConfigManager and the response is correctly converted.
+   *
+   * @throws Exception nothing should go wrong here.
+   */
+  public void testRegisterStreamNode() throws Exception {
+    // Set up the system under test.
+    CommonConfig commonConfig = Mockito.mock(CommonConfig.class);
+    ConfigNodeConfig configNodeConfig = Mockito.mock(ConfigNodeConfig.class);
+    ConfigNode configNode = Mockito.mock(ConfigNode.class);
+    ConfigManager configManager = Mockito.mock(ConfigManager.class);
+    StreamNodeRegisterResp registerStreamNodeResponse = new StreamNodeRegisterResp();
+    registerStreamNodeResponse.setStatus(new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode()));
+    registerStreamNodeResponse.setConfigNodeList(
+        Collections.singletonList(new TConfigNodeLocation()));
+    registerStreamNodeResponse.setStreamNodeId(42);
+    registerStreamNodeResponse.setRuntimeConfiguration(new TRuntimeConfiguration());
+    Mockito.when(configManager.registerStreamNode(Mockito.any(TStreamNodeRegisterReq.class)))
+        .thenReturn(registerStreamNodeResponse);
+    ConfigNodeRPCServiceProcessor sut =
+        new ConfigNodeRPCServiceProcessor(
+            commonConfig, configNodeConfig, configNode, configManager);
+
+    // Prepare the test input
+    TStreamNodeLocation newStreamNodeLocation = new TStreamNodeLocation();
+    newStreamNodeLocation.setStreamNodeId(42);
+    newStreamNodeLocation.setInternalEndPoint(new TEndPoint("1.2.3.4", 10820));
+    TStreamNodeConfiguration newStreamNodeConfiguration = new TStreamNodeConfiguration();
+    newStreamNodeConfiguration.setLocation(newStreamNodeLocation);
+    TStreamNodeRegisterReq req = new TStreamNodeRegisterReq();
+    req.setClusterName("test-cluster");
+    req.setStreamNodeConfiguration(newStreamNodeConfiguration);
+
+    // Execute the test logic
+    TStreamNodeRegisterResp res = sut.registerStreamNode(req);
+
+    // Check the result
+    Assert.assertEquals(registerStreamNodeResponse.convertToStreamNodeRegisterResp(), res);
+    // Check that the config manager was called to register a new stream node
+    Mockito.verify(configManager, Mockito.times(1)).registerStreamNode(Mockito.any());
+  }
+
+  /**
+   * This test verifies that a StreamNode restart request is properly delegated to the ConfigManager
+   * and the response is returned correctly.
+   *
+   * @throws Exception nothing should go wrong here.
+   */
+  public void testRestartStreamNode() throws Exception {
+    // Set up the system under test.
+    CommonConfig commonConfig = Mockito.mock(CommonConfig.class);
+    ConfigNodeConfig configNodeConfig = Mockito.mock(ConfigNodeConfig.class);
+    ConfigNode configNode = Mockito.mock(ConfigNode.class);
+    ConfigManager configManager = Mockito.mock(ConfigManager.class);
+    TStreamNodeRestartResp restartStreamNodeResponse = new TStreamNodeRestartResp();
+    restartStreamNodeResponse.setStatus(new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode()));
+    restartStreamNodeResponse.setConfigNodeList(
+        Collections.singletonList(new TConfigNodeLocation()));
+    restartStreamNodeResponse.setRuntimeConfiguration(new TRuntimeConfiguration());
+    Mockito.when(configManager.restartStreamNode(Mockito.any(TStreamNodeRestartReq.class)))
+        .thenReturn(restartStreamNodeResponse);
+    ConfigNodeRPCServiceProcessor sut =
+        new ConfigNodeRPCServiceProcessor(
+            commonConfig, configNodeConfig, configNode, configManager);
+
+    // Prepare the test input
+    TStreamNodeLocation streamNodeLocation = new TStreamNodeLocation();
+    streamNodeLocation.setStreamNodeId(42);
+    streamNodeLocation.setInternalEndPoint(new TEndPoint("1.2.3.4", 10820));
+    TStreamNodeConfiguration streamNodeConfiguration = new TStreamNodeConfiguration();
+    streamNodeConfiguration.setLocation(streamNodeLocation);
+    TStreamNodeRestartReq req = new TStreamNodeRestartReq();
+    req.setClusterName("test-cluster");
+    req.setStreamNodeConfiguration(streamNodeConfiguration);
+
+    // Execute the test logic
+    TStreamNodeRestartResp res = sut.restartStreamNode(req);
+
+    // Check the result
+    Assert.assertEquals(restartStreamNodeResponse, res);
+    // Check that the config manager was called to restart a stream node
+    Mockito.verify(configManager, Mockito.times(1)).restartStreamNode(Mockito.any());
   }
 }

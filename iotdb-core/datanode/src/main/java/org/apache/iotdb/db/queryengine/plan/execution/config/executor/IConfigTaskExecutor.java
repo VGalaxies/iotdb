@@ -489,4 +489,6 @@ public interface IConfigTaskExecutor {
   SettableFuture<ConfigTaskResult> startStream(String database, String streamName);
 
   SettableFuture<ConfigTaskResult> stopStream(String database, String streamName);
+
+  SettableFuture<ConfigTaskResult> showStreamNodes();
 }

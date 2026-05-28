@@ -19,7 +19,20 @@
 
 package org.apache.iotdb.streamnode.conf;
 
+import org.apache.iotdb.common.rpc.thrift.TEndPoint;
+import org.apache.iotdb.commons.client.property.ClientPoolProperty;
+import org.apache.iotdb.commons.conf.IoTDBConstant;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.lang.reflect.Field;
+import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
+
 public class StreamNodeConfig {
+  private static final Logger LOGGER = LoggerFactory.getLogger(StreamNodeConfig.class);
 
   /** Cluster name this StreamNode belongs to */
   private String clusterName = "defaultCluster";
@@ -31,7 +44,7 @@ public class StreamNodeConfig {
   private int snInternalPort = 10820;
 
   /** Seed ConfigNode endpoint (address:port) for registration */
-  private String snSeedConfigNode = "127.0.0.1:10710";
+  private TEndPoint snSeedConfigNode = new TEndPoint("127.0.0.1", 10710);
 
   /** Max concurrent client connections for RPC */
   private int rpcMaxConcurrentClientNum = 1000;
@@ -44,6 +57,29 @@ public class StreamNodeConfig {
 
   /** Thread pool size for stream task execution */
   private int executorThreadNum = 4;
+
+  /**
+   * The cluster ID that this DataNode joined in the cluster mode. DataNode will fetch cluster ID
+   * from ConfigNode and cache it here when first time use it.
+   */
+  private String clusterId = "";
+
+  /** System directory, including version file for each database and metadata */
+  private String systemDir =
+      IoTDBConstant.SN_DEFAULT_DATA_DIR + File.separator + IoTDBConstant.SYSTEM_FOLDER_NAME;
+
+  /** StreamNode ID assigned by ConfigNode after registration */
+  private int streamNodeId = -1;
+
+  /** The maximum number of clients that can be allocated for a node. */
+  private int maxClientNumForEachNode =
+      ClientPoolProperty.DefaultProperty.MAX_CLIENT_NUM_FOR_EACH_NODE;
+
+  /** The time of stream node waiting for the next retry to join into the cluster */
+  private final long joinClusterRetryIntervalMs = TimeUnit.SECONDS.toMillis(1);
+
+  /** Thrift socket and connection timeout between data node and config node. */
+  private final int connectionTimeoutInMS = (int) TimeUnit.SECONDS.toMillis(60);
 
   public String getClusterName() {
     return clusterName;
@@ -69,22 +105,12 @@ public class StreamNodeConfig {
     this.snInternalPort = snInternalPort;
   }
 
-  public String getSnSeedConfigNode() {
+  public TEndPoint getSnSeedConfigNode() {
     return snSeedConfigNode;
   }
 
-  public void setSnSeedConfigNode(String snSeedConfigNode) {
+  public void setSnSeedConfigNode(TEndPoint snSeedConfigNode) {
     this.snSeedConfigNode = snSeedConfigNode;
-  }
-
-  /** Parse the seed config node address from snSeedConfigNode (ip:port) */
-  public String getSeedConfigNodeAddress() {
-    return snSeedConfigNode.split(":")[0];
-  }
-
-  /** Parse the seed config node port from snSeedConfigNode (ip:port) */
-  public int getSeedConfigNodePort() {
-    return Integer.parseInt(snSeedConfigNode.split(":")[1]);
   }
 
   public int getRpcMaxConcurrentClientNum() {
@@ -117,5 +143,81 @@ public class StreamNodeConfig {
 
   public void setExecutorThreadNum(int executorThreadNum) {
     this.executorThreadNum = executorThreadNum;
+  }
+
+  public int getStreamNodeId() {
+    return streamNodeId;
+  }
+
+  public void setStreamNodeId(int streamNodeId) {
+    this.streamNodeId = streamNodeId;
+  }
+
+  public int getMaxClientNumForEachNode() {
+    return maxClientNumForEachNode;
+  }
+
+  public void setMaxClientNumForEachNode(int maxClientNumForEachNode) {
+    this.maxClientNumForEachNode = maxClientNumForEachNode;
+  }
+
+  public String getSystemDir() {
+    return systemDir;
+  }
+
+  public void setSystemDir(String systemDir) {
+    this.systemDir = systemDir;
+  }
+
+  public String getClusterId() {
+    return clusterId;
+  }
+
+  public void setClusterId(String clusterId) {
+    this.clusterId = clusterId;
+  }
+
+  public long getJoinClusterRetryIntervalMs() {
+    return joinClusterRetryIntervalMs;
+  }
+
+  public int getConnectionTimeoutInMS() {
+    return connectionTimeoutInMS;
+  }
+
+  public TEndPoint getAddressAndPort() {
+    return new TEndPoint(snInternalAddress, snInternalPort);
+  }
+
+  public String getConfigMessage() {
+    StringBuilder configMessage = new StringBuilder();
+    String configContent;
+    for (Field configField : StreamNodeConfig.class.getDeclaredFields()) {
+      try {
+        String configType = configField.getGenericType().getTypeName();
+        if (configType.contains(IoTDBConstant.STRING_2D_ARRAY_CLASS_NAME)) {
+          String[][] configList = (String[][]) configField.get(this);
+          StringBuilder builder = new StringBuilder();
+          for (String[] strings : configList) {
+            builder.append(Arrays.asList(strings)).append(";");
+          }
+          configContent = builder.toString();
+        } else if (configType.contains(IoTDBConstant.STRING_ARRAY_CLASS_NAME)) {
+          String[] configList = (String[]) configField.get(this);
+          configContent = Arrays.asList(configList).toString();
+        } else {
+          configContent = configField.get(this).toString();
+        }
+        configMessage
+            .append("\n\t")
+            .append(configField.getName())
+            .append("=")
+            .append(configContent)
+            .append(";");
+      } catch (Exception e) {
+        LOGGER.warn("Failed to get field {}", configField, e);
+      }
+    }
+    return configMessage.toString();
   }
 }

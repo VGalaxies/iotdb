@@ -89,6 +89,9 @@ import org.apache.iotdb.confignode.consensus.request.write.region.CreateRegionGr
 import org.apache.iotdb.confignode.consensus.request.write.region.OfferRegionMaintainTasksPlan;
 import org.apache.iotdb.confignode.consensus.request.write.region.PollRegionMaintainTaskPlan;
 import org.apache.iotdb.confignode.consensus.request.write.region.PollSpecificRegionMaintainTaskPlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RegisterStreamNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RemoveStreamNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.UpdateStreamNodePlan;
 import org.apache.iotdb.confignode.consensus.request.write.subscription.consumer.AlterConsumerGroupPlan;
 import org.apache.iotdb.confignode.consensus.request.write.subscription.consumer.runtime.ConsumerGroupHandleMetaChangePlan;
 import org.apache.iotdb.confignode.consensus.request.write.subscription.topic.AlterMultipleTopicsPlan;
@@ -216,6 +219,15 @@ public abstract class ConfigPhysicalPlan implements IConsensusRequest {
           break;
         case UpdateAINodeConfiguration:
           plan = new UpdateAINodePlan();
+          break;
+        case RegisterStreamNode:
+          plan = new RegisterStreamNodePlan();
+          break;
+        case UpdateStreamNodeConfiguration:
+          plan = new UpdateStreamNodePlan();
+          break;
+        case RemoveStreamNode:
+          plan = new RemoveStreamNodePlan();
           break;
         case CreateDatabase:
           plan = new DatabaseSchemaPlan(configPhysicalPlanType);

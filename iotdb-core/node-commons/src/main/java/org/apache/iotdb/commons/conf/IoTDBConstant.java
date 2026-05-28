@@ -60,6 +60,7 @@ public class IoTDBConstant {
   public static final String GLOBAL_DB_NAME = "IoTDB";
   public static final String CN_ROLE = "confignode";
   public static final String DN_ROLE = "datanode";
+  public static final String SN_ROLE = "streamnode";
 
   public static final String DATA_NODE_CONF_FILE_NAME = "iotdb-datanode.properties";
 
@@ -246,6 +247,7 @@ public class IoTDBConstant {
   // default base dir, stores all IoTDB runtime files
   public static final String CN_DEFAULT_DATA_DIR = "data" + File.separator + CN_ROLE;
   public static final String DN_DEFAULT_DATA_DIR = "data" + File.separator + DN_ROLE;
+  public static final String SN_DEFAULT_DATA_DIR = "data" + File.separator + SN_ROLE;
 
   // data folder name
   public static final String DATA_FOLDER_NAME = "data";

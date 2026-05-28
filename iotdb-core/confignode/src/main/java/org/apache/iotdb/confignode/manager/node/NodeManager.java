@@ -29,6 +29,7 @@ import org.apache.iotdb.common.rpc.thrift.TSStatus;
 import org.apache.iotdb.common.rpc.thrift.TSetConfigurationReq;
 import org.apache.iotdb.common.rpc.thrift.TShowAppliedConfigurationsResp;
 import org.apache.iotdb.common.rpc.thrift.TShowConfigurationResp;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeConfiguration;
 import org.apache.iotdb.commons.auth.AuthException;
 import org.apache.iotdb.commons.cluster.NodeStatus;
 import org.apache.iotdb.commons.cluster.NodeType;
@@ -57,12 +58,16 @@ import org.apache.iotdb.confignode.consensus.request.write.confignode.UpdateVers
 import org.apache.iotdb.confignode.consensus.request.write.datanode.RegisterDataNodePlan;
 import org.apache.iotdb.confignode.consensus.request.write.datanode.RemoveDataNodePlan;
 import org.apache.iotdb.confignode.consensus.request.write.datanode.UpdateDataNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RegisterStreamNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RemoveStreamNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.UpdateStreamNodePlan;
 import org.apache.iotdb.confignode.consensus.response.ainode.AINodeConfigurationResp;
 import org.apache.iotdb.confignode.consensus.response.ainode.AINodeRegisterResp;
 import org.apache.iotdb.confignode.consensus.response.datanode.ConfigurationResp;
 import org.apache.iotdb.confignode.consensus.response.datanode.DataNodeConfigurationResp;
 import org.apache.iotdb.confignode.consensus.response.datanode.DataNodeRegisterResp;
 import org.apache.iotdb.confignode.consensus.response.datanode.DataNodeToStatusResp;
+import org.apache.iotdb.confignode.consensus.response.streamnode.StreamNodeRegisterResp;
 import org.apache.iotdb.confignode.manager.ClusterManager;
 import org.apache.iotdb.confignode.manager.IManager;
 import org.apache.iotdb.confignode.manager.PermissionManager;
@@ -99,6 +104,10 @@ import org.apache.iotdb.confignode.rpc.thrift.TNodeVersionInfo;
 import org.apache.iotdb.confignode.rpc.thrift.TRatisConfig;
 import org.apache.iotdb.confignode.rpc.thrift.TRuntimeConfiguration;
 import org.apache.iotdb.confignode.rpc.thrift.TSetDataNodeStatusReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeInfo;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRegisterReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRestartReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRestartResp;
 import org.apache.iotdb.consensus.common.DataSet;
 import org.apache.iotdb.consensus.common.Peer;
 import org.apache.iotdb.consensus.exception.ConsensusException;
@@ -509,6 +518,14 @@ public class NodeManager {
     return nodeInfo.getRegisteredAINode(aiNodeId);
   }
 
+  public List<TStreamNodeConfiguration> getRegisteredStreamNodes() {
+    return nodeInfo.getRegisteredStreamNodes();
+  }
+
+  public TStreamNodeConfiguration getRegisteredStreamNode(int streamNodeId) {
+    return nodeInfo.getRegisteredStreamNode(streamNodeId);
+  }
+
   /**
    * Register AINode. Use synchronized to make sure
    *
@@ -621,6 +638,139 @@ public class NodeManager {
       response.setStatus(res);
       return response;
     }
+  }
+
+  /**
+   * Register StreamNode.
+   *
+   * @param req TStreamNodeRegisterReq
+   * @return StreamNodeRegisterResp. The {@link TSStatus} will be set to {@link
+   *     TSStatusCode#SUCCESS_STATUS} when register success.
+   */
+  public DataSet registerStreamNode(TStreamNodeRegisterReq req) {
+    StreamNodeRegisterResp resp = new StreamNodeRegisterResp();
+    resp.setConfigNodeList(getRegisteredConfigNodes());
+
+    // Create a new StreamNodeHeartbeatCache and force update NodeStatus
+    int streamNodeId = nodeInfo.generateNextNodeId();
+    getLoadManager().getLoadCache().createNodeHeartbeatCache(NodeType.StreamNode, streamNodeId);
+
+    RegisterStreamNodePlan registerStreamNodePlan =
+        new RegisterStreamNodePlan(req.getStreamNodeConfiguration());
+    registerStreamNodePlan.getStreamNodeConfiguration().getLocation().setStreamNodeId(streamNodeId);
+    try {
+      getConsensusManager().write(registerStreamNodePlan);
+    } catch (ConsensusException e) {
+      LOGGER.warn(CONSENSUS_WRITE_ERROR, e);
+    }
+
+    // update stream node's versionInfo
+    UpdateVersionInfoPlan updateVersionInfoPlan =
+        new UpdateVersionInfoPlan(req.getVersionInfo(), streamNodeId);
+    try {
+      getConsensusManager().write(updateVersionInfoPlan);
+    } catch (ConsensusException e) {
+      LOGGER.warn(CONSENSUS_WRITE_ERROR, e);
+    }
+
+    resp.setStatus(ClusterNodeStartUtils.ACCEPT_NODE_REGISTRATION);
+    resp.setStreamNodeId(
+        registerStreamNodePlan.getStreamNodeConfiguration().getLocation().getStreamNodeId());
+    resp.setRuntimeConfiguration(getRuntimeConfiguration(streamNodeId));
+    return resp;
+  }
+
+  public TStreamNodeRestartResp updateStreamNodeIfNecessary(TStreamNodeRestartReq req) {
+    final String clusterId =
+        configManager
+            .getClusterManager()
+            .getClusterIdWithRetry(
+                CommonDescriptor.getInstance().getConfig().getCnConnectionTimeoutInMS() / 2);
+    TStreamNodeRestartResp resp = new TStreamNodeRestartResp();
+    resp.setConfigNodeList(getRegisteredConfigNodes());
+    if (clusterId == null) {
+      resp.setStatus(
+          new TSStatus(TSStatusCode.GET_CLUSTER_ID_ERROR.getStatusCode())
+              .setMessage("clusterId has not generated"));
+      return resp;
+    }
+
+    int nodeId = req.getStreamNodeConfiguration().getLocation().getStreamNodeId();
+    TStreamNodeConfiguration streamNodeConfiguration = getRegisteredStreamNode(nodeId);
+    if (!req.getStreamNodeConfiguration().equals(streamNodeConfiguration)) {
+      // Update DataNodeConfiguration when modified during restart
+      UpdateStreamNodePlan updateStreamNodePlan =
+          new UpdateStreamNodePlan(req.getStreamNodeConfiguration());
+      try {
+        getConsensusManager().write(updateStreamNodePlan);
+      } catch (ConsensusException e) {
+        LOGGER.warn(CONSENSUS_WRITE_ERROR, e);
+      }
+    }
+    TNodeVersionInfo versionInfo = nodeInfo.getVersionInfo(nodeId);
+    if (!req.getVersionInfo().equals(versionInfo)) {
+      // Update versionInfo when modified during restart
+      UpdateVersionInfoPlan updateVersionInfoPlan =
+          new UpdateVersionInfoPlan(req.getVersionInfo(), nodeId);
+      try {
+        getConsensusManager().write(updateVersionInfoPlan);
+      } catch (ConsensusException e) {
+        LOGGER.warn(CONSENSUS_WRITE_ERROR, e);
+      }
+    }
+
+    resp.setStatus(ClusterNodeStartUtils.ACCEPT_NODE_RESTART);
+    resp.setRuntimeConfiguration(getRuntimeConfiguration(nodeId));
+
+    return resp;
+  }
+
+  public List<TStreamNodeInfo> getRegisteredStreamNodeInfoList() {
+    List<TStreamNodeInfo> streamNodeInfoList = new ArrayList<>();
+    for (TStreamNodeConfiguration streamNodeConfiguration : getRegisteredStreamNodes()) {
+      TStreamNodeInfo streamNodeInfo = new TStreamNodeInfo();
+      int streamNodeId = streamNodeConfiguration.getLocation().getStreamNodeId();
+      streamNodeInfo.setStreamNodeId(streamNodeId);
+      streamNodeInfo.setStatus(getLoadManager().getNodeStatusWithReason(streamNodeId));
+      streamNodeInfo.setInternalAddress(
+          streamNodeConfiguration.getLocation().getInternalEndPoint().getIp());
+      streamNodeInfo.setInternalPort(
+          streamNodeConfiguration.getLocation().getInternalEndPoint().getPort());
+      streamNodeInfoList.add(streamNodeInfo);
+    }
+    return streamNodeInfoList;
+  }
+
+  /**
+   * Removes the specified StreamNodes.
+   *
+   * @param removeStreamNodePlan the plan detailing which StreamNodes to remove
+   * @return TSStatus
+   */
+  public TSStatus removeStreamNode(RemoveStreamNodePlan removeStreamNodePlan) {
+    LOGGER.info("NodeManager start to remove StreamNode {}", removeStreamNodePlan);
+    // check if the node exists
+    if (nodeInfo.getRegisteredStreamNodes().isEmpty()) {
+      return new TSStatus(TSStatusCode.NO_REGISTERED_STREAM_NODE_ERROR.getStatusCode())
+          .setMessage("Remove StreamNode failed because there is no StreamNode in the cluster.");
+    }
+
+    // TODO: Need transfer before remove ?
+
+    // Add request to queue, then return to client
+    boolean removeSucceed =
+        configManager.getProcedureManager().removeStreamNode(removeStreamNodePlan);
+    TSStatus status;
+    if (removeSucceed) {
+      status = new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
+      status.setMessage("Server accepted the request");
+    } else {
+      status = new TSStatus(TSStatusCode.REMOVE_STREAM_NODE_ERROR.getStatusCode());
+      status.setMessage("Server rejected the request, maybe requests are too many");
+    }
+
+    LOGGER.info("NodeManager submit removeStreamNodePlan finished, {}", removeStreamNodePlan);
+    return status;
   }
 
   /**

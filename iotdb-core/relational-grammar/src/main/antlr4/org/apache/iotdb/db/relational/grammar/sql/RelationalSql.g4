@@ -128,6 +128,7 @@ statement
     | showAvailableUrlsStatement
     | showConfigNodesStatement
     | showAINodesStatement
+    | showStreamNodesStatement
     | showClusterIdStatement
     | showRegionIdStatement
     | showTimeSlotListStatement
@@ -628,6 +629,10 @@ showConfigNodesStatement
 
 showAINodesStatement
     : SHOW AINODES
+    ;
+
+showStreamNodesStatement
+    : SHOW STREAMNODES
     ;
 
 showClusterIdStatement
@@ -1896,6 +1901,7 @@ STATS: 'STATS';
 STOP: 'STOP';
 STREAM: 'STREAM';
 STREAMS: 'STREAMS';
+STREAMNODES: 'STREAMNODES';
 SUBSCRIPTION: 'SUBSCRIPTION';
 SUBSCRIPTIONS: 'SUBSCRIPTIONS';
 SUBSET: 'SUBSET';

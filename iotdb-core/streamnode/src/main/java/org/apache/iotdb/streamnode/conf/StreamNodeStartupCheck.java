@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,34 +17,34 @@
  * under the License.
  */
 
-package org.apache.iotdb.streamnode.client;
+package org.apache.iotdb.streamnode.conf;
+
+import org.apache.iotdb.commons.exception.StartupException;
+import org.apache.iotdb.commons.service.StartupChecks;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class ConfigNodeClient {
+/**
+ * {@link StreamNodeStartupCheck} checks the parameters in iotdb-streamnode.properties when start
+ * and restart.
+ */
+public class StreamNodeStartupCheck extends StartupChecks {
+  private static final Logger LOGGER = LoggerFactory.getLogger(StreamNodeStartupCheck.class);
+  private final StreamNodeConfig config;
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(ConfigNodeClient.class);
-
-  private final String seedConfigNode;
-
-  public ConfigNodeClient(String seedConfigNode) {
-    this.seedConfigNode = seedConfigNode;
+  public StreamNodeStartupCheck(String nodeRole, StreamNodeConfig config) {
+    super(nodeRole);
+    this.config = config;
   }
 
-  public boolean registerStreamNode(int streamNodeId, String address, int port) {
-    // TODO: implement Thrift RPC call to ConfigNode
-    LOGGER.info(
-        "Registering StreamNode {} at {}:{} to seed ConfigNode {}",
-        streamNodeId,
-        address,
-        port,
-        seedConfigNode);
-    return true;
-  }
+  @Override
+  protected void portCheck() {}
 
-  public void close() {
-    // TODO: close Thrift transport
-    LOGGER.info("ConfigNodeClient closed");
+  @Override
+  public void startUpCheck() throws StartupException {
+    envCheck();
+    portCheck();
+    verify();
   }
 }

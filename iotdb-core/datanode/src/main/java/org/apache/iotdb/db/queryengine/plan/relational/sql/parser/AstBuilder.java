@@ -251,6 +251,7 @@ import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowPipes;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowQueriesStatement;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowRegions;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowStatement;
+import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowStreamNodes;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowSubscriptions;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowTables;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowTopics;
@@ -1508,6 +1509,12 @@ public class AstBuilder extends RelationalSqlBaseVisitor<Node> {
   @Override
   public Node visitShowAINodesStatement(RelationalSqlParser.ShowAINodesStatementContext ctx) {
     return new ShowAINodes();
+  }
+
+  @Override
+  public Node visitShowStreamNodesStatement(
+      RelationalSqlParser.ShowStreamNodesStatementContext ctx) {
+    return new ShowStreamNodes();
   }
 
   @Override

@@ -42,6 +42,11 @@ public enum ConfigPhysicalPlanType {
   RemoveAINode((short) 106),
   GetAINodeConfiguration((short) 107),
 
+  /** StreamNode. */
+  RegisterStreamNode((short) 108),
+  UpdateStreamNodeConfiguration((short) 109),
+  RemoveStreamNode((short) 110),
+
   /** Database. */
   CreateDatabase((short) 200),
   SetTTL((short) 201),

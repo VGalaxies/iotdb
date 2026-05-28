@@ -31,6 +31,8 @@ import org.apache.iotdb.common.rpc.thrift.TNodeResource;
 import org.apache.iotdb.common.rpc.thrift.TRegionReplicaSet;
 import org.apache.iotdb.common.rpc.thrift.TSeriesPartitionSlot;
 import org.apache.iotdb.common.rpc.thrift.TSpaceQuota;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeConfiguration;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TThrottleQuota;
 import org.apache.iotdb.common.rpc.thrift.TTimePartitionSlot;
 import org.apache.iotdb.common.rpc.thrift.TTimedQuota;
@@ -122,6 +124,9 @@ import org.apache.iotdb.confignode.consensus.request.write.region.CreateRegionGr
 import org.apache.iotdb.confignode.consensus.request.write.region.OfferRegionMaintainTasksPlan;
 import org.apache.iotdb.confignode.consensus.request.write.region.PollRegionMaintainTaskPlan;
 import org.apache.iotdb.confignode.consensus.request.write.region.PollSpecificRegionMaintainTaskPlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RegisterStreamNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RemoveStreamNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.UpdateStreamNodePlan;
 import org.apache.iotdb.confignode.consensus.request.write.subscription.consumer.AlterConsumerGroupPlan;
 import org.apache.iotdb.confignode.consensus.request.write.subscription.consumer.runtime.ConsumerGroupHandleMetaChangePlan;
 import org.apache.iotdb.confignode.consensus.request.write.subscription.topic.AlterMultipleTopicsPlan;
@@ -2092,6 +2097,54 @@ public class ConfigPhysicalPlanSerDeTest {
     GetRegionGroupsByTimePlan plan1 =
         (GetRegionGroupsByTimePlan)
             ConfigPhysicalPlan.Factory.create(plan0.serializeToByteBuffer());
+    Assert.assertEquals(plan0, plan1);
+  }
+
+  @Test
+  public void RegisterStreamNodePlanTest() throws IOException {
+    TStreamNodeLocation streamNodeLocation = new TStreamNodeLocation();
+    streamNodeLocation.setStreamNodeId(1);
+    streamNodeLocation.setInternalEndPoint(new TEndPoint("0.0.0.0", 10820));
+
+    TStreamNodeConfiguration streamNodeConfiguration = new TStreamNodeConfiguration();
+    streamNodeConfiguration.setLocation(streamNodeLocation);
+    streamNodeConfiguration.setResource(new TNodeResource(8, 17179869184L));
+
+    RegisterStreamNodePlan plan0 = new RegisterStreamNodePlan(streamNodeConfiguration);
+    RegisterStreamNodePlan plan1 =
+        (RegisterStreamNodePlan) ConfigPhysicalPlan.Factory.create(plan0.serializeToByteBuffer());
+    Assert.assertEquals(plan0, plan1);
+  }
+
+  @Test
+  public void UpdateStreamNodePlanTest() throws IOException {
+    TStreamNodeLocation streamNodeLocation = new TStreamNodeLocation();
+    streamNodeLocation.setStreamNodeId(0);
+    streamNodeLocation.setInternalEndPoint(new TEndPoint("0.0.0.0", 10820));
+
+    TNodeResource streamNodeResource = new TNodeResource();
+    streamNodeResource.setCpuCoreNum(8);
+    streamNodeResource.setMaxMemory(17179869184L);
+
+    TStreamNodeConfiguration streamNodeConfiguration = new TStreamNodeConfiguration();
+    streamNodeConfiguration.setLocation(streamNodeLocation);
+    streamNodeConfiguration.setResource(streamNodeResource);
+
+    UpdateStreamNodePlan plan0 = new UpdateStreamNodePlan(streamNodeConfiguration);
+    UpdateStreamNodePlan plan1 =
+        (UpdateStreamNodePlan) ConfigPhysicalPlan.Factory.create(plan0.serializeToByteBuffer());
+    Assert.assertEquals(plan0, plan1);
+  }
+
+  @Test
+  public void RemoveStreamNodePlanTest() throws IOException {
+    TStreamNodeLocation streamNodeLocation = new TStreamNodeLocation();
+    streamNodeLocation.setStreamNodeId(1);
+    streamNodeLocation.setInternalEndPoint(new TEndPoint("192.168.1.1", 10820));
+
+    RemoveStreamNodePlan plan0 = new RemoveStreamNodePlan(streamNodeLocation);
+    RemoveStreamNodePlan plan1 =
+        (RemoveStreamNodePlan) ConfigPhysicalPlan.Factory.create(plan0.serializeToByteBuffer());
     Assert.assertEquals(plan0, plan1);
   }
 }

@@ -19,13 +19,16 @@
 
 package org.apache.iotdb.streamnode.conf;
 
+import org.apache.iotdb.commons.exception.BadNodeUrlException;
+import org.apache.iotdb.commons.utils.NodeUrlUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.util.Properties;
 
 public class StreamNodeDescriptor {
@@ -54,7 +57,7 @@ public class StreamNodeDescriptor {
       filePath = confDir + File.separator + CONF_FILE_NAME;
       File file = new File(filePath);
       if (file.exists()) {
-        try (InputStream in = new FileInputStream(file)) {
+        try (InputStream in = Files.newInputStream(file.toPath())) {
           properties.load(in);
           LOGGER.info("Loaded StreamNode properties from {}", filePath);
         } catch (IOException e) {
@@ -76,13 +79,18 @@ public class StreamNodeDescriptor {
     }
 
     if (!properties.isEmpty()) {
-      loadFromProperties(properties);
+      try {
+        loadFromProperties(properties);
+      } catch (BadNodeUrlException e) {
+        LOGGER.error("Couldn't load StreamNode conf file, reject StreamNode startup.", e);
+        System.exit(-1);
+      }
     } else {
       LOGGER.info("Using default StreamNode configuration");
     }
   }
 
-  private void loadFromProperties(Properties properties) {
+  private void loadFromProperties(Properties properties) throws BadNodeUrlException {
     config.setClusterName(properties.getProperty("cluster_name", config.getClusterName()));
 
     config.setSnInternalAddress(
@@ -93,8 +101,10 @@ public class StreamNodeDescriptor {
             properties.getProperty(
                 "sn_internal_port", String.valueOf(config.getSnInternalPort()))));
 
-    config.setSnSeedConfigNode(
-        properties.getProperty("sn_seed_config_node", config.getSnSeedConfigNode()));
+    String seedConfigNode = properties.getProperty("sn_seed_config_node");
+    if (seedConfigNode != null) {
+      config.setSnSeedConfigNode(NodeUrlUtils.parseTEndPointUrls(seedConfigNode).get(0));
+    }
 
     config.setRpcMaxConcurrentClientNum(
         Integer.parseInt(

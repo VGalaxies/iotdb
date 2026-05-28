@@ -27,6 +27,7 @@ import org.apache.iotdb.commons.client.async.AsyncDataNodeInternalServiceClient;
 import org.apache.iotdb.commons.client.async.AsyncDataNodeMPPDataExchangeServiceClient;
 import org.apache.iotdb.commons.client.async.AsyncIoTConsensusV2ServiceClient;
 import org.apache.iotdb.commons.client.async.AsyncPipeDataTransferServiceClient;
+import org.apache.iotdb.commons.client.async.AsyncStreamNodeInternalServiceClient;
 import org.apache.iotdb.commons.client.property.ClientPoolProperty;
 import org.apache.iotdb.commons.client.property.IoTConsensusV2ClientProperty;
 import org.apache.iotdb.commons.client.property.ThriftClientProperty;
@@ -495,6 +496,39 @@ public class ClientPoolFactory {
                       .build(),
                   ThreadName.ASYNC_DATANODE_HEARTBEAT_CLIENT_POOL.getName()),
               new ClientPoolProperty.Builder<AsyncAINodeInternalServiceClient>()
+                  .setMaxClientNumForEachNode(conf.getMaxClientNumForEachNode())
+                  .build()
+                  .getConfig());
+      ClientManagerMetrics.getInstance()
+          .registerClientManager(this.getClass().getSimpleName(), clientPool);
+      return clientPool;
+    }
+  }
+
+  public static class AsyncStreamNodeHeartbeatServiceClientPoolFactory
+      implements IClientPoolFactory<TEndPoint, AsyncStreamNodeInternalServiceClient> {
+
+    private final int selectorNumOfAsyncClientManager;
+
+    public AsyncStreamNodeHeartbeatServiceClientPoolFactory(int selectorNumOfAsyncClientManager) {
+      this.selectorNumOfAsyncClientManager = selectorNumOfAsyncClientManager;
+    }
+
+    @Override
+    public GenericKeyedObjectPool<TEndPoint, AsyncStreamNodeInternalServiceClient> createClientPool(
+        ClientManager<TEndPoint, AsyncStreamNodeInternalServiceClient> manager) {
+      GenericKeyedObjectPool<TEndPoint, AsyncStreamNodeInternalServiceClient> clientPool =
+          new GenericKeyedObjectPool<>(
+              new AsyncStreamNodeInternalServiceClient.Factory(
+                  manager,
+                  new ThriftClientProperty.Builder()
+                      .setConnectionTimeoutMs(conf.getCnConnectionTimeoutInMS())
+                      .setRpcThriftCompressionEnabled(conf.isRpcThriftCompressionEnabled())
+                      .setSelectorNumOfAsyncClientManager(selectorNumOfAsyncClientManager)
+                      .setPrintLogWhenEncounterException(false)
+                      .build(),
+                  ThreadName.ASYNC_DATANODE_HEARTBEAT_CLIENT_POOL.getName()),
+              new ClientPoolProperty.Builder<AsyncStreamNodeInternalServiceClient>()
                   .setMaxClientNumForEachNode(conf.getMaxClientNumForEachNode())
                   .build()
                   .getConfig());

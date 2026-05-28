@@ -94,6 +94,9 @@ public enum ProcedureType {
   DROP_MODEL_PROCEDURE((short) 801),
   REMOVE_AI_NODE_PROCEDURE((short) 802),
 
+  /** StreamNode */
+  REMOVE_STREAM_NODE_PROCEDURE((short) 803),
+
   // ProcedureId 800-899 is used by IoTDB-Ml
 
   /** Pipe Plugin */

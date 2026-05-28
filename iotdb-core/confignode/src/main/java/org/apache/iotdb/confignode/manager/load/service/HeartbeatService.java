@@ -24,6 +24,7 @@ import org.apache.iotdb.common.rpc.thrift.TAINodeConfiguration;
 import org.apache.iotdb.common.rpc.thrift.TConfigNodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TDataNodeConfiguration;
 import org.apache.iotdb.common.rpc.thrift.TEndPoint;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeConfiguration;
 import org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory;
 import org.apache.iotdb.commons.concurrent.ThreadName;
 import org.apache.iotdb.commons.concurrent.threadpool.ScheduledExecutorUtil;
@@ -31,9 +32,11 @@ import org.apache.iotdb.commons.pipe.config.PipeConfig;
 import org.apache.iotdb.confignode.client.async.AsyncAINodeHeartbeatClientPool;
 import org.apache.iotdb.confignode.client.async.AsyncConfigNodeHeartbeatClientPool;
 import org.apache.iotdb.confignode.client.async.AsyncDataNodeHeartbeatClientPool;
+import org.apache.iotdb.confignode.client.async.AsyncStreamNodeHeartbeatClientPool;
 import org.apache.iotdb.confignode.client.async.handlers.heartbeat.AINodeHeartbeatHandler;
 import org.apache.iotdb.confignode.client.async.handlers.heartbeat.ConfigNodeHeartbeatHandler;
 import org.apache.iotdb.confignode.client.async.handlers.heartbeat.DataNodeHeartbeatHandler;
+import org.apache.iotdb.confignode.client.async.handlers.heartbeat.StreamNodeHeartbeatHandler;
 import org.apache.iotdb.confignode.conf.ConfigNodeDescriptor;
 import org.apache.iotdb.confignode.manager.IManager;
 import org.apache.iotdb.confignode.manager.consensus.ConsensusManager;
@@ -43,6 +46,7 @@ import org.apache.iotdb.confignode.manager.node.NodeManager;
 import org.apache.iotdb.confignode.rpc.thrift.TConfigNodeHeartbeatReq;
 import org.apache.iotdb.db.protocol.client.ConfigNodeInfo;
 import org.apache.iotdb.mpp.rpc.thrift.TDataNodeHeartbeatReq;
+import org.apache.iotdb.streamnode.rpc.thrift.TStreamNodeHeartbeatReq;
 
 import org.apache.tsfile.utils.Pair;
 import org.slf4j.Logger;
@@ -133,6 +137,9 @@ public class HeartbeatService {
                     genHeartbeatReq(), getNodeManager().getRegisteredDataNodes());
                 // Send heartbeat requests to all the registered AINodes
                 pingRegisteredAINodes(genAIHeartbeatReq(), getNodeManager().getRegisteredAINodes());
+                // Send heartbeat requests to all the registered StreamNodes
+                pingRegisteredStreamNodes(
+                    genStreamNodeHeartbeatReq(), getNodeManager().getRegisteredStreamNodes());
               }
             });
   }
@@ -177,6 +184,18 @@ public class HeartbeatService {
     heartbeatCounter.getAndIncrement();
 
     return heartbeatReq;
+  }
+
+  private void addConfigNodeLocationsToReq(int streamNodeId, TStreamNodeHeartbeatReq req) {
+    Set<TEndPoint> confirmedConfigNodes = loadCache.getConfirmedConfigNodeEndPoints(streamNodeId);
+    Set<TEndPoint> actualConfigNodes =
+        getNodeManager().getRegisteredConfigNodes().stream()
+            .map(TConfigNodeLocation::getInternalEndPoint)
+            .collect(Collectors.toSet());
+    if (!actualConfigNodes.equals(confirmedConfigNodes)
+        || heartbeatCounter.get() % configNodeListPeriodicallySyncInterval == 0) {
+      req.setConfigNodeEndPoints(actualConfigNodes);
+    }
   }
 
   private void addConfigNodeLocationsToReq(int dataNodeId, TDataNodeHeartbeatReq req) {
@@ -298,5 +317,37 @@ public class HeartbeatService {
 
   private NodeManager getNodeManager() {
     return configManager.getNodeManager();
+  }
+
+  private TStreamNodeHeartbeatReq genStreamNodeHeartbeatReq() {
+    TStreamNodeHeartbeatReq heartbeatReq = new TStreamNodeHeartbeatReq();
+    heartbeatReq.setHeartbeatTimestamp(System.nanoTime());
+    heartbeatReq.setCnStartTime(0);
+    heartbeatReq.setNeedSamplingLoad(heartbeatCounter.get() % 10 == 0);
+    return heartbeatReq;
+  }
+
+  /**
+   * Send heartbeat requests to all the Registered StreamNodes.
+   *
+   * @param heartbeatReq heartbeat request
+   * @param registeredStreamNodes StreamNodes that registered in cluster
+   */
+  private void pingRegisteredStreamNodes(
+      TStreamNodeHeartbeatReq heartbeatReq, List<TStreamNodeConfiguration> registeredStreamNodes) {
+    for (TStreamNodeConfiguration streamNodeInfo : registeredStreamNodes) {
+      int streamNodeId = streamNodeInfo.getLocation().getStreamNodeId();
+      if (loadCache.checkAndSetHeartbeatProcessing(streamNodeId)) {
+        // Skip the DataNode that is processing heartbeat
+        continue;
+      }
+      StreamNodeHeartbeatHandler handler =
+          new StreamNodeHeartbeatHandler(
+              streamNodeInfo.getLocation().getStreamNodeId(), configManager.getLoadManager());
+      addConfigNodeLocationsToReq(streamNodeId, heartbeatReq);
+      AsyncStreamNodeHeartbeatClientPool.getInstance()
+          .getStreamNodeHeartBeat(
+              streamNodeInfo.getLocation().getInternalEndPoint(), heartbeatReq, handler);
+    }
   }
 }

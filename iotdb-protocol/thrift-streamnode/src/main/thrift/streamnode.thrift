@@ -24,6 +24,8 @@ include "common.thrift"
 struct TStreamNodeHeartbeatReq {
   1: required i64 heartbeatTimestamp
   2: required i64 cnStartTime
+  3: required bool needSamplingLoad
+  4: optional set<common.TEndPoint> configNodeEndPoints
 }
 
 struct TTaskHeartbeat {
@@ -33,7 +35,11 @@ struct TTaskHeartbeat {
 
 struct TStreamNodeHeartbeatResp {
   1: required i64 heartbeatTimestamp
-  2: required list<TTaskHeartbeat> runningTasks
+  2: required string status
+  3: optional string statusReason
+  4: optional common.TLoadSample loadSample
+  5: optional string activateStatus
+  6: optional set<common.TEndPoint> confirmedConfigNodeEndPoints
 }
 
 struct TCreateTaskOnStreamNodeReq {

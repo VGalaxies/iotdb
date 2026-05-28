@@ -283,6 +283,9 @@ public class LoadManager {
       case AINode:
         loadCache.cacheAINodeHeartbeatSample(nodeId, heartbeatSample);
         break;
+      case StreamNode:
+        loadCache.cacheStreamNodeHeartbeatSample(nodeId, heartbeatSample);
+        break;
       default:
         break;
     }

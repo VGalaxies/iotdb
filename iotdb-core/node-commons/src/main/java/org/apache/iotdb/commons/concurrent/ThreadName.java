@@ -208,6 +208,7 @@ public enum ThreadName {
   BINARY_ALLOCATOR_AUTO_RELEASER("BinaryAllocator-Auto-Releaser"),
   FIND_EARLIEST_TIME_SLOT_PARALLEL_POOL("FindEarliestTimeSlot-Parallel-Pool"),
   DATA_PARTITION_RECOVER_PARALLEL_POOL("DataPartitionRecover-Parallel-Pool"),
+  STREAMNODE_SHUTDOWN_HOOK("StreamNode-Shutdown-Hook"),
 
   // the unknown thread name is used for metrics
   UNKNOWN("UNKNOWN");

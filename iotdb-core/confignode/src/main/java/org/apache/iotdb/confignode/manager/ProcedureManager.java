@@ -54,6 +54,7 @@ import org.apache.iotdb.confignode.consensus.request.write.database.SetTTLPlan;
 import org.apache.iotdb.confignode.consensus.request.write.datanode.RemoveDataNodePlan;
 import org.apache.iotdb.confignode.consensus.request.write.procedure.UpdateProcedurePlan;
 import org.apache.iotdb.confignode.consensus.request.write.region.CreateRegionGroupsPlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RemoveStreamNodePlan;
 import org.apache.iotdb.confignode.manager.partition.PartitionManager;
 import org.apache.iotdb.confignode.persistence.ProcedureInfo;
 import org.apache.iotdb.confignode.procedure.PartitionTableAutoCleaner;
@@ -69,6 +70,7 @@ import org.apache.iotdb.confignode.procedure.impl.node.AddConfigNodeProcedure;
 import org.apache.iotdb.confignode.procedure.impl.node.RemoveAINodeProcedure;
 import org.apache.iotdb.confignode.procedure.impl.node.RemoveConfigNodeProcedure;
 import org.apache.iotdb.confignode.procedure.impl.node.RemoveDataNodesProcedure;
+import org.apache.iotdb.confignode.procedure.impl.node.RemoveStreamNodesProcedure;
 import org.apache.iotdb.confignode.procedure.impl.pipe.plugin.CreatePipePluginProcedure;
 import org.apache.iotdb.confignode.procedure.impl.pipe.plugin.DropPipePluginProcedure;
 import org.apache.iotdb.confignode.procedure.impl.pipe.runtime.PipeHandleLeaderChangeProcedure;
@@ -656,6 +658,19 @@ public class ProcedureManager {
     this.executor.submitProcedure(new RemoveAINodeProcedure(removeAINodePlan.getAINodeLocation()));
     LOGGER.info(
         "Submit RemoveAINodeProcedure successfully, {}", removeAINodePlan.getAINodeLocation());
+    return true;
+  }
+
+  /**
+   * Generate {@link RemoveStreamNodesProcedure}s, and serially execute all the {@link
+   * RemoveStreamNodesProcedure}s.
+   */
+  public boolean removeStreamNode(RemoveStreamNodePlan removeStreamNodePlan) {
+    this.executor.submitProcedure(
+        new RemoveStreamNodesProcedure(removeStreamNodePlan.getStreamNodeLocation()));
+    LOGGER.info(
+        "Submit RemoveStreamNodesProcedure successfully, {}",
+        removeStreamNodePlan.getStreamNodeLocation());
     return true;
   }
 

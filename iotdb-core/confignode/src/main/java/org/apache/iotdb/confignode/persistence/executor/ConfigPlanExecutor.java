@@ -112,6 +112,8 @@ import org.apache.iotdb.confignode.consensus.request.write.quota.SetThrottleQuot
 import org.apache.iotdb.confignode.consensus.request.write.region.CreateRegionGroupsPlan;
 import org.apache.iotdb.confignode.consensus.request.write.region.OfferRegionMaintainTasksPlan;
 import org.apache.iotdb.confignode.consensus.request.write.region.PollSpecificRegionMaintainTaskPlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RegisterStreamNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.UpdateStreamNodePlan;
 import org.apache.iotdb.confignode.consensus.request.write.subscription.consumer.AlterConsumerGroupPlan;
 import org.apache.iotdb.confignode.consensus.request.write.subscription.consumer.runtime.ConsumerGroupHandleMetaChangePlan;
 import org.apache.iotdb.confignode.consensus.request.write.subscription.topic.AlterMultipleTopicsPlan;
@@ -406,6 +408,10 @@ public class ConfigPlanExecutor {
         return nodeInfo.updateAINode((UpdateAINodePlan) physicalPlan);
       case RemoveAINode:
         return nodeInfo.removeAINode((RemoveAINodePlan) physicalPlan);
+      case RegisterStreamNode:
+        return nodeInfo.registerStreamNode((RegisterStreamNodePlan) physicalPlan);
+      case UpdateStreamNodeConfiguration:
+        return nodeInfo.updateStreamNode((UpdateStreamNodePlan) physicalPlan);
       case CreateDatabase:
         status = clusterSchemaInfo.createDatabase((DatabaseSchemaPlan) physicalPlan);
         if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {

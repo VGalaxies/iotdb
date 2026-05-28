@@ -1211,12 +1211,14 @@ struct TStreamNodeRegisterReq {
   1: required string clusterName
   2: required common.TStreamNodeConfiguration streamNodeConfiguration
   3: optional TNodeVersionInfo versionInfo
+  4: optional bool preCheck
 }
 
 struct TStreamNodeRegisterResp {
   1: required common.TSStatus status
   2: required list<common.TConfigNodeLocation> configNodeList
   3: optional i32 streamNodeId
+  4: optional TRuntimeConfiguration runtimeConfiguration
 }
 
 struct TStreamNodeRestartReq {
@@ -1229,6 +1231,7 @@ struct TStreamNodeRestartReq {
 struct TStreamNodeRestartResp {
   1: required common.TSStatus status
   2: required list<common.TConfigNodeLocation> configNodeList
+  3: optional TRuntimeConfiguration runtimeConfiguration
 }
 
 struct TStreamNodeRemoveReq {
@@ -1430,6 +1433,8 @@ service IConfigNodeRPCService {
   common.TSStatus removeStreamNode(TStreamNodeRemoveReq req)
 
   TShowStreamNodesResp showStreamNodes()
+
+  common.TSStatus reportStreamNodeShutdown(common.TStreamNodeLocation streamNodeLocation)
 
   /**
    * Stream task management

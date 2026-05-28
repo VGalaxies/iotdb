@@ -36,6 +36,7 @@ import org.apache.iotdb.common.rpc.thrift.TSetThrottleQuotaReq;
 import org.apache.iotdb.common.rpc.thrift.TShowAppliedConfigurationsResp;
 import org.apache.iotdb.common.rpc.thrift.TShowConfigurationResp;
 import org.apache.iotdb.common.rpc.thrift.TShowTTLReq;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TTestConnectionResp;
 import org.apache.iotdb.commons.auth.entity.PrivilegeModelType;
 import org.apache.iotdb.commons.auth.entity.PrivilegeType;
@@ -73,6 +74,7 @@ import org.apache.iotdb.confignode.consensus.request.write.database.SetSchemaRep
 import org.apache.iotdb.confignode.consensus.request.write.database.SetTTLPlan;
 import org.apache.iotdb.confignode.consensus.request.write.database.SetTimePartitionIntervalPlan;
 import org.apache.iotdb.confignode.consensus.request.write.datanode.RemoveDataNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RemoveStreamNodePlan;
 import org.apache.iotdb.confignode.consensus.response.ainode.AINodeConfigurationResp;
 import org.apache.iotdb.confignode.consensus.response.ainode.AINodeRegisterResp;
 import org.apache.iotdb.confignode.consensus.response.auth.PermissionInfoResp;
@@ -83,6 +85,7 @@ import org.apache.iotdb.confignode.consensus.response.datanode.DataNodeConfigura
 import org.apache.iotdb.confignode.consensus.response.datanode.DataNodeRegisterResp;
 import org.apache.iotdb.confignode.consensus.response.datanode.DataNodeToStatusResp;
 import org.apache.iotdb.confignode.consensus.response.partition.RegionInfoListResp;
+import org.apache.iotdb.confignode.consensus.response.streamnode.StreamNodeRegisterResp;
 import org.apache.iotdb.confignode.consensus.response.ttl.ShowTTLResp;
 import org.apache.iotdb.confignode.manager.ConfigManager;
 import org.apache.iotdb.confignode.manager.consensus.ConsensusManager;
@@ -1504,22 +1507,43 @@ public class ConfigNodeRPCServiceProcessor implements IConfigNodeRPCService.Ifac
 
   @Override
   public TStreamNodeRegisterResp registerStreamNode(TStreamNodeRegisterReq req) throws TException {
-    return null;
+    TStreamNodeRegisterResp resp =
+        ((StreamNodeRegisterResp) configManager.registerStreamNode(req))
+            .convertToStreamNodeRegisterResp();
+
+    LOGGER.info("Execute RegisterStreamNodeRequest {} with result {}", req, resp);
+
+    return resp;
   }
 
   @Override
   public TStreamNodeRestartResp restartStreamNode(TStreamNodeRestartReq req) throws TException {
-    return null;
+    TStreamNodeRestartResp resp = configManager.restartStreamNode(req);
+
+    // Print log to record the ConfigNode that performs the RestartStreamNodeRequest
+    LOGGER.info("Execute RestartStreamNodeRequest {} with result {}", req, resp);
+    return resp;
   }
 
   @Override
   public TSStatus removeStreamNode(TStreamNodeRemoveReq req) throws TException {
-    return null;
+    LOGGER.info("ConfigNode RPC Service start to remove StreamNode, req: {}", req);
+    RemoveStreamNodePlan removeStreamNodePlan =
+        new RemoveStreamNodePlan(req.getStreamNodeLocation());
+    TSStatus status = configManager.removeStreamNode(removeStreamNodePlan);
+    LOGGER.info("ConfigNode RPC Service finished to remove StreamNode, status: {}", status);
+    return status;
   }
 
   @Override
   public TShowStreamNodesResp showStreamNodes() throws TException {
-    return null;
+    return configManager.showStreamNodes();
+  }
+
+  @Override
+  public TSStatus reportStreamNodeShutdown(TStreamNodeLocation streamNodeLocation)
+      throws TException {
+    return configManager.reportStreamNodeShutdown(streamNodeLocation);
   }
 
   @Override

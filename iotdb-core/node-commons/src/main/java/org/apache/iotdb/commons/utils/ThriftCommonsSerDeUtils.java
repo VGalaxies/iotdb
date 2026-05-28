@@ -28,6 +28,8 @@ import org.apache.iotdb.common.rpc.thrift.TEndPoint;
 import org.apache.iotdb.common.rpc.thrift.TRegionReplicaSet;
 import org.apache.iotdb.common.rpc.thrift.TSchemaNode;
 import org.apache.iotdb.common.rpc.thrift.TSeriesPartitionSlot;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeConfiguration;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TTimePartitionSlot;
 import org.apache.iotdb.commons.exception.runtime.ThriftSerDeException;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateCQReq;
@@ -368,5 +370,62 @@ public class ThriftCommonsSerDeUtils {
       throw new ThriftSerDeException("Read TDataNodeLocation failed: ", e);
     }
     return aiNodeLocation;
+  }
+
+  public static void serializeTStreamNodeInfo(
+      TStreamNodeConfiguration streamNodeInfo, DataOutputStream stream) {
+    try {
+      streamNodeInfo.write(generateWriteProtocol(stream));
+    } catch (TException e) {
+      throw new ThriftSerDeException("Write TStreamNodeInfo failed: ", e);
+    }
+  }
+
+  public static TStreamNodeConfiguration deserializeTStreamNodeInfo(ByteBuffer buffer) {
+    TStreamNodeConfiguration streamNodeInfo = new TStreamNodeConfiguration();
+    try {
+      streamNodeInfo.read(generateReadProtocol(buffer));
+    } catch (TException e) {
+      throw new ThriftSerDeException("Read TStreamNodeInfo failed: ", e);
+    }
+    return streamNodeInfo;
+  }
+
+  public static void serializeTStreamNodeConfiguration(
+      TStreamNodeConfiguration streamNodeConfiguration, DataOutputStream stream) {
+    try {
+      streamNodeConfiguration.write(generateWriteProtocol(stream));
+    } catch (TException e) {
+      throw new ThriftSerDeException("Write TStreamNodeConfiguration failed: ", e);
+    }
+  }
+
+  public static TStreamNodeConfiguration deserializeTStreamNodeConfiguration(ByteBuffer buffer) {
+    TStreamNodeConfiguration streamNodeConfiguration = new TStreamNodeConfiguration();
+    try {
+      streamNodeConfiguration.read(generateReadProtocol(buffer));
+    } catch (TException e) {
+      throw new ThriftSerDeException("Read TStreamNodeConfiguration failed: ", e);
+    }
+    return streamNodeConfiguration;
+  }
+
+  public static void serializeTStreamNodeLocation(
+      TStreamNodeLocation streamNodeLocation, DataOutputStream stream) {
+    try {
+      streamNodeLocation.write(generateWriteProtocol(stream));
+    } catch (TException e) {
+      throw new ThriftSerDeException("Write TStreamNodeLocation failed: ", e);
+    }
+  }
+
+  public static TStreamNodeLocation deserializeTStreamNodeLocation(ByteBuffer buffer) {
+    TStreamNodeLocation streamNodeLocation = new TStreamNodeLocation();
+    try {
+      streamNodeLocation.read(generateReadProtocol(buffer));
+    } catch (TException e) {
+      throw new ThriftSerDeException("Read TStreamNodeLocation failed: ", e);
+    }
+    return streamNodeLocation;
   }
 }

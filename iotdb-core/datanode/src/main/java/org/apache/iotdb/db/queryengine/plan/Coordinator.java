@@ -136,6 +136,7 @@ import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowFunctions;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowLoadedModels;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowModels;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowRegions;
+import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowStreamNodes;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowTables;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowVariables;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowVersion;
@@ -676,7 +677,8 @@ public class Coordinator {
         || statement instanceof ShowLoadedModels
         || statement instanceof RemoveRegion
         || statement instanceof Prepare
-        || statement instanceof Deallocate) {
+        || statement instanceof Deallocate
+        || statement instanceof ShowStreamNodes) {
       return new ConfigExecution(
           queryContext,
           null,
