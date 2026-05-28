@@ -19,99 +19,113 @@
 
 package org.apache.iotdb.streamnode.manager;
 
-import org.apache.iotdb.common.rpc.thrift.TSStatus;
+import org.apache.iotdb.commons.exception.StartupException;
+import org.apache.iotdb.commons.service.IService;
+import org.apache.iotdb.commons.service.ServiceType;
 import org.apache.iotdb.commons.stream.StreamTask;
-import org.apache.iotdb.commons.stream.StreamTaskStatus;
-import org.apache.iotdb.rpc.TSStatusCode;
+import org.apache.iotdb.streamnode.engine.scheduler.IStreamTaskScheduler;
+import org.apache.iotdb.streamnode.engine.scheduler.StreamTaskScheduler;
+import org.apache.iotdb.streamnode.engine.scheduler.task.IStreamDriver;
+import org.apache.iotdb.streamnode.engine.task.StreamTaskInstance;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /** Manages the lifecycle of stream tasks on this StreamNode. */
-public class StreamTaskManager {
+public class StreamTaskManager implements IService {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(StreamTaskManager.class);
 
-  /** taskName -> StreamTask */
-  private final Map<String, StreamTask> taskMap = new ConcurrentHashMap<>();
+  private final Map<String, StreamTaskInstance> instances = new ConcurrentHashMap<>();
+  private final ExecutorService executorService;
+  private final IStreamTaskScheduler scheduler;
 
-  public StreamTaskManager() {}
+  public StreamTaskManager() {
+    this.executorService = Executors.newFixedThreadPool(1);
+    this.scheduler = new StreamTaskScheduler();
+  }
 
-  public TSStatus createTask(StreamTask task, int epoch) {
+  @Override
+  public void start() throws StartupException {
+    this.scheduler.start();
+  }
+
+  @Override
+  public void stop() {
+    for (StreamTaskInstance instance : instances.values()) {
+      instance.stop();
+    }
+    instances.clear();
+    this.scheduler.stop();
+    executorService.shutdown();
+    LOGGER.info("StreamTaskRunner stop complete");
+  }
+
+  @Override
+  public ServiceType getID() {
+    return ServiceType.STREAM_TASK_MANAGER;
+  }
+
+  private static class StreamTaskManagerHolder {
+    private static final StreamTaskManager INSTANCE = new StreamTaskManager();
+  }
+
+  public static StreamTaskManager getInstance() {
+    return StreamTaskManager.StreamTaskManagerHolder.INSTANCE;
+  }
+
+  public void start(StreamTask task) {
     String taskName = task.getTaskName();
-    if (taskMap.containsKey(taskName)) {
-      LOGGER.warn("Task {} already exists, skipping creation", taskName);
-      return new TSStatus(TSStatusCode.INTERNAL_SERVER_ERROR.getStatusCode())
-          .setMessage("Task " + taskName + " already exists");
+    StreamTaskInstance existInstance = instances.get(taskName);
+    if (existInstance != null) {
+      if (!existInstance.isRunning()) {
+        executorService.submit(existInstance::start);
+      }
+      return;
     }
-    task.setEpoch(epoch);
-    task.setStatus(StreamTaskStatus.CREATED);
-    taskMap.put(taskName, task);
-    LOGGER.info("Task {} created with epoch {}", taskName, epoch);
-    return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
+    StreamTaskInstance instance =
+        new StreamTaskInstance(
+            task,
+            (tsBlock, commitId, partitionKey) -> {
+              StreamTaskInstance streamTaskInstance = instances.get(taskName);
+              boolean isNewDriver = !streamTaskInstance.isStreamDriverExists(partitionKey);
+              IStreamDriver streamDriver = streamTaskInstance.getOrCreateStreamDriver(partitionKey);
+              if (isNewDriver) {
+                scheduler.submitStreamDriver(streamDriver, 0);
+              }
+              return streamDriver.push(tsBlock, commitId);
+            });
+    instances.put(taskName, instance);
+
+    executorService.submit(instance::start);
+    LOGGER.info("Submitted task for execution: {}", taskName);
   }
 
-  public TSStatus startTask(String taskName, int epoch) {
-    StreamTask task = taskMap.get(taskName);
-    if (task == null) {
-      LOGGER.warn("Task {} not found", taskName);
-      return new TSStatus(TSStatusCode.INTERNAL_SERVER_ERROR.getStatusCode())
-          .setMessage("Task " + taskName + " not found");
-    }
-    if (epoch < task.getEpoch()) {
-      LOGGER.warn(
-          "Stale epoch {} for task {}, current epoch is {}", epoch, taskName, task.getEpoch());
-      return new TSStatus(TSStatusCode.INTERNAL_SERVER_ERROR.getStatusCode())
-          .setMessage("Stale epoch " + epoch + ", current is " + task.getEpoch());
-    }
-    task.setEpoch(epoch);
-    task.setStatus(StreamTaskStatus.RUNNING);
-    // TODO: start the actual execution engine for this task
-    LOGGER.info("Task {} started with epoch {}", taskName, epoch);
-    return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
+  public void drop(String taskName) {
+    this.stop(taskName);
   }
 
-  public TSStatus stopTask(String taskName) {
-    StreamTask task = taskMap.get(taskName);
-    if (task == null) {
-      LOGGER.warn("Task {} not found", taskName);
-      return new TSStatus(TSStatusCode.INTERNAL_SERVER_ERROR.getStatusCode())
-          .setMessage("Task " + taskName + " not found");
+  public void stop(String taskName) {
+    StreamTaskInstance instance = instances.remove(taskName);
+    if (instance != null) {
+      instance.stop();
     }
-    task.setStatus(StreamTaskStatus.STOPPED);
-    // TODO: stop the actual execution engine for this task
-    LOGGER.info("Task {} stopped", taskName);
-    return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
+    scheduler.cancelStreamTask(taskName);
   }
 
-  public TSStatus dropTask(String taskName) {
-    StreamTask task = taskMap.remove(taskName);
-    if (task == null) {
-      LOGGER.warn("Task {} not found", taskName);
-      return new TSStatus(TSStatusCode.INTERNAL_SERVER_ERROR.getStatusCode())
-          .setMessage("Task " + taskName + " not found");
+  public void dropAll() {
+    for (StreamTaskInstance instance : instances.values()) {
+      instance.stop();
     }
-    task.setStatus(StreamTaskStatus.DROPPED);
-    // TODO: clean up all resources for this task
-    LOGGER.info("Task {} dropped", taskName);
-    return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
+    instances.clear();
   }
 
-  public void dropAllTasks() {
-    LOGGER.info("Dropping all {} tasks", taskMap.size());
-    for (String taskName : taskMap.keySet()) {
-      dropTask(taskName);
-    }
-  }
-
-  public StreamTask getTask(String taskName) {
-    return taskMap.get(taskName);
-  }
-
-  public int getTaskCount() {
-    return taskMap.size();
+  public void create(StreamTask task) {
+    this.start(task);
   }
 }

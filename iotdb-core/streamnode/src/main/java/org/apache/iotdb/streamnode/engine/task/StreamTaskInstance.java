@@ -20,9 +20,14 @@
 package org.apache.iotdb.streamnode.engine.task;
 
 import org.apache.iotdb.commons.stream.PartitionKey;
+import org.apache.iotdb.commons.stream.StreamSource;
 import org.apache.iotdb.commons.stream.StreamTask;
+import org.apache.iotdb.streamnode.conf.StreamNodeConfig;
+import org.apache.iotdb.streamnode.conf.StreamNodeDescriptor;
 import org.apache.iotdb.streamnode.engine.computation.ComputationEngine;
 import org.apache.iotdb.streamnode.engine.dispatcher.TabletDispatcher;
+import org.apache.iotdb.streamnode.engine.scheduler.task.IStreamDriver;
+import org.apache.iotdb.streamnode.engine.scheduler.task.StreamDriverFactory;
 import org.apache.iotdb.streamnode.engine.sink.WriteBackEngine;
 import org.apache.iotdb.streamnode.engine.source.StreamSourceInstance;
 
@@ -44,9 +49,25 @@ public class StreamTaskInstance {
   private final ComputationEngine computationEngine = new ComputationEngine();
   private final WriteBackEngine writeBackEngine = new WriteBackEngine();
   private final AtomicBoolean running = new AtomicBoolean(false);
+  private final StreamDataConsumer subTaskConsumer;
+  private final Map<PartitionKey, IStreamDriver> streamDriverMap = new ConcurrentHashMap<>();
+  private final StreamNodeConfig nodeConfig = StreamNodeDescriptor.getInstance().getConfig();
 
-  public StreamTaskInstance(StreamTask taskDefinition) {
+  public StreamTaskInstance(StreamTask taskDefinition, StreamDataConsumer subTaskConsumer) {
     this.taskDefinition = taskDefinition;
+    this.subTaskConsumer = subTaskConsumer;
+  }
+
+  public boolean isStreamDriverExists(PartitionKey partitionKey) {
+    return streamDriverMap.containsKey(partitionKey);
+  }
+
+  public IStreamDriver getOrCreateStreamDriver(PartitionKey partitionKey) {
+    return streamDriverMap.computeIfAbsent(
+        partitionKey,
+        key ->
+            StreamDriverFactory.createDriver(
+                partitionKey, taskDefinition.getTaskName(), subTasks.get(partitionKey)));
   }
 
   public void start() {
@@ -56,25 +77,28 @@ public class StreamTaskInstance {
     }
 
     try {
-      // Initialize source
-      if (taskDefinition.getSource() != null) {
-        sourceInstance = StreamSourceInstance.create(taskDefinition.getSource());
-        sourceInstance.start();
-      }
-
-      // Initialize dispatcher
-      if (taskDefinition.getSource() != null) {
-        dispatcher = TabletDispatcher.create(taskDefinition.getSource());
-      }
-
       // Initialize write-back
       if (taskDefinition.getTarget() != null) {
         writeBackEngine.start(taskDefinition.getTarget());
       }
 
-      LOGGER.info("Task instance started: {}", taskDefinition.getTaskName());
+      // Initialize dispatcher
+      if (taskDefinition.getSource() != null) {
+        dispatcher = createDispatcher(taskDefinition.getSource());
+      }
 
-      // TODO: Start process loop in a separate thread
+      // Initialize source
+      if (taskDefinition.getSource() != null) {
+        sourceInstance =
+            createSourceInstance(
+                taskDefinition.getSource(),
+                taskDefinition.getTaskName(),
+                dispatcher::dispatch,
+                nodeConfig);
+        sourceInstance.start();
+      }
+
+      LOGGER.info("Task instance started: {}", taskDefinition.getTaskName());
     } catch (Exception e) {
       LOGGER.error("Failed to start task instance: {}", taskDefinition.getTaskName(), e);
       running.set(false);
@@ -103,12 +127,30 @@ public class StreamTaskInstance {
     }
   }
 
+  TabletDispatcher createDispatcher(StreamSource source) {
+    return TabletDispatcher.create(source, this::getOrCreateSubTask);
+  }
+
+  StreamSourceInstance createSourceInstance(
+      StreamSource source,
+      String taskName,
+      java.util.function.BiConsumer<org.apache.tsfile.write.record.Tablet, Long> consumer,
+      StreamNodeConfig config) {
+    return StreamSourceInstance.create(source, taskName, consumer, config);
+  }
+
   public StreamSubTask getOrCreateSubTask(PartitionKey key) {
     return subTasks.computeIfAbsent(
         key,
-        k -> {
-          LOGGER.debug("Creating sub-task for partition: {}", k);
-          return new StreamSubTask(k, taskDefinition.getWindow());
+        partitionKey -> {
+          LOGGER.debug("Creating sub-task for partition: {}", partitionKey);
+          return new StreamSubTask(
+              partitionKey,
+              taskDefinition.getWindow(),
+              subTaskConsumer,
+              computationEngine,
+              writeBackEngine,
+              taskDefinition.getTaskName());
         });
   }
 

@@ -26,11 +26,13 @@ import org.apache.iotdb.commons.conf.CommonConfig;
 import org.apache.iotdb.commons.conf.CommonDescriptor;
 import org.apache.iotdb.commons.service.metric.MetricService;
 import org.apache.iotdb.commons.service.metric.enums.Tag;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.metrics.type.AutoGauge;
 import org.apache.iotdb.metrics.utils.MetricLevel;
 import org.apache.iotdb.metrics.utils.SystemMetric;
 import org.apache.iotdb.rpc.TSStatusCode;
 import org.apache.iotdb.streamnode.client.ConfigNodeInfo;
+import org.apache.iotdb.streamnode.manager.StreamTaskManager;
 import org.apache.iotdb.streamnode.rpc.thrift.IStreamNodeRPCService;
 import org.apache.iotdb.streamnode.rpc.thrift.TCreateTaskOnStreamNodeReq;
 import org.apache.iotdb.streamnode.rpc.thrift.TDropTaskOnStreamNodeReq;
@@ -44,6 +46,7 @@ import org.apache.tsfile.utils.RamUsageEstimator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -106,35 +109,49 @@ public class StreamNodeRPCServiceProcessor implements IStreamNodeRPCService.Ifac
   @Override
   public TSStatus createTask(TCreateTaskOnStreamNodeReq req) throws TException {
     LOGGER.info("Received createTask request, epoch={}", req.getEpoch());
-    // TODO: deserialize StreamTask from req.getStreamTask() and delegate to StreamTaskManager
+    try {
+      // TODO:  deserialize StreamTask from TStartTaskOnStreamNodeReq
+      StreamTask task = StreamTask.deserialize(null);
+      StreamTaskManager.getInstance().create(task);
+    } catch (IOException e) {
+      LOGGER.error("Failed to deserialize StreamTask", e);
+      throw new TException(e);
+    }
     return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
   }
 
   @Override
   public TSStatus startTask(TStartTaskOnStreamNodeReq req) throws TException {
     LOGGER.info("Received startTask request: {}, epoch={}", req.getTaskName(), req.getEpoch());
-    // TODO: delegate to StreamTaskManager.startTask()
+    try {
+      // TODO:  deserialize StreamTask from TStartTaskOnStreamNodeReq
+      StreamTask task = StreamTask.deserialize(null);
+      StreamTaskManager.getInstance().start(task);
+    } catch (IOException e) {
+      LOGGER.error("Failed to deserialize StreamTask", e);
+      throw new TException(e);
+    }
     return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
   }
 
   @Override
   public TSStatus stopTask(TStopTaskOnStreamNodeReq req) throws TException {
     LOGGER.info("Received stopTask request: {}", req.getTaskName());
-    // TODO: delegate to StreamTaskManager.stopTask()
+    StreamTaskManager.getInstance().stop(req.getTaskName());
     return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
   }
 
   @Override
   public TSStatus dropTask(TDropTaskOnStreamNodeReq req) throws TException {
     LOGGER.info("Received dropTask request: {}", req.getTaskName());
-    // TODO: delegate to StreamTaskManager.dropTask()
+    StreamTaskManager.getInstance().drop(req.getTaskName());
     return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
   }
 
   @Override
   public TSStatus dropAllTasks() throws TException {
     LOGGER.info("Received dropAllTasks request");
-    // TODO: delegate to StreamTaskManager.dropAllTasks()
+    StreamTaskManager.getInstance().dropAll();
     return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
   }
 

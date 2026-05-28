@@ -211,7 +211,10 @@ public enum ThreadName {
   STREAMNODE_SHUTDOWN_HOOK("StreamNode-Shutdown-Hook"),
 
   // the unknown thread name is used for metrics
-  UNKNOWN("UNKNOWN");
+  UNKNOWN("UNKNOWN"),
+
+  // -------------------------- StreamNode --------------------------
+  STREAM_EXECUTOR_WORKER("Stream-Executor-Worker");
 
   private final String name;
   private static final Logger LOGGER = LoggerFactory.getLogger(ThreadName.class);

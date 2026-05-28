@@ -48,6 +48,7 @@ import org.apache.iotdb.streamnode.conf.StreamNodeConfig;
 import org.apache.iotdb.streamnode.conf.StreamNodeDescriptor;
 import org.apache.iotdb.streamnode.conf.StreamNodeStartupCheck;
 import org.apache.iotdb.streamnode.conf.StreamNodeSystemPropertiesHandler;
+import org.apache.iotdb.streamnode.manager.StreamTaskManager;
 import org.apache.iotdb.streamnode.service.StreamNodeRPCService;
 
 import org.apache.thrift.TException;
@@ -185,6 +186,7 @@ public class StreamNode extends ServerCommandLine {
   protected void registerInternalRPCService() throws StartupException {
     // Start RPC service to receive CN requests
     registerManager.register(StreamNodeRPCService.getInstance());
+    registerManager.register(StreamTaskManager.getInstance());
     LOGGER.info(
         "StreamNode RPC service listening on {}:{}",
         config.getSnInternalAddress(),

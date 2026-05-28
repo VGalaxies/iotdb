@@ -22,11 +22,12 @@ package org.apache.iotdb.streamnode.engine.dispatcher;
 import org.apache.iotdb.commons.stream.PartitionKey;
 import org.apache.iotdb.streamnode.engine.task.StreamSubTask;
 
+import org.apache.tsfile.write.record.Tablet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.Map;
+import java.util.function.Function;
 
 public class ColumnPartitionedTabletDispatcher extends TabletDispatcher {
 
@@ -35,17 +36,20 @@ public class ColumnPartitionedTabletDispatcher extends TabletDispatcher {
 
   private final List<String> partitionColumns;
 
-  public ColumnPartitionedTabletDispatcher(List<String> partitionColumns) {
-    this.partitionColumns = partitionColumns;
-  }
+  private final Function<PartitionKey, StreamSubTask> subTaskMapper;
 
-  @Override
-  public void dispatch(Object data, long dataId, Map<PartitionKey, StreamSubTask> subTasks) {
-    // TODO: Extract partition key from data (Tablet) and route to appropriate sub-task
-    LOGGER.debug("Dispatching data with id {} to {} sub-tasks", dataId, subTasks.size());
+  public ColumnPartitionedTabletDispatcher(
+      List<String> partitionColumns, Function<PartitionKey, StreamSubTask> subTaskMapper) {
+    this.partitionColumns = partitionColumns;
+    this.subTaskMapper = subTaskMapper;
   }
 
   public List<String> getPartitionColumns() {
     return partitionColumns;
+  }
+
+  @Override
+  public void dispatch(Tablet tablet, long tabletId) {
+    // TODO: use subTaskMapper to get or create subTask
   }
 }

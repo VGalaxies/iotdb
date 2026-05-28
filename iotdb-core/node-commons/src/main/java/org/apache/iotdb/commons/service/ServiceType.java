@@ -88,7 +88,8 @@ public enum ServiceType {
 
   SESSION_MANAGER("Session Manager", "RpcSession"),
   CONFIG_NODE("Config Node", "ConfigNode"),
-  DATA_NODE("Data Node", "DataNode");
+  DATA_NODE("Data Node", "DataNode"),
+  STREAM_TASK_MANAGER("Stream Node", "StreamNode");
   private final String name;
   private final String jmxName;
 

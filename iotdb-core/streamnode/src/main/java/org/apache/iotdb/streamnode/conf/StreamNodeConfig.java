@@ -81,6 +81,19 @@ public class StreamNodeConfig {
   /** Thrift socket and connection timeout between data node and config node. */
   private final int connectionTimeoutInMS = (int) TimeUnit.SECONDS.toMillis(60);
 
+  private int driverTaskExecutorTimeSliceInMS = 4;
+
+  /** Number of tasks executed per thread */
+  private int executedTaskCountPerThread = 100;
+
+  public int getDriverTaskExecutorTimeSliceInMS() {
+    return driverTaskExecutorTimeSliceInMS;
+  }
+
+  public void setDriverTaskExecutorTimeSliceInMS(int driverTaskExecutorTimeSliceInMS) {
+    this.driverTaskExecutorTimeSliceInMS = driverTaskExecutorTimeSliceInMS;
+  }
+
   public String getClusterName() {
     return clusterName;
   }
@@ -181,8 +194,16 @@ public class StreamNodeConfig {
     return joinClusterRetryIntervalMs;
   }
 
+  public void setExecutedTaskCountPerThread(int executedTaskCountPerThread) {
+    this.executedTaskCountPerThread = executedTaskCountPerThread;
+  }
+
   public int getConnectionTimeoutInMS() {
     return connectionTimeoutInMS;
+  }
+
+  public int getExecutedTaskCountPerThread() {
+    return executedTaskCountPerThread;
   }
 
   public TEndPoint getAddressAndPort() {
