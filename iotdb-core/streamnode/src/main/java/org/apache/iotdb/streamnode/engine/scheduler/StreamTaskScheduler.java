@@ -161,6 +161,16 @@ public class StreamTaskScheduler implements IStreamTaskScheduler {
     threads.clear();
   }
 
+  @Override
+  public int getTaskCount() {
+    return registeredTaskMap.size();
+  }
+
+  @Override
+  public int getRunningTaskCount() {
+    return getTaskCount() - idleSet.size();
+  }
+
   /** the default scheduler implementation. */
   private class Scheduler implements ITaskScheduler {
     @Override

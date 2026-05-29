@@ -31,7 +31,11 @@ import org.apache.iotdb.commons.conf.CommonDescriptor;
 import org.apache.iotdb.commons.conf.ConfigurationFileUtils;
 import org.apache.iotdb.commons.conf.IoTDBConstant;
 import org.apache.iotdb.commons.exception.StartupException;
+import org.apache.iotdb.commons.file.SystemPropertiesHandler;
+import org.apache.iotdb.commons.service.JMXService;
 import org.apache.iotdb.commons.service.RegisterManager;
+import org.apache.iotdb.commons.service.ServiceType;
+import org.apache.iotdb.commons.service.metric.MetricService;
 import org.apache.iotdb.confignode.rpc.thrift.TNodeVersionInfo;
 import org.apache.iotdb.confignode.rpc.thrift.TRuntimeConfiguration;
 import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRegisterReq;
@@ -67,11 +71,14 @@ import static org.apache.iotdb.commons.conf.IoTDBConstant.DEFAULT_CLUSTER_NAME;
 import static org.apache.iotdb.commons.queryengine.utils.DateTimeUtils.initTimestampPrecision;
 import static org.apache.iotdb.commons.utils.StatusUtils.retrieveExitStatusCode;
 
-public class StreamNode extends ServerCommandLine {
+public class StreamNode extends ServerCommandLine implements StreamNodeMBean {
   private static final Logger LOGGER = LoggerFactory.getLogger(StreamNode.class);
   private static final StreamNodeConfig config = StreamNodeDescriptor.getInstance().getConfig();
 
   private final RegisterManager registerManager = new RegisterManager();
+
+  private final SystemPropertiesHandler systemPropertiesHandler =
+      StreamNodeSystemPropertiesHandler.getInstance();
 
   /**
    * When joining a cluster or getting configuration this node will retry at most "DEFAULT_RETRY"
@@ -86,8 +93,16 @@ public class StreamNode extends ServerCommandLine {
 
   private static Thread watcherThread;
 
+  private final String mbeanName =
+      String.format(
+          "%s:%s=%s",
+          IoTDBConstant.IOTDB_SERVICE_JMX_NAME,
+          IoTDBConstant.JMX_TYPE,
+          ServiceType.STREAM_NODE.getJmxName());
+
   private StreamNode() {
     super("StreamNode");
+    StreamNodeHolder.INSTANCE = this;
   }
 
   @Override
@@ -100,7 +115,6 @@ public class StreamNode extends ServerCommandLine {
         config.getSnInternalAddress(),
         config.getSnInternalPort(),
         config.getSnSeedConfigNode());
-
     boolean isFirstStart;
     try {
       // Check if this StreamNode is start for the first time and do other pre-checks
@@ -164,6 +178,14 @@ public class StreamNode extends ServerCommandLine {
     LOGGER.info("IoTDB StreamNode has started.");
   }
 
+  private void registerInternalRPCService() throws StartupException {
+    registerManager.register(StreamNodeRPCService.getInstance());
+    LOGGER.info(
+        "StreamNode RPC service listening on {}:{}",
+        config.getSnInternalAddress(),
+        config.getSnInternalPort());
+  }
+
   void processPid() {
     String pidFile = System.getProperty(IoTDBConstant.IOTDB_PIDFILE);
     if (pidFile != null) {
@@ -173,24 +195,24 @@ public class StreamNode extends ServerCommandLine {
 
   private void setUp() throws StartupException, IOException {
     LOGGER.info("Setting up IoTDB StreamNode...");
+    registerManager.register(new JMXService());
+    JMXService.registerMBean(getInstance(), mbeanName);
 
-    Runtime.getRuntime().addShutdownHook(new StreamNodeShutdownHook(generateStreamNodeLocation()));
+    addShutDownHook();
     setUncaughtExceptionHandler();
+
+    registerManager.register(MetricService.getInstance());
+    registerManager.register(StreamTaskManager.getInstance());
     registerInternalRPCService();
+    LOGGER.info("Successfully setup internal services.");
+  }
+
+  private void addShutDownHook() {
+    Runtime.getRuntime().addShutdownHook(new StreamNodeShutdownHook(generateStreamNodeLocation()));
   }
 
   private void setUncaughtExceptionHandler() {
     Thread.setDefaultUncaughtExceptionHandler(new IoTDBDefaultThreadExceptionHandler());
-  }
-
-  protected void registerInternalRPCService() throws StartupException {
-    // Start RPC service to receive CN requests
-    registerManager.register(StreamNodeRPCService.getInstance());
-    registerManager.register(StreamTaskManager.getInstance());
-    LOGGER.info(
-        "StreamNode RPC service listening on {}:{}",
-        config.getSnInternalAddress(),
-        config.getSnInternalPort());
   }
 
   @Override
@@ -201,6 +223,7 @@ public class StreamNode extends ServerCommandLine {
   public void stop() {
     LOGGER.info("Stopping StreamNode...");
     registerManager.deregisterAll();
+    JMXService.deregisterMBean(mbeanName);
     LOGGER.info("StreamNode stopped");
   }
 
@@ -390,7 +413,7 @@ public class StreamNode extends ServerCommandLine {
           DEFAULT_RETRY);
       throw new StartupException(
           "Cannot send restart StreamNode request to ConfigNode-leader. "
-              + "Please check whether the dn_seed_config_node in iotdb-system.properties is correct or alive.");
+              + "Please check whether the dn_seed_config_node in iotdb-stream.properties is correct or alive.");
     }
 
     if (streamNodeRestartResp.getStatus().getCode()
@@ -488,8 +511,52 @@ public class StreamNode extends ServerCommandLine {
     return new TStreamNodeConfiguration(location, resource);
   }
 
+  @Override
+  public int getStreamNodeId() {
+    return config.getStreamNodeId();
+  }
+
+  @Override
+  public String getInternalAddress() {
+    return config.getSnInternalAddress();
+  }
+
+  @Override
+  public int getInternalPort() {
+    return config.getSnInternalPort();
+  }
+
+  @Override
+  public int getTaskCount() {
+    return StreamTaskManager.getInstance().getTaskNum();
+  }
+
+  @Override
+  public int getRunningTaskCount() {
+    return StreamTaskManager.getInstance().getRunningTaskNum();
+  }
+
+  @Override
+  public String getClusterName() {
+    return config.getClusterName();
+  }
+
+  @Override
+  public String getClusterId() {
+    return config.getClusterId();
+  }
+
+  @Override
+  public String getNodeStatus() {
+    return CommonDescriptor.getInstance().getConfig().getNodeStatus().getStatus();
+  }
+
   private static class StreamNodeHolder {
-    private static final StreamNode INSTANCE = new StreamNode();
+    private static StreamNode INSTANCE;
+
+    private StreamNodeHolder() {
+      // Empty constructor
+    }
   }
 
   public static StreamNode getInstance() {

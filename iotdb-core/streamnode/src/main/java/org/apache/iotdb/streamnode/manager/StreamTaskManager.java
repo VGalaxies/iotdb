@@ -128,4 +128,12 @@ public class StreamTaskManager implements IService {
   public void create(StreamTask task) {
     this.start(task);
   }
+
+  public int getTaskNum() {
+    return scheduler.getTaskCount();
+  }
+
+  public int getRunningTaskNum() {
+    return scheduler.getRunningTaskCount();
+  }
 }

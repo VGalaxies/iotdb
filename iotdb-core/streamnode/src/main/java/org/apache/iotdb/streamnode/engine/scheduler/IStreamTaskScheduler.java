@@ -42,4 +42,8 @@ public interface IStreamTaskScheduler {
   void start();
 
   void stop();
+
+  int getTaskCount();
+
+  int getRunningTaskCount();
 }
