@@ -140,6 +140,8 @@ import static org.apache.iotdb.commons.schema.SchemaConstant.ALL_TEMPLATE;
 import static org.apache.iotdb.commons.schema.SchemaConstant.SYSTEM_DATABASE_PATTERN;
 import static org.apache.iotdb.commons.schema.table.Audit.TABLE_MODEL_AUDIT_DATABASE;
 import static org.apache.iotdb.commons.schema.table.Audit.TREE_MODEL_AUDIT_DATABASE;
+import static org.apache.iotdb.commons.schema.table.InformationSchema.INFORMATION_DATABASE;
+import static org.apache.iotdb.commons.schema.table.InformationSchema.getSchemaTables;
 import static org.apache.iotdb.commons.schema.table.TsTable.TTL_PROPERTY;
 
 /**
@@ -1313,8 +1315,7 @@ public class ClusterSchemaInfo implements SnapshotProcessor {
   public ShowTable4InformationSchemaResp showTables4InformationSchema() {
     databaseReadWriteLock.readLock().lock();
     try {
-      return new ShowTable4InformationSchemaResp(
-          StatusUtils.OK,
+      final Map<String, List<TTableInfo>> result =
           tableModelMTree.getAllTables().entrySet().stream()
               .collect(
                   Collectors.toMap(
@@ -1339,7 +1340,9 @@ public class ClusterSchemaInfo implements SnapshotProcessor {
                                             : TableType.BASE_TABLE.ordinal());
                                     return info;
                                   })
-                              .collect(Collectors.toList()))));
+                              .collect(Collectors.toList())));
+      appendMissingInformationSchemaTables(result);
+      return new ShowTable4InformationSchemaResp(StatusUtils.OK, result);
     } finally {
       databaseReadWriteLock.readLock().unlock();
     }
@@ -1396,8 +1399,7 @@ public class ClusterSchemaInfo implements SnapshotProcessor {
   public DescTable4InformationSchemaResp descTable4InformationSchema() {
     databaseReadWriteLock.readLock().lock();
     try {
-      return new DescTable4InformationSchemaResp(
-          StatusUtils.OK,
+      final Map<String, Map<String, TTableColumnInfo>> result =
           tableModelMTree.getAllDatabasePaths(true).stream()
               .collect(
                   Collectors.toMap(
@@ -1442,10 +1444,45 @@ public class ClusterSchemaInfo implements SnapshotProcessor {
                           // in databaseReadWriteLock.readLock().
                         }
                         return Collections.emptyMap();
-                      })));
+                      }));
+      appendMissingInformationSchemaColumns(result);
+      return new DescTable4InformationSchemaResp(StatusUtils.OK, result);
     } finally {
       databaseReadWriteLock.readLock().unlock();
     }
+  }
+
+  private void appendMissingInformationSchemaTables(final Map<String, List<TTableInfo>> result) {
+    final List<TTableInfo> informationSchemaTables =
+        result.computeIfAbsent(INFORMATION_DATABASE, ignored -> new ArrayList<>());
+    final Set<String> existingTables =
+        informationSchemaTables.stream().map(TTableInfo::getTableName).collect(Collectors.toSet());
+    getSchemaTables().values().stream()
+        .filter(table -> existingTables.add(table.getTableName()))
+        .map(
+            table -> {
+              final TTableInfo info = new TTableInfo(table.getTableName(), TTL_INFINITE);
+              info.setState(TableNodeStatus.USING.ordinal());
+              info.setType(TableType.SYSTEM_VIEW.ordinal());
+              return info;
+            })
+        .forEach(informationSchemaTables::add);
+  }
+
+  private void appendMissingInformationSchemaColumns(
+      final Map<String, Map<String, TTableColumnInfo>> result) {
+    final Map<String, TTableColumnInfo> informationSchemaColumns =
+        result.computeIfAbsent(INFORMATION_DATABASE, ignored -> new HashMap<>());
+    getSchemaTables().values().stream()
+        .filter(table -> !informationSchemaColumns.containsKey(table.getTableName()))
+        .forEach(
+            table ->
+                informationSchemaColumns.put(
+                    table.getTableName(),
+                    new TTableColumnInfo()
+                        .setTableInfo(TsTableInternalRPCUtil.serializeSingleTsTable(table))
+                        .setPreDeletedColumns(Collections.emptySet())
+                        .setPreAlteredColumns(Collections.emptyMap())));
   }
 
   public Map<String, List<TsTable>> getAllUsingTables() {

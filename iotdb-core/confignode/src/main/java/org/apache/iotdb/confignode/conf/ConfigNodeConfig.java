@@ -340,6 +340,11 @@ public class ConfigNodeConfig {
 
   private long forceWalPeriodForConfigNodeSimpleInMs = 100;
 
+  private long partitionTableRecoverWaitAllDnUpTimeoutInMs = 60000;
+
+  /** Stream heartbeat lost threshold in milliseconds. */
+  private long streamHeartbeatLostThresholdMS = 15000;
+
   public ConfigNodeConfig() {
     // empty constructor
   }
@@ -503,6 +508,10 @@ public class ConfigNodeConfig {
 
   public void setConsensusDir(String consensusDir) {
     this.consensusDir = consensusDir;
+  }
+
+  public String getStreamsDir() {
+    return systemDir + File.separator + "streams";
   }
 
   public String getConfigNodeConsensusProtocolClass() {
@@ -1348,5 +1357,13 @@ public class ConfigNodeConfig {
 
   public void setTopologyProbingTimeoutRatio(double topologyProbingTimeoutRatio) {
     this.topologyProbingTimeoutRatio = topologyProbingTimeoutRatio;
+  }
+
+  public long getStreamHeartbeatLostThresholdMS() {
+    return streamHeartbeatLostThresholdMS;
+  }
+
+  public void setStreamHeartbeatLostThresholdMS(long streamHeartbeatLostThresholdMS) {
+    this.streamHeartbeatLostThresholdMS = streamHeartbeatLostThresholdMS;
   }
 }

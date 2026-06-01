@@ -31,6 +31,10 @@ public abstract class StreamSource {
 
   public abstract void serialize(DataOutputStream stream) throws IOException;
 
+  public void onRemoved(final StreamTask task) throws IOException {
+    // Most source definitions do not own external resources.
+  }
+
   public static StreamSource deserialize(ByteBuffer byteBuffer) throws IOException {
     int typeOrdinal = ReadWriteIOUtils.readInt(byteBuffer);
     if (typeOrdinal < 0 || typeOrdinal >= StreamSourceType.values().length) {

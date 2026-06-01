@@ -65,10 +65,24 @@ public class StreamSubTask {
       String streamName) {
     this.partitionKey = partitionKey;
     this.windowEngine = WindowEngine.create(window);
-    this.consumer = consumer;
-    this.computationEngine = computationEngine;
+    this.consumer =
+        consumer == null
+            ? (tsBlock, commitId, partition) -> CompletableFuture.completedFuture(null)
+            : consumer;
+    this.computationEngine =
+        computationEngine == null ? new ComputationEngine() : computationEngine;
     this.writeBackEngine = writeBackEngine;
     this.streamName = streamName;
+  }
+
+  public StreamSubTask(PartitionKey partitionKey, StreamWindow window) {
+    this(
+        partitionKey,
+        window,
+        (tsBlock, commitId, partition) -> CompletableFuture.completedFuture(null),
+        new ComputationEngine(),
+        null,
+        "");
   }
 
   public String getStreamName() {
@@ -77,16 +91,21 @@ public class StreamSubTask {
 
   public List<WindowEvent> offer(Object data, int startRow, int endRow, long dataId) {
     List<WindowEvent> events = windowEngine.process(data, startRow, endRow);
-    lastCommitId.set(dataId);
+    lastCommitId.updateAndGet(lastCommittedId -> Math.max(lastCommittedId, dataId));
     return events;
   }
 
   public Future<?> offer(List<DataSlice> dataSlices) {
-    if (dataSlices.isEmpty()) {
+    if (dataSlices == null || dataSlices.isEmpty()) {
       return CompletableFuture.completedFuture(null);
     }
     TsBlock tsBlock = toTsBlock(dataSlices);
-    long commitId = dataSlices.get(0).getTabletId();
+    long commitId = -1;
+    for (DataSlice slice : dataSlices) {
+      commitId = Math.max(commitId, slice.getTabletId());
+    }
+    final long maxCommitId = commitId;
+    lastCommitId.updateAndGet(lastCommittedId -> Math.max(lastCommittedId, maxCommitId));
     PartitionKey partitionKey = dataSlices.get(0).getPartitionKey();
     return consumer.accept(tsBlock, commitId, partitionKey);
   }
@@ -106,14 +125,14 @@ public class StreamSubTask {
     }
 
     TsBlockBuilder builder = new TsBlockBuilder(dataTypes);
-    Object[] values = tablet.getValues();
-    BitMap[] bitMaps = tablet.getBitMaps();
-    long[] timestamps = tablet.getTimestamps();
-
     long[] resultTimestamps = new long[totalRows];
     int timestampIdx = 0;
 
     for (DataSlice slice : dataSlices) {
+      Tablet sliceTablet = slice.getTablet();
+      Object[] values = sliceTablet.getValues();
+      BitMap[] bitMaps = sliceTablet.getBitMaps();
+      long[] timestamps = sliceTablet.getTimestamps();
       for (int row = slice.getStartRow(); row < slice.getEndRow(); row++) {
         resultTimestamps[timestampIdx++] = timestamps[row];
         for (int col = 0; col < schemas.size(); col++) {

@@ -64,6 +64,16 @@ public class StreamTaskScheduler implements IStreamTaskScheduler {
               public int partitionHash() {
                 return 0;
               }
+
+              @Override
+              public int segmentNum() {
+                return 0;
+              }
+
+              @Override
+              public Object segmentValue(int segmentIndex) {
+                throw new IndexOutOfBoundsException("Dummy partition key has no segments");
+              }
             },
             new TumbleWindow("test", 1000, 0),
             null,

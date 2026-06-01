@@ -89,6 +89,8 @@ import org.apache.iotdb.confignode.consensus.request.write.region.CreateRegionGr
 import org.apache.iotdb.confignode.consensus.request.write.region.OfferRegionMaintainTasksPlan;
 import org.apache.iotdb.confignode.consensus.request.write.region.PollRegionMaintainTaskPlan;
 import org.apache.iotdb.confignode.consensus.request.write.region.PollSpecificRegionMaintainTaskPlan;
+import org.apache.iotdb.confignode.consensus.request.write.stream.CreateStreamPlan;
+import org.apache.iotdb.confignode.consensus.request.write.stream.DropStreamPlan;
 import org.apache.iotdb.confignode.consensus.request.write.streamnode.RegisterStreamNodePlan;
 import org.apache.iotdb.confignode.consensus.request.write.streamnode.RemoveStreamNodePlan;
 import org.apache.iotdb.confignode.consensus.request.write.streamnode.UpdateStreamNodePlan;
@@ -627,6 +629,12 @@ public abstract class ConfigPhysicalPlan implements IConsensusRequest {
           break;
         case DropExternalService:
           plan = new DropExternalServicePlan();
+          break;
+        case CreateStream:
+          plan = new CreateStreamPlan();
+          break;
+        case DropStream:
+          plan = new DropStreamPlan();
           break;
         default:
           throw new IOException("unknown PhysicalPlan configPhysicalPlanType: " + planType);

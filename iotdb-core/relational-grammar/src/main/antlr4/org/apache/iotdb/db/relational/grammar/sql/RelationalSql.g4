@@ -108,6 +108,8 @@ statement
     // Stream Statement
     | createStreamStatement
     | dropStreamStatement
+    | startStreamStatement
+    | stopStreamStatement
     | showStreamsStatement
 
     // Subscription Statement
@@ -558,6 +560,14 @@ showStreamsStatement
 
 dropStreamStatement
     : DROP STREAM (IF EXISTS)? streamName=identifier
+    ;
+
+startStreamStatement
+    : START STREAM streamName=identifier
+    ;
+
+stopStreamStatement
+    : STOP STREAM streamName=identifier
     ;
 
 // -------------------------------------------- Subscription Statement ---------------------------------------------------------

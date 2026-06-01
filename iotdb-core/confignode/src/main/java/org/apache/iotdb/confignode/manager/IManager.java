@@ -31,11 +31,13 @@ import org.apache.iotdb.common.rpc.thrift.TSetConfigurationReq;
 import org.apache.iotdb.common.rpc.thrift.TSetSpaceQuotaReq;
 import org.apache.iotdb.common.rpc.thrift.TShowAppliedConfigurationsResp;
 import org.apache.iotdb.common.rpc.thrift.TShowConfigurationResp;
+import org.apache.iotdb.common.rpc.thrift.TShowStreamResp;
 import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.commons.auth.entity.PrivilegeUnion;
 import org.apache.iotdb.commons.cluster.NodeStatus;
 import org.apache.iotdb.commons.path.PartialPath;
 import org.apache.iotdb.commons.path.PathPatternTree;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.confignode.audit.CNAuditLogger;
 import org.apache.iotdb.confignode.consensus.request.read.ainode.GetAINodeConfigurationPlan;
 import org.apache.iotdb.confignode.consensus.request.read.database.CountDatabasePlan;
@@ -938,6 +940,16 @@ public interface IManager {
   TSStatus dropExternalService(int dataNodeId, String serviceName);
 
   TExternalServiceListResp showExternalService(int dataNodeId);
+
+  TShowStreamResp showStreams(String username);
+
+  TSStatus createStream(StreamTask streamTask);
+
+  TSStatus dropStream(String streamName);
+
+  TSStatus startStream(String streamName);
+
+  TSStatus stopStream(String streamName);
 
   TSStatus checkConfigNodeGlobalConfig(TConfigNodeRegisterReq req);
 

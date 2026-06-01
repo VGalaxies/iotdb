@@ -327,6 +327,10 @@ public class CommonDescriptor {
             properties.getProperty(
                 "subscription_prefetch_tablet_batch_max_delay_in_ms",
                 String.valueOf(config.getSubscriptionPrefetchTabletBatchMaxDelayInMs()))));
+    config.setSubscriptionEnabled(
+        Boolean.parseBoolean(
+            properties.getProperty(
+                "subscription_enabled", String.valueOf(config.getSubscriptionEnabled()))));
     config.setSubscriptionPrefetchTabletBatchMaxSizeInBytes(
         Long.parseLong(
             properties.getProperty(

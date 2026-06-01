@@ -68,6 +68,16 @@ public class StreamTaskSchedulerIntegrationTest {
           public int partitionHash() {
             return 0;
           }
+
+          @Override
+          public int segmentNum() {
+            return 1;
+          }
+
+          @Override
+          public Object segmentValue(int segmentIndex) {
+            return 0;
+          }
         };
     scheduler = new StreamTaskScheduler();
     executorService = Executors.newFixedThreadPool(10);

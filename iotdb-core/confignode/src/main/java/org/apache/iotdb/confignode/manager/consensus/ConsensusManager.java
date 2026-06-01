@@ -351,6 +351,10 @@ public class ConsensusManager {
     return consensusImpl.isLeader(DEFAULT_CONSENSUS_GROUP_ID);
   }
 
+  public long getLeaderTerm() {
+    return consensusImpl.getLogicalClock(DEFAULT_CONSENSUS_GROUP_ID);
+  }
+
   public boolean isLeaderReady() {
     return consensusImpl.isLeaderReady(DEFAULT_CONSENSUS_GROUP_ID);
   }

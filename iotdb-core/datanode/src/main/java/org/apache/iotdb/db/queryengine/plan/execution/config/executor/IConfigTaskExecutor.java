@@ -29,6 +29,7 @@ import org.apache.iotdb.commons.queryengine.common.SqlDialect;
 import org.apache.iotdb.commons.schema.cache.CacheClearOptions;
 import org.apache.iotdb.commons.schema.table.TsTable;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnSchema;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.confignode.rpc.thrift.TDatabaseSchema;
 import org.apache.iotdb.confignode.rpc.thrift.TFetchTableResp;
 import org.apache.iotdb.confignode.rpc.thrift.TSpaceQuotaResp;
@@ -481,8 +482,7 @@ public interface IConfigTaskExecutor {
       @Nullable List<String> pathList);
 
   // ==================================== STREAM =======================================
-  SettableFuture<ConfigTaskResult> createStream(
-      org.apache.iotdb.commons.stream.StreamTask streamTask);
+  SettableFuture<ConfigTaskResult> createStream(StreamTask streamTask);
 
   SettableFuture<ConfigTaskResult> dropStream(String database, String streamName);
 

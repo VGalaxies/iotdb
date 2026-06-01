@@ -40,6 +40,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -57,6 +59,16 @@ public class StreamSubTaskTest {
         new PartitionKey() {
           @Override
           public int partitionHash() {
+            return 0;
+          }
+
+          @Override
+          public int segmentNum() {
+            return 1;
+          }
+
+          @Override
+          public Object segmentValue(int segmentIndex) {
             return 0;
           }
         };
@@ -422,5 +434,62 @@ public class StreamSubTaskTest {
     assertEquals("b", result.getColumn(5).getBinary(1).getStringValue(Charset.defaultCharset()));
     assertEquals("e", result.getColumn(5).getBinary(2).getStringValue(Charset.defaultCharset()));
     assertEquals("f", result.getColumn(5).getBinary(3).getStringValue(Charset.defaultCharset()));
+  }
+
+  @Test
+  public void testOfferDataSlicesUsesMaxCommitId() throws Exception {
+    Tablet tablet = createTablet(3);
+    setTimestamp(tablet, 0, 1000L);
+    fillRow(tablet, 0, true, 10, 100L, 1.0f, 1.1, "a");
+    setTimestamp(tablet, 1, 2000L);
+    fillRow(tablet, 1, false, 20, 200L, 2.0f, 2.2, "b");
+    setTimestamp(tablet, 2, 3000L);
+    fillRow(tablet, 2, true, 30, 300L, 3.0f, 3.3, "c");
+
+    AtomicLong acceptedCommitId = new AtomicLong(-1L);
+    StreamSubTask task =
+        new StreamSubTask(
+            partitionKey,
+            new TumbleWindow("test", 1000, 0),
+            (tsBlock, commitId, key) -> {
+              assertEquals(partitionKey, key);
+              acceptedCommitId.set(commitId);
+              return java.util.concurrent.CompletableFuture.completedFuture(null);
+            },
+            null,
+            null,
+            "test");
+
+    task.offer(
+            Arrays.asList(
+                new DataSlice(partitionKey, tablet, 0, 2, 10L),
+                new DataSlice(partitionKey, tablet, 2, 3, 12L)))
+        .get(1, TimeUnit.SECONDS);
+
+    assertEquals(12L, acceptedCommitId.get());
+    assertEquals(12L, task.getCommitId());
+  }
+
+  @Test
+  public void testOfferDataSlicesDoesNotMoveCommitIdBackward() throws Exception {
+    Tablet tablet = createTablet(2);
+    setTimestamp(tablet, 0, 1000L);
+    fillRow(tablet, 0, true, 10, 100L, 1.0f, 1.1, "a");
+    setTimestamp(tablet, 1, 2000L);
+    fillRow(tablet, 1, false, 20, 200L, 2.0f, 2.2, "b");
+
+    subTask.offer(tablet, 0, 1, 10L);
+    subTask
+        .offer(Collections.singletonList(new DataSlice(partitionKey, tablet, 1, 2, 7L)))
+        .get(1, TimeUnit.SECONDS);
+
+    assertEquals(10L, subTask.getCommitId());
+  }
+
+  @Test
+  public void testOfferEmptyDataSlicesCompletesWithoutChangingCommitId() throws Exception {
+    subTask.offer(Collections.emptyList()).get(1, TimeUnit.SECONDS);
+
+    assertEquals(-1L, subTask.getCommitId());
   }
 }

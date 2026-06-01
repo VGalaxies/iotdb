@@ -42,6 +42,7 @@ import org.apache.iotdb.commons.schema.table.column.TsTableColumnSchemaUtil;
 import org.apache.iotdb.commons.schema.template.Template;
 import org.apache.iotdb.commons.schema.view.viewExpression.ViewExpression;
 import org.apache.iotdb.commons.service.metric.MetricService;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.commons.trigger.TriggerInformation;
 import org.apache.iotdb.commons.utils.StatusUtils;
 import org.apache.iotdb.commons.utils.TestOnly;
@@ -115,6 +116,8 @@ import org.apache.iotdb.confignode.procedure.impl.schema.table.view.DropViewProc
 import org.apache.iotdb.confignode.procedure.impl.schema.table.view.RenameViewColumnProcedure;
 import org.apache.iotdb.confignode.procedure.impl.schema.table.view.RenameViewProcedure;
 import org.apache.iotdb.confignode.procedure.impl.schema.table.view.SetViewPropertiesProcedure;
+import org.apache.iotdb.confignode.procedure.impl.stream.CreateStreamProcedure;
+import org.apache.iotdb.confignode.procedure.impl.stream.DropStreamProcedure;
 import org.apache.iotdb.confignode.procedure.impl.subscription.consumer.CreateConsumerProcedure;
 import org.apache.iotdb.confignode.procedure.impl.subscription.consumer.DropConsumerProcedure;
 import org.apache.iotdb.confignode.procedure.impl.subscription.consumer.runtime.ConsumerGroupMetaSyncProcedure;
@@ -1967,6 +1970,67 @@ public class ProcedureManager {
     if (interrupted) {
       Thread.currentThread().interrupt();
     }
+  }
+
+  public TSStatus createStream(final StreamTask streamTask) {
+    final String taskName = streamTask.getTaskName();
+    final CreateStreamProcedure procedure = new CreateStreamProcedure(streamTask);
+    synchronized (this) {
+      for (final Procedure<?> running : executor.getProcedures().values()) {
+        if (running.isFinished()) {
+          continue;
+        }
+        final ProcedureType type = ProcedureFactory.getProcedureType(running);
+        if (type == ProcedureType.CREATE_STREAM_PROCEDURE) {
+          final CreateStreamProcedure existing = (CreateStreamProcedure) running;
+          if (streamTask.equals(existing.getStreamTask())) {
+            return waitingProcedureFinished(existing.getProcId());
+          }
+          if (taskName.equals(existing.getStreamName())) {
+            return RpcUtils.getStatus(
+                TSStatusCode.OVERLAP_WITH_EXISTING_TASK,
+                "A different CreateStream task with the same name is already in progress: "
+                    + taskName);
+          }
+        } else if (type == ProcedureType.DROP_STREAM_PROCEDURE) {
+          final DropStreamProcedure existing = (DropStreamProcedure) running;
+          if (taskName.equals(existing.getStreamName())) {
+            return RpcUtils.getStatus(
+                TSStatusCode.OVERLAP_WITH_EXISTING_TASK,
+                "A DropStream task for the same stream is already in progress: " + taskName);
+          }
+        }
+      }
+      executor.submitProcedure(procedure);
+    }
+    return waitingProcedureFinished(procedure);
+  }
+
+  public TSStatus dropStream(final String streamName) {
+    final DropStreamProcedure procedure = new DropStreamProcedure(streamName);
+    synchronized (this) {
+      for (final Procedure<?> running : executor.getProcedures().values()) {
+        if (running.isFinished()) {
+          continue;
+        }
+        final ProcedureType type = ProcedureFactory.getProcedureType(running);
+        if (type == ProcedureType.DROP_STREAM_PROCEDURE) {
+          final DropStreamProcedure existing = (DropStreamProcedure) running;
+          if (streamName.equals(existing.getStreamName())) {
+            return waitingProcedureFinished(existing.getProcId());
+          }
+        } else if (type == ProcedureType.CREATE_STREAM_PROCEDURE) {
+          final CreateStreamProcedure existing = (CreateStreamProcedure) running;
+          if (streamName.equals(existing.getStreamName())) {
+            return RpcUtils.getStatus(
+                TSStatusCode.OVERLAP_WITH_EXISTING_TASK,
+                "A CreateStream task for the same stream is already in progress: " + streamName);
+          }
+        }
+      }
+      executor.submitProcedure(procedure);
+    }
+    return waitingProcedureFinished(procedure);
   }
 
   public TSStatus createTable(final String database, final TsTable table) {

@@ -44,9 +44,17 @@ public abstract class StreamSourceInstance {
       BiConsumer<Tablet, Long> dataConsumer,
       StreamNodeConfig nodeConfig) {
     if (source.getType() == StreamSourceType.IOTDB_SUBSCRIPTION) {
-      // TODO add real source types
-      return new IoTDBSubscriptionSourceInstance((IoTDBSubscriptionSource) source);
+      return new IoTDBSubscriptionSourceInstance(
+          (IoTDBSubscriptionSource) source, taskName, dataConsumer, nodeConfig);
     }
     throw new UnsupportedOperationException("Unsupported source type: " + source.getType());
+  }
+
+  public static StreamSourceInstance from(
+      StreamSource source,
+      String taskName,
+      BiConsumer<Tablet, Long> dataConsumer,
+      StreamNodeConfig nodeConfig) {
+    return create(source, taskName, dataConsumer, nodeConfig);
   }
 }

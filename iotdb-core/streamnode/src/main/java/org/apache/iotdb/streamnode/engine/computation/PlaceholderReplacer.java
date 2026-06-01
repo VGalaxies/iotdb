@@ -19,13 +19,11 @@
 
 package org.apache.iotdb.streamnode.engine.computation;
 
-import org.apache.iotdb.commons.stream.ColumnPartitionKey;
 import org.apache.iotdb.commons.stream.PartitionKey;
 import org.apache.iotdb.streamnode.engine.window.WindowEvent;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -69,14 +67,14 @@ public class PlaceholderReplacer {
   }
 
   private List<Object> extractPartitionValues(PartitionKey partitionKey) {
-    if (!(partitionKey instanceof ColumnPartitionKey)) {
+    if (partitionKey == null || partitionKey.segmentNum() <= 0) {
       return new ArrayList<>();
     }
-    Map<String, Object> columnValues = ((ColumnPartitionKey) partitionKey).getColumnValues();
-    if (columnValues == null || columnValues.isEmpty()) {
-      return new ArrayList<>();
+    final List<Object> partitionValues = new ArrayList<>(partitionKey.segmentNum());
+    for (int i = 0; i < partitionKey.segmentNum(); i++) {
+      partitionValues.add(partitionKey.segmentValue(i));
     }
-    return new ArrayList<>(columnValues.values());
+    return partitionValues;
   }
 
   private String toSqlLiteral(Object value) {

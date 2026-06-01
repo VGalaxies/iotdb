@@ -35,6 +35,7 @@ import org.apache.iotdb.common.rpc.thrift.TSetTTLReq;
 import org.apache.iotdb.common.rpc.thrift.TSetThrottleQuotaReq;
 import org.apache.iotdb.common.rpc.thrift.TShowAppliedConfigurationsResp;
 import org.apache.iotdb.common.rpc.thrift.TShowConfigurationResp;
+import org.apache.iotdb.common.rpc.thrift.TShowStreamResp;
 import org.apache.iotdb.common.rpc.thrift.TShowTTLReq;
 import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TTestConnectionResp;
@@ -217,7 +218,6 @@ import org.apache.iotdb.confignode.rpc.thrift.TShowRegionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowRegionResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowStreamNodesResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowStreamsReq;
-import org.apache.iotdb.confignode.rpc.thrift.TShowStreamsResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowSubscriptionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowSubscriptionResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowTTLResp;
@@ -1558,7 +1558,7 @@ public class ConfigNodeRPCServiceProcessor implements IConfigNodeRPCService.Ifac
               req.getCalcSql(),
               req.bufferForCalcPlan(),
               req.bufferForStreamSink());
-      return configManager.getStreamManager().createStream(task);
+      return configManager.createStream(task);
     } catch (IOException e) {
       LOGGER.warn("Failed to decode create stream RPC payload.", e);
       return RpcUtils.getStatus(TSStatusCode.EXECUTE_STATEMENT_ERROR, e.getMessage());
@@ -1567,21 +1567,21 @@ public class ConfigNodeRPCServiceProcessor implements IConfigNodeRPCService.Ifac
 
   @Override
   public TSStatus dropStream(TDropStreamReq req) throws TException {
-    return null;
+    return configManager.dropStream(req.getStreamName());
   }
 
   @Override
   public TSStatus startStream(TStartStreamReq req) throws TException {
-    return null;
+    return configManager.startStream(req.getStreamName());
   }
 
   @Override
   public TSStatus stopStream(TStopStreamReq req) throws TException {
-    return null;
+    return configManager.stopStream(req.getStreamName());
   }
 
   @Override
-  public TShowStreamsResp showStreams(TShowStreamsReq req) throws TException {
-    return null;
+  public TShowStreamResp showStreams(TShowStreamsReq req) throws TException {
+    return configManager.showStreams(req.getUserName());
   }
 }

@@ -41,6 +41,9 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Parameter;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Query;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Table;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CreateStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.DropStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StartStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StopStream;
 import org.apache.iotdb.commons.queryengine.plan.relational.type.InternalTypeManager;
 import org.apache.iotdb.commons.queryengine.plan.relational.type.TypeManager;
 import org.apache.iotdb.db.auth.AuthorityChecker;
@@ -643,6 +646,9 @@ public class Coordinator {
         || statement instanceof StartRepairData
         || statement instanceof StopRepairData
         || statement instanceof PipeStatement
+        || statement instanceof DropStream
+        || statement instanceof StartStream
+        || statement instanceof StopStream
         || statement instanceof RemoveDataNode
         || statement instanceof RemoveConfigNode
         || statement instanceof RemoveAINode

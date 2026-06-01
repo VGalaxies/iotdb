@@ -19,6 +19,7 @@
 
 package org.apache.iotdb.streamnode.engine.task;
 
+import org.apache.iotdb.commons.concurrent.threadpool.ScheduledExecutorUtil;
 import org.apache.iotdb.commons.stream.PartitionKey;
 import org.apache.iotdb.commons.stream.StreamSource;
 import org.apache.iotdb.commons.stream.StreamTask;
@@ -31,32 +32,58 @@ import org.apache.iotdb.streamnode.engine.scheduler.task.StreamDriverFactory;
 import org.apache.iotdb.streamnode.engine.sink.WriteBackEngine;
 import org.apache.iotdb.streamnode.engine.source.StreamSourceInstance;
 
+import org.apache.tsfile.write.record.Tablet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
+
+import static org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory.newScheduledThreadPoolWithDaemon;
 
 public class StreamTaskInstance {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(StreamTaskInstance.class);
+  private static final ScheduledExecutorService TASK_COMMITTER_POOL =
+      newScheduledThreadPoolWithDaemon(1, "StreamTaskInstance-Committer");
+  private static final long COMMIT_INTERVAL_IN_MS = 1000L;
 
   private final StreamTask taskDefinition;
-  private StreamSourceInstance sourceInstance;
-  private TabletDispatcher dispatcher;
   private final Map<PartitionKey, StreamSubTask> subTasks = new ConcurrentHashMap<>();
   private final ComputationEngine computationEngine = new ComputationEngine();
   private final WriteBackEngine writeBackEngine;
   private final AtomicBoolean running = new AtomicBoolean(false);
+  private final AtomicLong lastCommittedSourceIndex = new AtomicLong(-1L);
   private final StreamDataConsumer subTaskConsumer;
   private final Map<PartitionKey, IStreamDriver> streamDriverMap = new ConcurrentHashMap<>();
   private final StreamNodeConfig nodeConfig = StreamNodeDescriptor.getInstance().getConfig();
 
+  private StreamSourceInstance sourceInstance;
+  private TabletDispatcher dispatcher;
+  private ScheduledFuture<?> taskCommitter;
+
+  public StreamTaskInstance(StreamTask taskDefinition) {
+    this(
+        taskDefinition,
+        (tsBlock, commitId, partitionKey) -> CompletableFuture.completedFuture(null));
+  }
+
   public StreamTaskInstance(StreamTask taskDefinition, StreamDataConsumer subTaskConsumer) {
     this.taskDefinition = taskDefinition;
-    this.subTaskConsumer = subTaskConsumer;
     this.writeBackEngine = new WriteBackEngine(taskDefinition);
+    this.subTaskConsumer =
+        subTaskConsumer == null
+            ? (tsBlock, commitId, partitionKey) -> CompletableFuture.completedFuture(null)
+            : subTaskConsumer;
   }
 
   public boolean isStreamDriverExists(PartitionKey partitionKey) {
@@ -68,7 +95,7 @@ public class StreamTaskInstance {
         partitionKey,
         key ->
             StreamDriverFactory.createDriver(
-                partitionKey, taskDefinition.getTaskName(), subTasks.get(partitionKey)));
+                key, taskDefinition.getTaskName(), getOrCreateSubTask(key)));
   }
 
   public void start() {
@@ -78,30 +105,26 @@ public class StreamTaskInstance {
     }
 
     try {
-      // Initialize write-back
       if (taskDefinition.getTarget() != null) {
         writeBackEngine.start();
       }
 
-      // Initialize dispatcher
       if (taskDefinition.getSource() != null) {
         dispatcher = createDispatcher(taskDefinition.getSource());
-      }
-
-      // Initialize source
-      if (taskDefinition.getSource() != null) {
         sourceInstance =
             createSourceInstance(
                 taskDefinition.getSource(),
                 taskDefinition.getTaskName(),
                 dispatcher::dispatch,
                 nodeConfig);
+        startTaskCommitter();
         sourceInstance.start();
       }
 
       LOGGER.info("Task instance started: {}", taskDefinition.getTaskName());
     } catch (Exception e) {
       LOGGER.error("Failed to start task instance: {}", taskDefinition.getTaskName(), e);
+      stopTaskCommitter();
       running.set(false);
     }
   }
@@ -112,15 +135,13 @@ public class StreamTaskInstance {
     }
 
     try {
-      // Stop source
+      stopTaskCommitter();
       if (sourceInstance != null) {
         sourceInstance.stop();
       }
-      // Stop write-back
       writeBackEngine.stop();
-
-      // Clear sub-tasks
       subTasks.clear();
+      streamDriverMap.clear();
 
       LOGGER.info("Task instance stopped: {}", taskDefinition.getTaskName());
     } catch (Exception e) {
@@ -135,7 +156,7 @@ public class StreamTaskInstance {
   StreamSourceInstance createSourceInstance(
       StreamSource source,
       String taskName,
-      java.util.function.BiConsumer<org.apache.tsfile.write.record.Tablet, Long> consumer,
+      BiConsumer<Tablet, Long> consumer,
       StreamNodeConfig config) {
     return StreamSourceInstance.create(source, taskName, consumer, config);
   }
@@ -161,5 +182,63 @@ public class StreamTaskInstance {
 
   public boolean isRunning() {
     return running.get();
+  }
+
+  public Map<PartitionKey, StreamSubTask> getSubTasksSnapshot() {
+    return Collections.unmodifiableMap(new HashMap<>(subTasks));
+  }
+
+  public long getLastCommittedSourceIndex() {
+    return lastCommittedSourceIndex.get();
+  }
+
+  public long getMinimumSubTaskCommitId() {
+    return subTasks.values().stream().mapToLong(StreamSubTask::getCommitId).min().orElse(-1L);
+  }
+
+  public synchronized long commitProcessedProgress() throws Exception {
+    if (sourceInstance == null || subTasks.isEmpty()) {
+      return lastCommittedSourceIndex.get();
+    }
+
+    long minimumCommitId = getMinimumSubTaskCommitId();
+    if (minimumCommitId > lastCommittedSourceIndex.get()) {
+      sourceInstance.commit(minimumCommitId);
+      lastCommittedSourceIndex.set(minimumCommitId);
+      LOGGER.debug(
+          "Committed source progress {} for task {}",
+          minimumCommitId,
+          taskDefinition.getTaskName());
+    }
+    return lastCommittedSourceIndex.get();
+  }
+
+  private void startTaskCommitter() {
+    stopTaskCommitter();
+    taskCommitter =
+        ScheduledExecutorUtil.safelyScheduleWithFixedDelay(
+            TASK_COMMITTER_POOL,
+            this::commitProcessedProgressSafely,
+            COMMIT_INTERVAL_IN_MS,
+            COMMIT_INTERVAL_IN_MS,
+            TimeUnit.MILLISECONDS);
+  }
+
+  private void stopTaskCommitter() {
+    if (taskCommitter != null) {
+      taskCommitter.cancel(true);
+      taskCommitter = null;
+    }
+  }
+
+  private void commitProcessedProgressSafely() {
+    if (!running.get()) {
+      return;
+    }
+    try {
+      commitProcessedProgress();
+    } catch (Exception e) {
+      LOGGER.warn("Failed to commit source progress for task {}", taskDefinition.getTaskName(), e);
+    }
   }
 }

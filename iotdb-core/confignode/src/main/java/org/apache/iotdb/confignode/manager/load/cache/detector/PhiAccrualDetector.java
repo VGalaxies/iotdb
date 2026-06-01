@@ -23,6 +23,7 @@ import org.apache.iotdb.confignode.manager.load.cache.AbstractHeartbeatSample;
 import org.apache.iotdb.confignode.manager.load.cache.IFailureDetector;
 import org.apache.iotdb.confignode.manager.load.cache.node.NodeHeartbeatSample;
 import org.apache.iotdb.confignode.manager.load.cache.region.RegionHeartbeatSample;
+import org.apache.iotdb.confignode.manager.stream.StreamHeartbeatSample;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -116,7 +117,9 @@ public class PhiAccrualDetector implements IFailureDetector {
     for (final AbstractHeartbeatSample sample : history) {
       // ensure getSampleLogicalTimestamp() will return system nano timestamp
       Preconditions.checkArgument(
-          sample instanceof NodeHeartbeatSample || sample instanceof RegionHeartbeatSample);
+          sample instanceof NodeHeartbeatSample
+              || sample instanceof RegionHeartbeatSample
+              || sample instanceof StreamHeartbeatSample);
       if (lastTs == -1) {
         lastTs = sample.getSampleLogicalTimestamp();
         continue;
