@@ -211,7 +211,7 @@ public class StreamNodeManualRuntimeAssemblyIT extends AbstractStreamNodeIT {
     }
 
     @Override
-    public java.util.concurrent.Future<Void> offer(final List<DataSlice> dataSlices) {
+    public java.util.concurrent.Future<?> offer(final List<DataSlice> dataSlices) {
       receivedSlices.addAll(dataSlices);
       return super.offer(dataSlices);
     }
