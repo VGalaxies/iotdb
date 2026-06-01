@@ -21,6 +21,7 @@ package org.apache.iotdb.streamnode.engine.sink;
 
 import org.apache.iotdb.commons.stream.IoTDBTarget;
 import org.apache.iotdb.commons.stream.StreamTarget;
+import org.apache.iotdb.commons.stream.StreamTask;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,24 +30,78 @@ public class WriteBackEngine {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(WriteBackEngine.class);
 
-  public void start(StreamTarget target) throws Exception {
+  private final GlobalSinkMemoryController globalMemoryController =
+      GlobalSinkMemoryController.getInstance();
+  private final GlobalSinkWriterPool writerPool;
+  private final StreamTask taskDefinition;
+  private final SinkPipelineConfig defaultConfig = new SinkPipelineConfig();
+  private SinkPipeline pipeline;
+  private IoTDBTarget iotdbTarget;
+
+  public WriteBackEngine(StreamTask taskDefinition) {
+    this.taskDefinition = taskDefinition;
+    this.writerPool = GlobalSinkWriterPool.getInstance(defaultConfig);
+  }
+
+  public IStreamSinkTask start() throws Exception {
+    writerPool.start();
+    StreamTarget target = taskDefinition.getTarget();
     if (target instanceof IoTDBTarget) {
-      IoTDBTarget ioTDBTarget = (IoTDBTarget) target;
-      // TODO: initialize Session connection to target
+      IoTDBTarget iotdbTarget;
+      if (pipeline == null) {
+        iotdbTarget = (IoTDBTarget) target;
+        writerPool.acquireSessionPool(iotdbTarget);
+        String pipelineId = taskDefinition.getTaskName() + "." + iotdbTarget.getDatabase();
+        // TODO: SourceCommitCallback commitCallback for subscription
+        pipeline =
+            new SinkPipeline(
+                pipelineId,
+                iotdbTarget,
+                defaultConfig,
+                globalMemoryController,
+                writerPool,
+                commitId -> LOGGER.debug("Committed source commitId: {}", commitId));
+      } else {
+        iotdbTarget = pipeline.getIotdbTarget();
+      }
+
+      StreamSinkTask task = pipeline.createSinkTask();
       LOGGER.info(
-          "WriteBackEngine started for target: {}.{}",
-          ioTDBTarget.getDatabase(),
-          ioTDBTarget.getTableName());
+          "StreamSinkTask created for target: {}.{}",
+          iotdbTarget.getDatabase(),
+          iotdbTarget.getTableName());
+      return task;
     }
+
+    throw new UnsupportedOperationException("Unsupported stream sink type: " + target.getType());
   }
 
-  public void write(Object resultData, StreamTarget target) throws Exception {
-    // TODO: write result Tablet to target table via Session
-    LOGGER.debug("Writing result to target");
+  public void stop() {
+    if (pipeline != null) {
+      writerPool.stop(pipeline);
+      pipeline.stop();
+    }
+
+    LOGGER.info("StreamSinkEngine all sink tasks are stopped");
   }
 
-  public void stop() throws Exception {
-    // TODO: close Session
-    LOGGER.info("WriteBackEngine stopped");
+  public GlobalSinkMemoryController getGlobalMemoryController() {
+    return globalMemoryController;
+  }
+
+  public GlobalSinkWriterPool getWriterPool() {
+    return writerPool;
+  }
+
+  public StreamTask getTaskDefinition() {
+    return taskDefinition;
+  }
+
+  public SinkPipelineConfig getDefaultConfig() {
+    return defaultConfig;
+  }
+
+  public SinkPipeline getPipeline() {
+    return pipeline;
   }
 }

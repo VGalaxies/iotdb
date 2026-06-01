@@ -24,6 +24,7 @@ import org.apache.iotdb.commons.stream.StreamTarget;
 import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.commons.stream.StreamWindow;
 import org.apache.iotdb.streamnode.engine.dispatcher.TabletDispatcher;
+import org.apache.iotdb.streamnode.engine.sink.IStreamSinkTask;
 import org.apache.iotdb.streamnode.engine.sink.WriteBackEngine;
 import org.apache.iotdb.streamnode.engine.source.StreamSourceInstance;
 
@@ -99,12 +100,12 @@ public class StreamTaskInstanceTest {
 
     mockDispatcherAndSource();
 
-    doNothing().when(mockWriteBackEngine).start(any());
+    doReturn(mock(IStreamSinkTask.class)).when(mockWriteBackEngine).start();
     doNothing().when(mockStreamSourceInstance).start();
 
     streamTaskInstance.start();
 
-    verify(mockWriteBackEngine, times(1)).start(any());
+    verify(mockWriteBackEngine, times(1)).start();
     verify(mockStreamSourceInstance, times(1)).start();
     assertTrue(streamTaskInstance.isRunning());
   }
@@ -114,11 +115,11 @@ public class StreamTaskInstanceTest {
     when(mockStreamTask.getSource()).thenReturn(null);
     when(mockStreamTask.getTarget()).thenReturn(mock(StreamTarget.class));
 
-    doNothing().when(mockWriteBackEngine).start(any());
+    doReturn(mock(IStreamSinkTask.class)).when(mockWriteBackEngine).start();
 
     streamTaskInstance.start();
 
-    verify(mockWriteBackEngine, times(1)).start(any());
+    verify(mockWriteBackEngine, times(1)).start();
     verify(mockWriteBackEngine, never()).stop();
     assertTrue(streamTaskInstance.isRunning());
   }
@@ -135,7 +136,7 @@ public class StreamTaskInstanceTest {
 
     streamTaskInstance.start();
 
-    verify(mockWriteBackEngine, never()).start(any());
+    verify(mockWriteBackEngine, never()).start();
     verify(mockStreamSourceInstance, times(1)).start();
     assertTrue(streamTaskInstance.isRunning());
   }
@@ -148,13 +149,13 @@ public class StreamTaskInstanceTest {
 
     mockDispatcherAndSource();
 
-    doNothing().when(mockWriteBackEngine).start(any());
+    doReturn(mock(IStreamSinkTask.class)).when(mockWriteBackEngine).start();
     doNothing().when(mockStreamSourceInstance).start();
 
     streamTaskInstance.start();
     streamTaskInstance.start();
 
-    verify(mockWriteBackEngine, times(1)).start(any());
+    verify(mockWriteBackEngine, times(1)).start();
     verify(mockStreamSourceInstance, times(1)).start();
     assertTrue(streamTaskInstance.isRunning());
   }
@@ -167,11 +168,11 @@ public class StreamTaskInstanceTest {
 
     mockDispatcherOnly();
 
-    doThrow(new RuntimeException("Test exception")).when(mockWriteBackEngine).start(any());
+    doThrow(new RuntimeException("Test exception")).when(mockWriteBackEngine).start();
 
     streamTaskInstance.start();
 
-    verify(mockWriteBackEngine, times(1)).start(any());
+    verify(mockWriteBackEngine, times(1)).start();
     verify(mockWriteBackEngine, never()).stop();
     assertFalse(streamTaskInstance.isRunning());
   }
@@ -184,7 +185,7 @@ public class StreamTaskInstanceTest {
 
     mockDispatcherAndSource();
 
-    doNothing().when(mockWriteBackEngine).start(any());
+    doReturn(mock(IStreamSinkTask.class)).when(mockWriteBackEngine).start();
     doNothing().when(mockStreamSourceInstance).start();
     doNothing().when(mockStreamSourceInstance).stop();
     doNothing().when(mockWriteBackEngine).stop();
@@ -208,14 +209,14 @@ public class StreamTaskInstanceTest {
     when(mockStreamTask.getSource()).thenReturn(null);
     when(mockStreamTask.getTarget()).thenReturn(mock(StreamTarget.class));
 
-    doNothing().when(mockWriteBackEngine).start(any());
+    doReturn(mock(IStreamSinkTask.class)).when(mockWriteBackEngine).start();
 
     streamTaskInstance.start();
 
     streamTaskInstance.stop();
 
     verify(mockWriteBackEngine, times(1)).stop();
-    verify(mockWriteBackEngine, times(1)).start(any());
+    verify(mockWriteBackEngine, times(1)).start();
     assertFalse(streamTaskInstance.isRunning());
   }
 
@@ -235,7 +236,7 @@ public class StreamTaskInstanceTest {
 
     mockDispatcherAndSource();
 
-    doNothing().when(mockWriteBackEngine).start(any());
+    doReturn(mock(IStreamSinkTask.class)).when(mockWriteBackEngine).start();
     doNothing().when(mockStreamSourceInstance).start();
 
     doThrow(new RuntimeException("Stop exception")).when(mockWriteBackEngine).stop();
@@ -271,7 +272,7 @@ public class StreamTaskInstanceTest {
     when(mockStreamTask.getSource()).thenReturn(null);
     when(mockStreamTask.getTarget()).thenReturn(mock(StreamTarget.class));
 
-    doNothing().when(mockWriteBackEngine).start(any());
+    doReturn(mock(IStreamSinkTask.class)).when(mockWriteBackEngine).start();
 
     streamTaskInstance.start();
 
@@ -283,7 +284,7 @@ public class StreamTaskInstanceTest {
     when(mockStreamTask.getSource()).thenReturn(null);
     when(mockStreamTask.getTarget()).thenReturn(mock(StreamTarget.class));
 
-    doNothing().when(mockWriteBackEngine).start(any());
+    doReturn(mock(IStreamSinkTask.class)).when(mockWriteBackEngine).start();
     doNothing().when(mockWriteBackEngine).stop();
 
     streamTaskInstance.start();

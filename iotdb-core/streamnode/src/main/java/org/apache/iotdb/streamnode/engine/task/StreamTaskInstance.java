@@ -47,7 +47,7 @@ public class StreamTaskInstance {
   private TabletDispatcher dispatcher;
   private final Map<PartitionKey, StreamSubTask> subTasks = new ConcurrentHashMap<>();
   private final ComputationEngine computationEngine = new ComputationEngine();
-  private final WriteBackEngine writeBackEngine = new WriteBackEngine();
+  private final WriteBackEngine writeBackEngine;
   private final AtomicBoolean running = new AtomicBoolean(false);
   private final StreamDataConsumer subTaskConsumer;
   private final Map<PartitionKey, IStreamDriver> streamDriverMap = new ConcurrentHashMap<>();
@@ -56,6 +56,7 @@ public class StreamTaskInstance {
   public StreamTaskInstance(StreamTask taskDefinition, StreamDataConsumer subTaskConsumer) {
     this.taskDefinition = taskDefinition;
     this.subTaskConsumer = subTaskConsumer;
+    this.writeBackEngine = new WriteBackEngine(taskDefinition);
   }
 
   public boolean isStreamDriverExists(PartitionKey partitionKey) {
@@ -79,7 +80,7 @@ public class StreamTaskInstance {
     try {
       // Initialize write-back
       if (taskDefinition.getTarget() != null) {
-        writeBackEngine.start(taskDefinition.getTarget());
+        writeBackEngine.start();
       }
 
       // Initialize dispatcher
