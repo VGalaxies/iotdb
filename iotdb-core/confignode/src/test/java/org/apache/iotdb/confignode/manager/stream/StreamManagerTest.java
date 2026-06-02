@@ -33,6 +33,7 @@ import org.apache.iotdb.commons.stream.StreamTaskStatus;
 import org.apache.iotdb.commons.utils.StatusUtils;
 import org.apache.iotdb.confignode.manager.IManager;
 import org.apache.iotdb.confignode.manager.consensus.ConsensusManager;
+import org.apache.iotdb.confignode.manager.node.NodeManager;
 import org.apache.iotdb.confignode.persistence.stream.StreamInfo;
 import org.apache.iotdb.rpc.TSStatusCode;
 import org.apache.iotdb.streamnode.rpc.thrift.TDropTaskOnStreamNodeReq;
@@ -59,13 +60,19 @@ public class StreamManagerTest {
   private IManager configManager;
   private StreamInfo streamInfo;
   private TestStreamManager streamManager;
+  private List<TStreamNodeConfiguration> registeredStreamNodes;
 
   @Before
   public void setUp() {
     final ConsensusManager consensusManager = mock(ConsensusManager.class);
+    final NodeManager nodeManager = mock(NodeManager.class);
     when(consensusManager.getLeaderTerm()).thenReturn(7L);
+    registeredStreamNodes = new ArrayList<>();
     configManager = mock(IManager.class);
     when(configManager.getConsensusManager()).thenReturn(consensusManager);
+    when(configManager.getNodeManager()).thenReturn(nodeManager);
+    when(nodeManager.getRegisteredStreamNodes())
+        .thenAnswer(invocation -> new ArrayList<>(registeredStreamNodes));
     streamInfo = new StreamInfo();
     streamManager = new TestStreamManager(configManager, streamInfo);
   }
@@ -77,7 +84,7 @@ public class StreamManagerTest {
 
   @Test
   public void testStartStreamAssignsRegisteredStreamNodeAndRecordsHeartbeat() {
-    streamManager.registerStreamNode(streamNode("127.0.0.1", 10820));
+    registerStreamNode(streamNode("127.0.0.1", 10820));
     final StreamTask task = buildTask("stream_0");
     streamInfo.addTask(task);
     Assert.assertEquals(StreamTaskStatus.CREATED, task.getStatus());
@@ -109,7 +116,7 @@ public class StreamManagerTest {
 
   @Test
   public void testStopStreamSendsStopAndAdvancesRuntimeState() {
-    streamManager.registerStreamNode(streamNode("127.0.0.1", 10820));
+    registerStreamNode(streamNode("127.0.0.1", 10820));
     final StreamTask task = buildTask("stream_0");
     streamInfo.addTask(task);
     streamManager.startStream("stream_0");
@@ -131,7 +138,7 @@ public class StreamManagerTest {
 
   @Test
   public void testDropStreamStopsAndDropsRemoteTaskBeforeRemovingMetadata() {
-    streamManager.registerStreamNode(streamNode("127.0.0.1", 10820));
+    registerStreamNode(streamNode("127.0.0.1", 10820));
     final StreamTask task = buildTask("stream_0");
     streamInfo.addTask(task);
     streamManager.startStream("stream_0");
@@ -154,7 +161,7 @@ public class StreamManagerTest {
 
   @Test
   public void testCreatedStreamIsNotStartedByMonitor() {
-    streamManager.registerStreamNode(streamNode("127.0.0.1", 10820));
+    registerStreamNode(streamNode("127.0.0.1", 10820));
     final StreamTask task = buildTask("stream_0");
     streamInfo.addTask(task);
 
@@ -167,7 +174,7 @@ public class StreamManagerTest {
 
   @Test
   public void testMonitorCollectsStreamNodeHeartbeat() {
-    streamManager.registerStreamNode(streamNode("127.0.0.1", 10820));
+    registerStreamNode(streamNode("127.0.0.1", 10820));
     final StreamTask task = buildTask("stream_0");
     streamInfo.addTask(task);
     streamManager.startStream("stream_0");
@@ -187,8 +194,8 @@ public class StreamManagerTest {
 
   @Test
   public void testStartStreamUsesRegisteredStreamNodesRoundRobin() {
-    streamManager.registerStreamNode(streamNode("127.0.0.1", 10820));
-    streamManager.registerStreamNode(streamNode("127.0.0.2", 10821));
+    registerStreamNode(streamNode("127.0.0.1", 10820));
+    registerStreamNode(streamNode("127.0.0.2", 10821));
     streamInfo.addTask(buildTask("stream_0"));
     streamInfo.addTask(buildTask("stream_1"));
 
@@ -220,6 +227,13 @@ public class StreamManagerTest {
   private TStreamNodeConfiguration streamNode(final String ip, final int port) {
     return new TStreamNodeConfiguration(
         new TStreamNodeLocation(-1, new TEndPoint(ip, port)), new TNodeResource(1, 1024L));
+  }
+
+  private void registerStreamNode(final TStreamNodeConfiguration streamNodeConfiguration) {
+    if (streamNodeConfiguration.getLocation().getStreamNodeId() < 0) {
+      streamNodeConfiguration.getLocation().setStreamNodeId(registeredStreamNodes.size());
+    }
+    registeredStreamNodes.add(streamNodeConfiguration);
   }
 
   private static class TestStreamManager extends StreamManager {

@@ -30,6 +30,9 @@ public interface PartitionKey {
   Object segmentValue(int segmentIndex);
 
   default boolean equals(PartitionKey partitionKey) {
+    if (this == partitionKey) {
+      return true;
+    }
     if (partitionKey == null) {
       return false;
     }

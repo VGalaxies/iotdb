@@ -23,34 +23,34 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class TabletColumnPartitionKey implements PartitionKey {
+public class ListPartitionKey implements PartitionKey {
 
-  private final List<Object> columnValues;
+  private final List<Object> values;
 
-  public TabletColumnPartitionKey(final List<Object> columnValues) {
-    this.columnValues =
-        columnValues == null
+  public ListPartitionKey(final List<Object> values) {
+    this.values =
+        values == null
             ? Collections.emptyList()
-            : Collections.unmodifiableList(new ArrayList<>(columnValues));
+            : Collections.unmodifiableList(new ArrayList<>(values));
   }
 
-  public List<Object> getColumnValues() {
-    return columnValues;
+  public List<Object> getValues() {
+    return values;
   }
 
   @Override
   public int partitionHash() {
-    return columnValues.hashCode();
+    return values.hashCode();
   }
 
   @Override
   public int segmentNum() {
-    return columnValues.size();
+    return values.size();
   }
 
   @Override
   public Object segmentValue(final int segmentIndex) {
-    return columnValues.get(segmentIndex);
+    return values.get(segmentIndex);
   }
 
   @Override
@@ -71,6 +71,6 @@ public class TabletColumnPartitionKey implements PartitionKey {
 
   @Override
   public String toString() {
-    return "TabletColumnPartitionKey{" + "columnValues=" + columnValues + '}';
+    return "ListPartitionKey{" + "values=" + values + '}';
   }
 }

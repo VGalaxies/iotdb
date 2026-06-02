@@ -356,9 +356,9 @@ public enum TSStatusCode {
   REMOVE_STREAM_NODE_ERROR(2402),
 
   // Stream
-  STREAM_ALREADY_EXISTS(3000),
-  STREAM_NOT_EXIST(3001),
-  STREAM_STALE(3002),
+  STREAM_ALREADY_EXISTS(-3000),
+  STREAM_NOT_EXIST(-3001),
+  STREAM_STALE(-3002),
   ;
 
   private final int statusCode;

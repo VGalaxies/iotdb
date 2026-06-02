@@ -19,9 +19,9 @@
 
 package org.apache.iotdb.streamnode.engine.dispatcher;
 
+import org.apache.iotdb.commons.stream.ListPartitionKey;
 import org.apache.iotdb.commons.stream.PartitionKey;
 import org.apache.iotdb.commons.stream.PeriodWindow;
-import org.apache.iotdb.commons.stream.TabletColumnPartitionKey;
 import org.apache.iotdb.streamnode.engine.task.StreamSubTask;
 import org.apache.iotdb.streamnode.engine.task.StreamSubTask.DataSlice;
 
@@ -182,8 +182,8 @@ public class ColumnPartitionedTabletDispatcherTest {
     return tablet;
   }
 
-  private TabletColumnPartitionKey partitionKey(final Object... values) {
-    return new TabletColumnPartitionKey(Arrays.asList(values));
+  private ListPartitionKey partitionKey(final Object... values) {
+    return new ListPartitionKey(Arrays.asList(values));
   }
 
   private void assertSlice(

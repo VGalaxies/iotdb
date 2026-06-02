@@ -33,6 +33,7 @@ import org.apache.iotdb.streamnode.engine.source.IoTDBSubscriptionSourceInstance
 import org.apache.iotdb.streamnode.engine.task.StreamSubTask;
 import org.apache.iotdb.streamnode.engine.task.StreamSubTask.DataSlice;
 
+import org.apache.tsfile.write.record.Tablet;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -47,9 +48,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 
 @RunWith(IoTDBTestRunner.class)
 @Category({LocalStandaloneIT.class})
@@ -211,7 +214,7 @@ public class StreamNodeManualRuntimeAssemblyIT extends AbstractStreamNodeIT {
     }
 
     @Override
-    public java.util.concurrent.Future<?> offer(final List<DataSlice> dataSlices) {
+    public Future<?> offer(final List<DataSlice> dataSlices) {
       receivedSlices.addAll(dataSlices);
       return super.offer(dataSlices);
     }
@@ -230,8 +233,7 @@ public class StreamNodeManualRuntimeAssemblyIT extends AbstractStreamNodeIT {
     private RecordingIoTDBSubscriptionSourceInstance(
         final IoTDBSubscriptionSource sourceConfig,
         final String taskName,
-        final java.util.function.BiConsumer<org.apache.tsfile.write.record.Tablet, Long>
-            dataConsumer,
+        final BiConsumer<Tablet, Long> dataConsumer,
         final StreamNodeConfig streamNodeConfig) {
       super(sourceConfig, taskName, dataConsumer, streamNodeConfig);
     }

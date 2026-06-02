@@ -22,7 +22,6 @@ package org.apache.iotdb.confignode.manager.stream;
 import org.apache.iotdb.common.rpc.thrift.TEndPoint;
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
 import org.apache.iotdb.common.rpc.thrift.TStreamNodeConfiguration;
-import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory;
 import org.apache.iotdb.commons.concurrent.ThreadName;
 import org.apache.iotdb.commons.concurrent.threadpool.ScheduledExecutorUtil;
@@ -78,9 +77,6 @@ public class StreamManager {
   // taskName -> ordered deque of heartbeat samples (nano timestamps)
   private final Map<String, Deque<AbstractHeartbeatSample>> heartbeatHistory =
       new ConcurrentHashMap<>();
-  private final Map<Integer, TStreamNodeConfiguration> registeredStreamNodes =
-      new ConcurrentHashMap<>();
-  private final AtomicInteger nextStreamNodeId = new AtomicInteger(0);
   private final AtomicInteger nextAssignIndex = new AtomicInteger(0);
   private final ScheduledExecutorService streamMonitorExecutor;
 
@@ -465,54 +461,13 @@ public class StreamManager {
         heartbeat.getTaskName(), heartbeat.getEpoch(), cnStartTime, leaderTerm, runningOn);
   }
 
-  public synchronized int registerStreamNode(final TStreamNodeConfiguration configuration) {
-    final TStreamNodeLocation location = configuration.getLocation();
-    int streamNodeId = location.getStreamNodeId();
-    if (streamNodeId < 0) {
-      streamNodeId = nextStreamNodeId.getAndIncrement();
-      location.setStreamNodeId(streamNodeId);
-    } else {
-      final int registeredStreamNodeId = streamNodeId;
-      nextStreamNodeId.updateAndGet(current -> Math.max(current, registeredStreamNodeId + 1));
+  private List<TStreamNodeConfiguration> getRegisteredStreamNodes() {
+    final List<TStreamNodeConfiguration> streamNodes =
+        configManager.getNodeManager().getRegisteredStreamNodes();
+    if (streamNodes == null || streamNodes.isEmpty()) {
+      return Collections.emptyList();
     }
-    registeredStreamNodes.put(streamNodeId, configuration);
-    LOGGER.info("Registered StreamNode {} at {}", streamNodeId, location.getInternalEndPoint());
-    return streamNodeId;
-  }
-
-  public synchronized TSStatus restartStreamNode(final TStreamNodeConfiguration configuration) {
-    final int streamNodeId = configuration.getLocation().getStreamNodeId();
-    if (!registeredStreamNodes.containsKey(streamNodeId)) {
-      return new TSStatus(TSStatusCode.STREAM_NOT_EXIST.getStatusCode())
-          .setMessage("StreamNode not found: " + streamNodeId);
-    }
-    registeredStreamNodes.put(streamNodeId, configuration);
-    return StatusUtils.OK;
-  }
-
-  public synchronized TSStatus removeStreamNode(final TStreamNodeLocation location) {
-    if (registeredStreamNodes.isEmpty()) {
-      return new TSStatus(TSStatusCode.STREAM_NOT_EXIST.getStatusCode())
-          .setMessage("No registered StreamNode");
-    }
-    final int streamNodeId;
-    if (location == null) {
-      if (registeredStreamNodes.size() != 1) {
-        return new TSStatus(TSStatusCode.EXECUTE_STATEMENT_ERROR.getStatusCode())
-            .setMessage("StreamNode location is required when multiple StreamNodes are registered");
-      }
-      streamNodeId = registeredStreamNodes.keySet().iterator().next();
-    } else {
-      streamNodeId = location.getStreamNodeId();
-    }
-    return registeredStreamNodes.remove(streamNodeId) == null
-        ? new TSStatus(TSStatusCode.STREAM_NOT_EXIST.getStatusCode())
-            .setMessage("StreamNode not found: " + streamNodeId)
-        : StatusUtils.OK;
-  }
-
-  public List<TStreamNodeConfiguration> getRegisteredStreamNodes() {
-    return registeredStreamNodes.values().stream()
+    return streamNodes.stream()
         .sorted(Comparator.comparingInt(node -> node.getLocation().getStreamNodeId()))
         .collect(Collectors.toList());
   }

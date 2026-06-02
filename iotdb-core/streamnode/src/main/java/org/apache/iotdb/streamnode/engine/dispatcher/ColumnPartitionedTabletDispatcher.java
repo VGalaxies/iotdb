@@ -19,8 +19,8 @@
 
 package org.apache.iotdb.streamnode.engine.dispatcher;
 
+import org.apache.iotdb.commons.stream.ListPartitionKey;
 import org.apache.iotdb.commons.stream.PartitionKey;
-import org.apache.iotdb.commons.stream.TabletColumnPartitionKey;
 import org.apache.iotdb.streamnode.engine.task.StreamSubTask;
 import org.apache.iotdb.streamnode.engine.task.StreamSubTask.DataSlice;
 
@@ -53,7 +53,7 @@ public class ColumnPartitionedTabletDispatcher extends TabletDispatcher {
    *
    * <p>Scans the tablet row by row and records a boundary whenever the combined value of all
    * partition columns changes. Each resulting {@link DataSlice} carries the {@link
-   * TabletColumnPartitionKey} built from the first row of that group.
+   * ListPartitionKey} built from the first row of that group.
    *
    * @param tablet the source tablet (rows must already be sorted by partition columns)
    * @param tabletId the identifier of the tablet, forwarded to each slice
@@ -123,7 +123,7 @@ public class ColumnPartitionedTabletDispatcher extends TabletDispatcher {
     for (final int colIdx : colIndicesInTablet) {
       columnValues.add(colIdx < 0 ? null : tablet.getValue(row, colIdx));
     }
-    return new TabletColumnPartitionKey(columnValues);
+    return new ListPartitionKey(columnValues);
   }
 
   public List<String> getPartitionColumns() {

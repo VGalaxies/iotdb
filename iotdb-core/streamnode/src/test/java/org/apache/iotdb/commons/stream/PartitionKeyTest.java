@@ -87,10 +87,10 @@ public class PartitionKeyTest {
   }
 
   @Test
-  public void testTabletColumnPartitionKeyIsStableAndNullSafe() {
+  public void testListPartitionKeyIsStableAndNullSafe() {
     final List<Object> values = Arrays.asList("region-a", null, 1);
-    final TabletColumnPartitionKey key = new TabletColumnPartitionKey(values);
-    final TabletColumnPartitionKey same = new TabletColumnPartitionKey(values);
+    final ListPartitionKey key = new ListPartitionKey(values);
+    final ListPartitionKey same = new ListPartitionKey(values);
 
     Assert.assertEquals(same, key);
     Assert.assertEquals(same.hashCode(), key.hashCode());
@@ -98,8 +98,8 @@ public class PartitionKeyTest {
     Assert.assertNull(key.segmentValue(1));
 
     try {
-      key.getColumnValues().set(0, "region-b");
-      Assert.fail("TabletColumnPartitionKey values should be immutable");
+      key.getValues().set(0, "region-b");
+      Assert.fail("ListPartitionKey values should be immutable");
     } catch (UnsupportedOperationException expected) {
       // expected
     }

@@ -20,8 +20,8 @@
 package org.apache.iotdb.commons.stream;
 
 import org.apache.iotdb.commons.utils.BasicStructureSerDeUtil;
+import org.apache.tsfile.utils.PublicBAOS;
 
-import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -245,11 +245,10 @@ public class StreamTask {
   }
 
   public ByteBuffer toByteBuffer() {
-    try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    try (PublicBAOS baos = new PublicBAOS();
         DataOutputStream dos = new DataOutputStream(baos)) {
       serialize(dos);
-      dos.flush();
-      return ByteBuffer.wrap(baos.toByteArray());
+      return ByteBuffer.wrap(baos.getBuf(), 0, baos.size());
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
