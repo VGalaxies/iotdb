@@ -130,6 +130,7 @@ public class StreamSerDeTest {
     original.setSource(null);
     original.setWindow(new PeriodWindow(1001L, 0L));
     original.setSubQuery("SELECT 1");
+    original.setTypeProvider(new StreamNodeTableTypeProvider(Collections.emptyMap()));
     original.setCalcPlan(calc.duplicate());
     original.setTarget(new IoTDBTarget("root.db", "out", null));
     original.setStatus(StreamTaskStatus.RUNNING);
@@ -161,6 +162,7 @@ public class StreamSerDeTest {
     original.setSource(source);
     original.setWindow(new HopWindow("time", 50L, 25L, 0L));
     original.setSubQuery("sql");
+    original.setTypeProvider(new StreamNodeTableTypeProvider(Collections.emptyMap()));
     original.setCalcPlan(calc.duplicate());
     original.setTarget(new IoTDBTarget("d", "tgt", Collections.emptyList()));
     original.setStatus(null);
@@ -271,6 +273,9 @@ public class StreamSerDeTest {
     Assert.assertEquals(expected.getEpoch(), actual.getEpoch());
     Assert.assertEquals(expected.getRunningOn(), actual.getRunningOn());
     Assert.assertEquals(expected.getStatus(), actual.getStatus());
+    Assert.assertEquals(
+        expected.getTypeProvider().allTableModelTypes(),
+        actual.getTypeProvider().allTableModelTypes());
 
     assertCalcPlanBytesEqual(expected.getCalcPlan(), actual.getCalcPlan());
 

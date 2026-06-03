@@ -20,11 +20,10 @@
 package org.apache.iotdb.streamnode.engine.task;
 
 import org.apache.iotdb.commons.stream.PartitionKey;
-import org.apache.iotdb.commons.stream.StreamWindow;
-import org.apache.iotdb.streamnode.engine.computation.ComputationEngine;
-import org.apache.iotdb.streamnode.engine.sink.WriteBackEngine;
+import org.apache.iotdb.streamnode.engine.computation.IStreamComputeTask;
+import org.apache.iotdb.streamnode.engine.scheduler.task.StreamDriverContext;
+import org.apache.iotdb.streamnode.engine.sink.IStreamSinkTask;
 import org.apache.iotdb.streamnode.engine.window.WindowEngine;
-import org.apache.iotdb.streamnode.engine.window.WindowEvent;
 
 import org.apache.tsfile.block.column.ColumnBuilder;
 import org.apache.tsfile.enums.TSDataType;
@@ -50,35 +49,39 @@ public class StreamSubTask {
   private static final Logger LOGGER = LoggerFactory.getLogger(StreamSubTask.class);
   private final String streamName;
   private final PartitionKey partitionKey;
-  private final WindowEngine windowEngine;
   private final AtomicLong lastCommitId = new AtomicLong(-1);
-  private final WriteBackEngine writeBackEngine;
-  private final ComputationEngine computationEngine;
-  private final StreamDataConsumer consumer;
+  private final StreamSubTaskContext context;
+  private final StreamDriverContext driverContext;
+
+  private final WindowEngine windowEngine;
+  private final IStreamComputeTask computeTask;
+  private final IStreamSinkTask sinkTask;
+
+  private StreamDataConsumer consumer;
 
   public StreamSubTask(
       PartitionKey partitionKey,
-      StreamWindow window,
-      StreamDataConsumer consumer,
-      ComputationEngine computationEngine,
-      WriteBackEngine writeBackEngine,
-      String streamName) {
+      WindowEngine windowEngine,
+      IStreamComputeTask computeTask,
+      IStreamSinkTask sinkTask,
+      String streamName,
+      StreamSubTaskContext context,
+      StreamDriverContext driverContext) {
     this.partitionKey = partitionKey;
-    this.windowEngine = WindowEngine.create(window);
-    this.consumer = consumer;
-    this.computationEngine = computationEngine;
-    this.writeBackEngine = writeBackEngine;
+    this.windowEngine = windowEngine;
+    this.computeTask = computeTask;
+    this.sinkTask = sinkTask;
     this.streamName = streamName;
+    this.context = context;
+    this.driverContext = driverContext;
+  }
+
+  public void setConsumer(StreamDataConsumer consumer) {
+    this.consumer = consumer;
   }
 
   public String getStreamName() {
     return streamName;
-  }
-
-  public List<WindowEvent> offer(Object data, int startRow, int endRow, long dataId) {
-    List<WindowEvent> events = windowEngine.process(data, startRow, endRow);
-    lastCommitId.set(dataId);
-    return events;
   }
 
   public Future<?> offer(List<DataSlice> dataSlices) {
@@ -87,8 +90,7 @@ public class StreamSubTask {
     }
     TsBlock tsBlock = toTsBlock(dataSlices);
     long commitId = dataSlices.get(0).getTabletId();
-    PartitionKey partitionKey = dataSlices.get(0).getPartitionKey();
-    return consumer.accept(tsBlock, commitId, partitionKey);
+    return consumer.accept(tsBlock, commitId);
   }
 
   private TsBlock toTsBlock(List<DataSlice> dataSlices) {
@@ -170,6 +172,30 @@ public class StreamSubTask {
 
   public PartitionKey getPartitionKey() {
     return partitionKey;
+  }
+
+  public WindowEngine getWindowEngine() {
+    return windowEngine;
+  }
+
+  public IStreamComputeTask getComputeTask() {
+    return computeTask;
+  }
+
+  public IStreamSinkTask getSink() {
+    return sinkTask;
+  }
+
+  public StreamSubTaskStateMachine getStateMachine() {
+    return context.getStateMachine();
+  }
+
+  public StreamSubTaskContext getContext() {
+    return context;
+  }
+
+  public StreamDriverContext getDriverContext() {
+    return driverContext;
   }
 
   public static class DataSlice {

@@ -240,6 +240,12 @@ public class TableLogicalPlanner {
     if (statement instanceof Update) {
       return planUpdate((Update) statement, analysis);
     }
+    if (statement instanceof CreateStream) {
+      return createOutputPlan(
+          planStatementWithoutOutput(analysis, statement),
+          analysis,
+          ((CreateStream) statement).getQuery());
+    }
     return createOutputPlan(planStatementWithoutOutput(analysis, statement), analysis);
   }
 
@@ -338,6 +344,11 @@ public class TableLogicalPlanner {
   }
 
   private PlanNode createOutputPlan(RelationPlan plan, Analysis analysis) {
+    return createOutputPlan(plan, analysis, null);
+  }
+
+  private PlanNode createOutputPlan(
+      RelationPlan plan, Analysis analysis, Statement outputDescriptorSource) {
     if (plan.getRoot() instanceof WritePlanNode) {
       return plan.getRoot();
     }
@@ -359,7 +370,10 @@ public class TableLogicalPlanner {
       names.add(ColumnHeaderConstant.EXPLAIN_ANALYZE);
       columnHeaders.add(new ColumnHeader(ColumnHeaderConstant.EXPLAIN_ANALYZE, TSDataType.TEXT));
     } else {
-      RelationType outputDescriptor = analysis.getOutputDescriptor();
+      RelationType outputDescriptor =
+          outputDescriptorSource == null
+              ? analysis.getOutputDescriptor()
+              : analysis.getOutputDescriptor(outputDescriptorSource);
       for (Field field : outputDescriptor.getVisibleFields()) {
         String name = field.getName().orElse(null);
 

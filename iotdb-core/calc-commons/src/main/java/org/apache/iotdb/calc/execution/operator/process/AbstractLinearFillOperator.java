@@ -80,6 +80,23 @@ public abstract class AbstractLinearFillOperator implements ProcessOperator {
     this.noMoreTsBlock = true;
   }
 
+  protected AbstractLinearFillOperator(AbstractLinearFillOperator fillOperator, Operator child) {
+    this.operatorContext = fillOperator.operatorContext;
+    this.fillArray = fillOperator.fillArray;
+    this.child = requireNonNull(child, "child operator is null");
+    this.outputColumnCount = fillOperator.outputColumnCount;
+    this.cachedTsBlock = new ArrayList<>();
+    this.cachedRowIndex = new ArrayList<>();
+    this.cachedLastRowIndexForNonNullHelperColumn = new ArrayList<>();
+    this.nextTsBlockIndex = new int[outputColumnCount];
+    Arrays.fill(this.nextTsBlockIndex, 1);
+    this.canCallNext = false;
+    this.noMoreTsBlock = true;
+    for (ILinearFill fill : fillArray) {
+      fill.reset();
+    }
+  }
+
   @Override
   public CommonOperatorContext getOperatorContext() {
     return operatorContext;

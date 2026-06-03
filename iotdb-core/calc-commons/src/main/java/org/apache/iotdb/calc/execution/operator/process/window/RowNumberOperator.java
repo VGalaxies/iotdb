@@ -102,6 +102,35 @@ public class RowNumberOperator implements ProcessOperator {
     this.partitionRowCounts = new HashMap<>(expectedPositions);
   }
 
+  public RowNumberOperator(
+      RowNumberOperator rowNumberOperator,
+      Operator inputOperator,
+      List<TSDataType> inputDataTypes,
+      int expectedPositions) {
+    this.operatorContext = rowNumberOperator.operatorContext;
+    this.inputOperator = inputOperator;
+    this.outputChannels = rowNumberOperator.outputChannels;
+    this.partitionChannels = rowNumberOperator.partitionChannels;
+    this.tsBlockBuilder = rowNumberOperator.tsBlockBuilder;
+    this.tsBlockBuilder.reset();
+    this.maxRowsPerPartition = rowNumberOperator.maxRowsPerPartition;
+    if (partitionChannels.isEmpty()) {
+      this.groupByHash = Optional.empty();
+    } else {
+      List<Type> partitionDataTypes = new ArrayList<>();
+      for (int channel : partitionChannels) {
+        TSDataType tsDataType = inputDataTypes.get(channel);
+        Type convertType = InternalTypeManager.fromTSDataType(tsDataType);
+        partitionDataTypes.add(convertType);
+      }
+      this.groupByHash =
+          Optional.of(
+              createGroupByHash(partitionDataTypes, false, expectedPositions, UpdateMemory.NOOP));
+    }
+    this.partitionRowCounts = rowNumberOperator.partitionRowCounts;
+    this.partitionRowCounts.clear();
+  }
+
   @Override
   public CommonOperatorContext getOperatorContext() {
     return operatorContext;

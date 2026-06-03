@@ -59,6 +59,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.StringLitera
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.SymbolReference;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TimeDurationLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WhenClause;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PlaceHolderLiteral;
 import org.apache.iotdb.db.queryengine.plan.analyze.TypeProvider;
 import org.apache.iotdb.db.queryengine.plan.relational.metadata.OperatorNotFoundException;
 import org.apache.iotdb.db.queryengine.plan.relational.security.AccessControl;
@@ -383,6 +384,11 @@ public class IrTypeAnalyzer {
     @Override
     public Type visitBooleanLiteral(BooleanLiteral node, Context context) {
       return setExpressionType(node, BOOLEAN);
+    }
+
+    @Override
+    public Type visitPlaceHolderLiteral(PlaceHolderLiteral node, Context context) {
+      return setExpressionType(node, node.getDataType());
     }
 
     @Override

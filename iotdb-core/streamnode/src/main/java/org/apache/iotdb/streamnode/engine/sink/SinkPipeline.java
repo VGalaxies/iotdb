@@ -20,6 +20,7 @@
 package org.apache.iotdb.streamnode.engine.sink;
 
 import org.apache.iotdb.commons.stream.IoTDBTarget;
+import org.apache.iotdb.streamnode.engine.task.StreamSubTaskContext;
 
 import com.google.common.util.concurrent.ListenableFuture;
 
@@ -111,9 +112,9 @@ public class SinkPipeline {
     return queue.drainTo(target, maxElements);
   }
 
-  public StreamSinkTask createSinkTask() {
+  public StreamSinkTask createSinkTask(StreamSubTaskContext subTaskContext) {
     activeTaskCount.incrementAndGet();
-    return new StreamSinkTask(this, subTaskId.getAndIncrement());
+    return new StreamSinkTask(this, subTaskId.getAndIncrement(), subTaskContext);
   }
 
   ListenableFuture<Void> push(SinkEntry entry) {

@@ -69,12 +69,16 @@ public class BatchAccumulator {
   }
 
   public void add(SinkEntry entry) {
-    resolveSchemasFromTsBlock(entry.getTsBlock());
+    if (!entry.getTsBlock().isPresent()) {
+      return;
+    }
+    TsBlock tsBlock = entry.getTsBlock().get();
+    resolveSchemasFromTsBlock(tsBlock);
     if (bufferedEntries.isEmpty()) {
       firstEntryTimeNanos = entry.getEnqueueTimeNanos();
     }
     bufferedEntries.add(entry);
-    currentRowCount += entry.getTsBlock().getPositionCount();
+    currentRowCount += tsBlock.getPositionCount();
     currentMemoryBytes += entry.getMemorySizeInBytes();
   }
 
@@ -97,7 +101,10 @@ public class BatchAccumulator {
 
     int rowIndex = 0;
     for (SinkEntry entry : bufferedEntries) {
-      TsBlock tsBlock = entry.getTsBlock();
+      if (!entry.getTsBlock().isPresent()) {
+        continue;
+      }
+      TsBlock tsBlock = entry.getTsBlock().get();
       int positionCount = tsBlock.getPositionCount();
       Column timeColumn = tsBlock.getTimeColumn();
       for (int pos = 0; pos < positionCount; pos++) {

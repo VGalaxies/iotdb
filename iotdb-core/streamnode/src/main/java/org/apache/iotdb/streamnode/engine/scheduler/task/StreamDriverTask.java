@@ -20,14 +20,22 @@ package org.apache.iotdb.streamnode.engine.scheduler.task;
 
 import org.apache.iotdb.calc.execution.schedule.queue.ID;
 import org.apache.iotdb.calc.execution.schedule.queue.IDIndexedAccessible;
+import org.apache.iotdb.commons.stream.ColumnPartitionKey;
 import org.apache.iotdb.streamnode.engine.scheduler.DriverTaskHandle;
 import org.apache.iotdb.streamnode.engine.scheduler.queue.Priority;
 
+import com.google.common.util.concurrent.ListenableFuture;
+import io.airlift.units.Duration;
+import org.apache.tsfile.read.common.block.TsBlock;
+
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+
+import static org.apache.iotdb.calc.execution.operator.Operator.NOT_BLOCKED;
 
 public class StreamDriverTask implements IDIndexedAccessible {
 
@@ -63,6 +71,11 @@ public class StreamDriverTask implements IDIndexedAccessible {
 
   public void setStatus(DriverTaskStatus status) {
     this.status = status;
+  }
+
+  /** Initialize a dummy instance for queryHolder. */
+  public StreamDriverTask() {
+    this(new StubFragmentInstance(), 0, null);
   }
 
   public StreamDriverTask(
@@ -118,7 +131,7 @@ public class StreamDriverTask implements IDIndexedAccessible {
 
   @Override
   public void setId(ID id) {
-    this.streamDriver.setDriverTaskId(id);
+    this.streamDriver.setDriverTaskId((DriverTaskId) id);
   }
 
   public void unlock() {
@@ -168,6 +181,47 @@ public class StreamDriverTask implements IDIndexedAccessible {
         return result;
       }
       return o1.getDriverTaskId().compareTo(o2.getDriverTaskId());
+    }
+  }
+
+  private static class StubFragmentInstance implements IStreamDriver {
+
+    private DriverTaskId driverTaskId =
+        new DriverTaskId("stub-stream", new ColumnPartitionKey(Collections.emptyMap()));
+
+    @Override
+    public boolean isFinished() {
+      return false;
+    }
+
+    @Override
+    public ListenableFuture<?> processFor(Duration duration) {
+      return NOT_BLOCKED;
+    }
+
+    @Override
+    public ListenableFuture<?> push(TsBlock tsBlock, long commitId) {
+      return NOT_BLOCKED;
+    }
+
+    @Override
+    public void close() {
+      // do nothing
+    }
+
+    @Override
+    public void failed(Throwable t) {
+      // do nothing
+    }
+
+    @Override
+    public DriverTaskId getDriverTaskId() {
+      return driverTaskId;
+    }
+
+    @Override
+    public void setDriverTaskId(DriverTaskId id) {
+      this.driverTaskId = id;
     }
   }
 }

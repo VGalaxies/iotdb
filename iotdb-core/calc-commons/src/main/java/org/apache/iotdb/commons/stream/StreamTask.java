@@ -37,6 +37,7 @@ public class StreamTask {
   private StreamWindow window;
   private String subQuery;
 
+  private StreamNodeTableTypeProvider typeProvider;
   private ByteBuffer calcPlan;
 
   private StreamTarget target;
@@ -61,6 +62,7 @@ public class StreamTask {
       String runningOn,
       int epoch,
       StreamProperties properties,
+      StreamNodeTableTypeProvider streamNodeTableTypeProvider,
       ByteBuffer calcPlan) {
     this.id = id;
     this.taskName = taskName;
@@ -70,6 +72,7 @@ public class StreamTask {
     this.source = source;
     this.window = window;
     this.subQuery = subQuery;
+    this.typeProvider = streamNodeTableTypeProvider;
     setCalcPlan(calcPlan);
     this.target = target;
     this.status = status;
@@ -142,6 +145,14 @@ public class StreamTask {
     this.subQuery = subQuery;
   }
 
+  public StreamNodeTableTypeProvider getTypeProvider() {
+    return typeProvider;
+  }
+
+  public void setTypeProvider(StreamNodeTableTypeProvider typeProvider) {
+    this.typeProvider = typeProvider;
+  }
+
   public ByteBuffer getCalcPlan() {
     return calcPlan;
   }
@@ -207,6 +218,8 @@ public class StreamTask {
     }
     window.serialize(stream);
     BasicStructureSerDeUtil.write(subQuery, stream);
+
+    typeProvider.serialize(stream);
     writeCalcPlan(stream, calcPlan);
     if (target == null) {
       throw new IOException("stream target is required for serialization");
@@ -243,6 +256,7 @@ public class StreamTask {
     }
     task.setWindow(StreamWindow.deserialize(byteBuffer));
     task.setSubQuery(BasicStructureSerDeUtil.readString(byteBuffer));
+    task.setTypeProvider(StreamNodeTableTypeProvider.deserialize(byteBuffer));
     task.setCalcPlan(readCalcPlan(byteBuffer));
     task.setTarget(StreamTarget.deserialize(byteBuffer));
     short statusOrdinal = byteBuffer.getShort();

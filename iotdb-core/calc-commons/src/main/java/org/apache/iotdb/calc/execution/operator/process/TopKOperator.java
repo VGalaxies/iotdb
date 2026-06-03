@@ -44,6 +44,7 @@ import org.apache.tsfile.utils.RamUsageEstimator;
 import org.apache.tsfile.write.UnSupportedDataTypeException;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -109,6 +110,30 @@ public abstract class TopKOperator implements ProcessOperator {
             ? OPERATOR_BATCH_UPPER_BOUND / topValue
             : OPERATOR_BATCH_UPPER_BOUND / topValue + 1;
     canCallNext = new boolean[childrenOperators.size()];
+  }
+
+  protected TopKOperator(TopKOperator topKOperator, List<Operator> childrenOperators) {
+    this.operatorContext = topKOperator.operatorContext;
+    this.childrenOperators = topKOperator.childrenOperators;
+    for (int i = 0; i < childrenOperators.size(); i++) {
+      this.childrenOperators.set(i, childrenOperators.get(i));
+    }
+    this.dataTypes = topKOperator.dataTypes;
+    this.mergeSortHeap = topKOperator.mergeSortHeap;
+    this.comparator = topKOperator.comparator;
+    this.tsBlockBuilder = topKOperator.tsBlockBuilder;
+    this.topValue = topKOperator.topValue;
+    this.childrenDataInOrder = topKOperator.childrenDataInOrder;
+    this.childBatchStep = topKOperator.childBatchStep;
+    this.canCallNext = topKOperator.canCallNext;
+    this.topKResult = null;
+    this.resultReturnSize = 0;
+    this.tmpResultTsBlock = topKOperator.tmpResultTsBlock;
+    this.tmpResultTsBlockIdx = 0;
+    this.childIndex = 0;
+    this.mergeSortHeap.clear();
+    this.tsBlockBuilder.reset();
+    Arrays.fill(this.canCallNext, false);
   }
 
   @Override

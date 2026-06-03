@@ -22,6 +22,7 @@ package org.apache.iotdb.streamnode.engine.sink;
 import org.apache.iotdb.commons.stream.IoTDBTarget;
 import org.apache.iotdb.commons.stream.StreamTarget;
 import org.apache.iotdb.commons.stream.StreamTask;
+import org.apache.iotdb.streamnode.engine.task.StreamSubTaskContext;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,7 +44,7 @@ public class WriteBackEngine {
     this.writerPool = GlobalSinkWriterPool.getInstance(defaultConfig);
   }
 
-  public IStreamSinkTask start() throws Exception {
+  public void start() throws Exception {
     writerPool.start();
     StreamTarget target = taskDefinition.getTarget();
     if (target instanceof IoTDBTarget) {
@@ -65,15 +66,21 @@ public class WriteBackEngine {
         iotdbTarget = pipeline.getIotdbTarget();
       }
 
-      StreamSinkTask task = pipeline.createSinkTask();
       LOGGER.info(
-          "StreamSinkTask created for target: {}.{}",
+          "StreamSinkPipeline created for target: {}.{}",
           iotdbTarget.getDatabase(),
           iotdbTarget.getTableName());
-      return task;
+      return;
     }
 
     throw new UnsupportedOperationException("Unsupported stream sink type: " + target.getType());
+  }
+
+  public IStreamSinkTask createSinkSubTask(StreamSubTaskContext subTaskContext) {
+    if (pipeline == null) {
+      throw new IllegalStateException("WriteBackEngine is not started");
+    }
+    return pipeline.createSinkTask(subTaskContext);
   }
 
   public void stop() {

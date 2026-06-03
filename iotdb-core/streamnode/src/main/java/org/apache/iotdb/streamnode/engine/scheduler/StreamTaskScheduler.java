@@ -20,8 +20,6 @@ package org.apache.iotdb.streamnode.engine.scheduler;
 
 import org.apache.iotdb.calc.execution.schedule.queue.IndexedBlockingQueue;
 import org.apache.iotdb.commons.concurrent.ThreadName;
-import org.apache.iotdb.commons.stream.PartitionKey;
-import org.apache.iotdb.commons.stream.TumbleWindow;
 import org.apache.iotdb.commons.utils.TestOnly;
 import org.apache.iotdb.streamnode.conf.StreamNodeConfig;
 import org.apache.iotdb.streamnode.conf.StreamNodeDescriptor;
@@ -29,9 +27,7 @@ import org.apache.iotdb.streamnode.engine.scheduler.queue.FairRoundRobinQueue;
 import org.apache.iotdb.streamnode.engine.scheduler.task.DriverTaskId;
 import org.apache.iotdb.streamnode.engine.scheduler.task.DriverTaskStatus;
 import org.apache.iotdb.streamnode.engine.scheduler.task.IStreamDriver;
-import org.apache.iotdb.streamnode.engine.scheduler.task.StreamDriver;
 import org.apache.iotdb.streamnode.engine.scheduler.task.StreamDriverTask;
-import org.apache.iotdb.streamnode.engine.task.StreamSubTask;
 import org.apache.iotdb.streamnode.exception.DriverTaskAbortedException;
 import org.apache.iotdb.streamnode.utils.SetThreadName;
 
@@ -57,23 +53,8 @@ public class StreamTaskScheduler implements IStreamTaskScheduler {
   private final Map<DriverTaskId, StreamDriverTask> registeredTaskMap = new ConcurrentHashMap<>();
 
   public StreamTaskScheduler() {
-    StreamSubTask dummySubTask =
-        new StreamSubTask(
-            new PartitionKey() {
-              @Override
-              public int partitionHash() {
-                return 0;
-              }
-            },
-            new TumbleWindow("test", 1000, 0),
-            null,
-            null,
-            null,
-            "__DUMMY__");
     int TASK_MAX_CAPACITY = WORKER_THREAD_NUM * config.getExecutedTaskCountPerThread();
-    this.readyQueue =
-        new FairRoundRobinQueue(
-            TASK_MAX_CAPACITY, new StreamDriverTask(new StreamDriver(dummySubTask), 0, null));
+    this.readyQueue = new FairRoundRobinQueue(TASK_MAX_CAPACITY, new StreamDriverTask());
     this.threads = new ArrayList<>();
     workerGroups = new ThreadGroup("ScheduleThreads");
     scheduler = new Scheduler();
@@ -84,6 +65,7 @@ public class StreamTaskScheduler implements IStreamTaskScheduler {
     DriverTaskHandle driverTaskHandle = new DriverTaskHandle(0, readyQueue, OptionalInt.of(1));
     StreamDriverTask task = new StreamDriverTask(driver, timeoutMs, driverTaskHandle);
     readyQueue.push(task);
+    task.setLastEnterReadyQueueTime(System.nanoTime());
     registeredTaskMap.put(task.getDriverTaskId(), task);
   }
 
@@ -272,8 +254,12 @@ public class StreamTaskScheduler implements IStreamTaskScheduler {
             task.setStatus(DriverTaskStatus.ABORTED);
             readyQueue.remove(task.getDriverTaskId());
             break;
-          case RUNNING:
           case BLOCKED:
+            task.setStatus(DriverTaskStatus.ABORTED);
+            idleSet.remove(task.getDriverTaskId());
+            readyQueue.decreaseReservedSize();
+            break;
+          case RUNNING:
             task.setStatus(DriverTaskStatus.ABORTED);
             readyQueue.decreaseReservedSize();
             break;
@@ -289,10 +275,10 @@ public class StreamTaskScheduler implements IStreamTaskScheduler {
         task.lock();
         if (task.getStatus() == DriverTaskStatus.ABORTED) {
           try {
-            readyQueue.remove(task.getDriverTaskId());
-            idleSet.remove(task.getDriverTaskId());
             registeredTaskMap.remove(task.getDriverTaskId());
-            task.getDriver().close();
+            if (task.getAbortCause().isPresent()) {
+              task.getDriver().failed(task.getAbortCause().get());
+            }
           } catch (Exception e) {
             logger.error("Clear DriverTask failed", e);
           }

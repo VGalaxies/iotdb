@@ -4129,8 +4129,8 @@ public class AstBuilder extends RelationalSqlBaseVisitor<Node> {
     RelationalSqlParser.StreamPlaceholderContext spc = ctx.streamPlaceholder();
     if (spc.PREV_VALUE() != null) {
       return new PlaceHolderLiteral(PlaceHolderLiteral.Type.PREV_VALUE);
-    } else if (spc.NEXT_VALUE() != null) {
-      return new PlaceHolderLiteral(PlaceHolderLiteral.Type.NEXT_VALUE);
+    } else if (spc.CURRENT_VALUE() != null) {
+      return new PlaceHolderLiteral(PlaceHolderLiteral.Type.CURRENT_VALUE);
     } else if (spc.PREV_TIME() != null) {
       return new PlaceHolderLiteral(PlaceHolderLiteral.Type.PREV_TIME);
     } else if (spc.NEXT_TIME() != null) {

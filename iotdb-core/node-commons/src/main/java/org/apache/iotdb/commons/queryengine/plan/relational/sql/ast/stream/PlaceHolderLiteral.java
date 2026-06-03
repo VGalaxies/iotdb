@@ -25,6 +25,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.IAstVisitor;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Literal;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TableExpressionType;
+import org.apache.iotdb.commons.queryengine.plan.relational.utils.TypeUtil;
 
 import org.apache.tsfile.utils.RamUsageEstimator;
 import org.apache.tsfile.utils.ReadWriteIOUtils;
@@ -42,10 +43,11 @@ public class PlaceHolderLiteral extends Literal {
 
   private final Type type;
   private int value;
+  private org.apache.tsfile.read.common.type.Type dataType;
 
   public enum Type {
     PREV_VALUE("prev_value"),
-    NEXT_VALUE("next_value"),
+    CURRENT_VALUE("current_value"),
     PREV_TIME("prev_time"),
     NEXT_TIME("next_time"),
     START_TIME("start_time"),
@@ -61,6 +63,15 @@ public class PlaceHolderLiteral extends Literal {
 
     public String getName() {
       return name;
+    }
+
+    public static Type fromName(String name) {
+      for (Type type : values()) {
+        if (type.name.equals(name)) {
+          return type;
+        }
+      }
+      throw new IllegalArgumentException("Unknown placeholder type: " + name);
     }
   }
 
@@ -82,6 +93,14 @@ public class PlaceHolderLiteral extends Literal {
     return value;
   }
 
+  public org.apache.tsfile.read.common.type.Type getDataType() {
+    return dataType;
+  }
+
+  public void setDataType(org.apache.tsfile.read.common.type.Type dataType) {
+    this.dataType = requireNonNull(dataType, "dataType is null");
+  }
+
   public <R, C> R accept(IAstVisitor<R, C> visitor, C context) {
     return ((CommonQueryAstVisitor<R, C>) visitor).visitPlaceHolderLiteral(this, context);
   }
@@ -93,7 +112,7 @@ public class PlaceHolderLiteral extends Literal {
 
   @Override
   public int hashCode() {
-    return Objects.hash(type);
+    return Objects.hash(type, value, dataType);
   }
 
   @Override
@@ -105,7 +124,7 @@ public class PlaceHolderLiteral extends Literal {
       return false;
     }
     PlaceHolderLiteral that = (PlaceHolderLiteral) obj;
-    return (type == that.type);
+    return type == that.type && value == that.value && Objects.equals(dataType, that.dataType);
   }
 
   @Override
@@ -113,17 +132,27 @@ public class PlaceHolderLiteral extends Literal {
     if (!sameClass(this, other)) {
       return false;
     }
-    return type == ((PlaceHolderLiteral) other).type;
+    PlaceHolderLiteral that = (PlaceHolderLiteral) other;
+    return type == that.type && value == that.value && Objects.equals(dataType, that.dataType);
   }
 
   @Override
   public void serialize(DataOutputStream stream) throws IOException {
     ReadWriteIOUtils.write(this.type.getName(), stream);
+    ReadWriteIOUtils.write(this.value, stream);
+    ReadWriteIOUtils.write(this.dataType != null, stream);
+    if (this.dataType != null) {
+      TypeUtil.serialize(this.dataType, stream);
+    }
   }
 
   public PlaceHolderLiteral(ByteBuffer byteBuffer) {
     super(null);
-    this.type = Type.valueOf(ReadWriteIOUtils.readString(byteBuffer));
+    this.type = Type.fromName(ReadWriteIOUtils.readString(byteBuffer));
+    this.value = ReadWriteIOUtils.readInt(byteBuffer);
+    if (ReadWriteIOUtils.readBool(byteBuffer)) {
+      this.dataType = TypeUtil.deserialize(byteBuffer);
+    }
   }
 
   @Override
@@ -135,6 +164,7 @@ public class PlaceHolderLiteral extends Literal {
   public long ramBytesUsed() {
     return INSTANCE_SIZE
         + AstMemoryEstimationHelper.getEstimatedSizeOfNodeLocation(getLocationInternal())
-        + RamUsageEstimator.sizeOfObject(type);
+        + RamUsageEstimator.sizeOfObject(type)
+        + (dataType == null ? 0 : RamUsageEstimator.sizeOfObject(dataType));
   }
 }

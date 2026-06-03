@@ -19,13 +19,13 @@
 
 package org.apache.iotdb.streamnode.manager;
 
+import org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory;
 import org.apache.iotdb.commons.exception.StartupException;
 import org.apache.iotdb.commons.service.IService;
 import org.apache.iotdb.commons.service.ServiceType;
 import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.streamnode.engine.scheduler.IStreamTaskScheduler;
 import org.apache.iotdb.streamnode.engine.scheduler.StreamTaskScheduler;
-import org.apache.iotdb.streamnode.engine.scheduler.task.IStreamDriver;
 import org.apache.iotdb.streamnode.engine.task.StreamTaskInstance;
 
 import org.slf4j.Logger;
@@ -43,10 +43,13 @@ public class StreamTaskManager implements IService {
 
   private final Map<String, StreamTaskInstance> instances = new ConcurrentHashMap<>();
   private final ExecutorService executorService;
+  private final ExecutorService subTaskNotificationExecutor;
   private final IStreamTaskScheduler scheduler;
 
   public StreamTaskManager() {
     this.executorService = Executors.newFixedThreadPool(1);
+    this.subTaskNotificationExecutor =
+        IoTDBThreadPoolFactory.newFixedThreadPool(4, "Stream-SubTask-Notification");
     this.scheduler = new StreamTaskScheduler();
   }
 
@@ -63,6 +66,7 @@ public class StreamTaskManager implements IService {
     instances.clear();
     this.scheduler.stop();
     executorService.shutdown();
+    subTaskNotificationExecutor.shutdown();
     LOGGER.info("StreamTaskRunner stop complete");
   }
 
@@ -89,17 +93,7 @@ public class StreamTaskManager implements IService {
       return;
     }
     StreamTaskInstance instance =
-        new StreamTaskInstance(
-            task,
-            (tsBlock, commitId, partitionKey) -> {
-              StreamTaskInstance streamTaskInstance = instances.get(taskName);
-              boolean isNewDriver = !streamTaskInstance.isStreamDriverExists(partitionKey);
-              IStreamDriver streamDriver = streamTaskInstance.getOrCreateStreamDriver(partitionKey);
-              if (isNewDriver) {
-                scheduler.submitStreamDriver(streamDriver, 0);
-              }
-              return streamDriver.push(tsBlock, commitId);
-            });
+        new StreamTaskInstance(task, scheduler, subTaskNotificationExecutor);
     instances.put(taskName, instance);
 
     executorService.submit(instance::start);
@@ -112,10 +106,10 @@ public class StreamTaskManager implements IService {
 
   public void stop(String taskName) {
     StreamTaskInstance instance = instances.remove(taskName);
+    scheduler.cancelStreamTask(taskName);
     if (instance != null) {
       instance.stop();
     }
-    scheduler.cancelStreamTask(taskName);
   }
 
   public void dropAll() {

@@ -21,11 +21,12 @@ package org.apache.iotdb.streamnode.engine.computation;
 
 import org.apache.iotdb.commons.stream.ColumnPartitionKey;
 import org.apache.iotdb.commons.stream.PartitionKey;
-import org.apache.iotdb.streamnode.engine.window.WindowEvent;
+import org.apache.iotdb.streamnode.engine.window.IEventInfo;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -33,22 +34,25 @@ public class PlaceholderReplacer {
 
   private static final Pattern INDEX_PLACEHOLDER_PATTERN = Pattern.compile("\\$\\{(\\d+)\\}");
 
-  public String replace(String subQuery, WindowEvent event, PartitionKey partitionKey) {
+  public String replace(String subQuery, IEventInfo event) {
+    return replace(subQuery, event, null);
+  }
+
+  public String replace(String subQuery, IEventInfo event, PartitionKey partitionKey) {
     if (subQuery == null) {
       return null;
     }
     String result = subQuery;
-    result = replaceNamedPlaceholder(result, "start_time", String.valueOf(event.getStartTime()));
-    result = replaceNamedPlaceholder(result, "end_time", String.valueOf(event.getEndTime()));
-    result = replaceNamedPlaceholder(result, "row_num", String.valueOf(event.getRowCount()));
+    result = replaceNamedPlaceholder(result, "start_time", toSqlLiteral(event.getStartTime()));
+    result = replaceNamedPlaceholder(result, "end_time", toSqlLiteral(event.getEndTime()));
+    result = replaceNamedPlaceholder(result, "row_num", toSqlLiteral(event.getRowCount()));
     result = replaceIndexedPlaceholder(result, partitionKey);
     return result;
   }
 
   private String replaceNamedPlaceholder(String sql, String name, String value) {
-    String lowerBracket = "${" + name + "}";
-    String upperBracket = "${" + name.toUpperCase() + "}";
-    return sql.replace(lowerBracket, value).replace(upperBracket, value);
+    Pattern pattern = Pattern.compile("\\$\\{\\s*" + name + "\\s*}", Pattern.CASE_INSENSITIVE);
+    return pattern.matcher(sql).replaceAll(Matcher.quoteReplacement(value));
   }
 
   private String replaceIndexedPlaceholder(String sql, PartitionKey partitionKey) {
@@ -88,5 +92,9 @@ public class PlaceholderReplacer {
     }
     String escaped = String.valueOf(value).replace("'", "''");
     return "'" + escaped + "'";
+  }
+
+  private String toSqlLiteral(OptionalLong value) {
+    return value.isPresent() ? Long.toString(value.getAsLong()) : "NULL";
   }
 }

@@ -20,21 +20,25 @@
 package org.apache.iotdb.streamnode.engine.computation;
 
 import org.apache.iotdb.commons.stream.ColumnPartitionKey;
-import org.apache.iotdb.streamnode.engine.window.WindowEvent;
+import org.apache.iotdb.streamnode.engine.window.IEventInfo;
+import org.apache.iotdb.streamnode.utils.IEventRowsIterator;
 
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.OptionalLong;
 
 public class PlaceholderReplacerTest {
 
   @Test
   public void testReplaceBracketPlaceholders() {
     PlaceholderReplacer replacer = new PlaceholderReplacer();
-    WindowEvent event = new WindowEvent(100, 200, Arrays.asList(), 10);
+    IEventInfo event = new TestEventInfo(100, 200, 10);
     Map<String, Object> partitionValues = new LinkedHashMap<>();
     partitionValues.put("device", "d1");
     partitionValues.put("region", 7);
@@ -44,5 +48,73 @@ public class PlaceholderReplacerTest {
     String result = replacer.replace(sql, event, key);
 
     Assert.assertEquals("select 100, 200, 10, 'd1', 7 from table1", result);
+  }
+
+  private static class TestEventInfo implements IEventInfo {
+
+    private final long startTime;
+    private final long endTime;
+    private final long rowCount;
+
+    private TestEventInfo(long startTime, long endTime, long rowCount) {
+      this.startTime = startTime;
+      this.endTime = endTime;
+      this.rowCount = rowCount;
+    }
+
+    @Override
+    public boolean isClosed() {
+      return true;
+    }
+
+    @Override
+    public OptionalLong getStartTime() {
+      return OptionalLong.of(startTime);
+    }
+
+    @Override
+    public OptionalLong getEndTime() {
+      return OptionalLong.of(endTime);
+    }
+
+    @Override
+    public OptionalLong getPrevTime() {
+      return OptionalLong.empty();
+    }
+
+    @Override
+    public OptionalLong getNextTime() {
+      return OptionalLong.empty();
+    }
+
+    @Override
+    public OptionalLong getRowCount() {
+      return OptionalLong.of(rowCount);
+    }
+
+    @Override
+    public Optional<Object> getPrevValue() {
+      return Optional.empty();
+    }
+
+    @Override
+    public Optional<Object> getCurrentValue() {
+      return Optional.empty();
+    }
+
+    @Override
+    public Optional<Object> getN(int n) {
+      return Optional.empty();
+    }
+
+    @Override
+    public List<Long> getCommitIds() {
+      return Collections.emptyList();
+    }
+
+    @Override
+    public IEventRowsIterator getRowsIterator() {
+      return null;
+    }
   }
 }

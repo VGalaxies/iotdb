@@ -48,6 +48,10 @@ public abstract class SortOperator extends AbstractSortOperator {
     super(operatorContext, inputOperator, dataTypes, diskSpiller, comparator);
   }
 
+  protected SortOperator(SortOperator sortOperator, Operator inputOperator) {
+    super(sortOperator, inputOperator);
+  }
+
   @Override
   public TsBlock next() throws Exception {
     if (!inputOperator.hasNextWithTimer()) {

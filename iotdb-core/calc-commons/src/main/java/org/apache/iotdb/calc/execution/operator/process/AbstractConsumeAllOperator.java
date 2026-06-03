@@ -57,7 +57,20 @@ public abstract class AbstractConsumeAllOperator extends AbstractOperator
     this.inputOperatorsCount = children.size();
     this.inputTsBlocks = new TsBlock[inputOperatorsCount];
     this.canCallNext = new boolean[inputOperatorsCount];
+  }
+
+  protected AbstractConsumeAllOperator(
+      AbstractConsumeAllOperator operator, List<Operator> children) {
+    this.operatorContext = operator.operatorContext;
+    this.children = children;
+    this.inputOperatorsCount = children.size();
+    this.inputTsBlocks = operator.inputTsBlocks;
+    this.canCallNext = operator.canCallNext;
+    this.readyChildIndex = 0;
+    this.currentChildIndex = 0;
+    this.hasEmptyChildInput = false;
     for (int i = 0; i < inputOperatorsCount; i++) {
+      inputTsBlocks[i] = null;
       canCallNext[i] = false;
     }
   }

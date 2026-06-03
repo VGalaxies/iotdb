@@ -110,6 +110,7 @@ public class StreamPlannerTest {
 
     TableModelPlanner streamQueryPlanner = Mockito.mock(TableModelPlanner.class);
     when(streamQueryPlanner.analyze(context)).thenReturn(analysis);
+    when(streamQueryPlanner.getSymbolAllocator()).thenReturn(new SymbolAllocator());
 
     TableConfigTaskVisitor visitor =
         new TableConfigTaskVisitor(
@@ -142,6 +143,7 @@ public class StreamPlannerTest {
 
     TableModelPlanner streamQueryPlanner = Mockito.mock(TableModelPlanner.class);
     when(streamQueryPlanner.analyze(context)).thenReturn(analysis);
+    when(streamQueryPlanner.getSymbolAllocator()).thenReturn(new SymbolAllocator());
     Symbol startTime = new Symbol("start_time");
     Symbol rowNum = new Symbol("row_num");
     List<Symbol> outputSymbols = Arrays.asList(startTime, rowNum);
@@ -200,6 +202,7 @@ public class StreamPlannerTest {
 
     TableModelPlanner streamQueryPlanner = Mockito.mock(TableModelPlanner.class);
     when(streamQueryPlanner.analyze(context)).thenReturn(analysis);
+    when(streamQueryPlanner.getSymbolAllocator()).thenReturn(new SymbolAllocator());
     Symbol startTime = new Symbol("start_time");
     Symbol rowNum = new Symbol("row_num");
     List<Symbol> outputSymbols = Arrays.asList(startTime, rowNum);
@@ -270,6 +273,7 @@ public class StreamPlannerTest {
 
     TableModelPlanner streamQueryPlanner = Mockito.mock(TableModelPlanner.class);
     when(streamQueryPlanner.analyze(context)).thenReturn(analysis);
+    when(streamQueryPlanner.getSymbolAllocator()).thenReturn(new SymbolAllocator());
 
     TableConfigTaskVisitor visitor =
         new TableConfigTaskVisitor(

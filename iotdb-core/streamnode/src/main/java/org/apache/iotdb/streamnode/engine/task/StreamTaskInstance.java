@@ -24,10 +24,10 @@ import org.apache.iotdb.commons.stream.StreamSource;
 import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.streamnode.conf.StreamNodeConfig;
 import org.apache.iotdb.streamnode.conf.StreamNodeDescriptor;
-import org.apache.iotdb.streamnode.engine.computation.ComputationEngine;
+import org.apache.iotdb.streamnode.engine.computation.planner.StreamExecutionPlanner;
 import org.apache.iotdb.streamnode.engine.dispatcher.TabletDispatcher;
-import org.apache.iotdb.streamnode.engine.scheduler.task.IStreamDriver;
-import org.apache.iotdb.streamnode.engine.scheduler.task.StreamDriverFactory;
+import org.apache.iotdb.streamnode.engine.scheduler.IStreamTaskScheduler;
+import org.apache.iotdb.streamnode.engine.scheduler.task.StreamDriver;
 import org.apache.iotdb.streamnode.engine.sink.WriteBackEngine;
 import org.apache.iotdb.streamnode.engine.source.StreamSourceInstance;
 
@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class StreamTaskInstance {
@@ -45,30 +46,22 @@ public class StreamTaskInstance {
   private final StreamTask taskDefinition;
   private StreamSourceInstance sourceInstance;
   private TabletDispatcher dispatcher;
-  private final Map<PartitionKey, StreamSubTask> subTasks = new ConcurrentHashMap<>();
-  private final ComputationEngine computationEngine = new ComputationEngine();
+  private final Map<PartitionKey, StreamSubTaskExecution> subTaskExecutions =
+      new ConcurrentHashMap<>();
   private final WriteBackEngine writeBackEngine;
+  private final ExecutorService subTaskNotificationExecutor;
   private final AtomicBoolean running = new AtomicBoolean(false);
-  private final StreamDataConsumer subTaskConsumer;
-  private final Map<PartitionKey, IStreamDriver> streamDriverMap = new ConcurrentHashMap<>();
+  private final IStreamTaskScheduler scheduler;
   private final StreamNodeConfig nodeConfig = StreamNodeDescriptor.getInstance().getConfig();
 
-  public StreamTaskInstance(StreamTask taskDefinition, StreamDataConsumer subTaskConsumer) {
+  public StreamTaskInstance(
+      StreamTask taskDefinition,
+      IStreamTaskScheduler scheduler,
+      ExecutorService subTaskNotificationExecutor) {
     this.taskDefinition = taskDefinition;
-    this.subTaskConsumer = subTaskConsumer;
+    this.scheduler = scheduler;
+    this.subTaskNotificationExecutor = subTaskNotificationExecutor;
     this.writeBackEngine = new WriteBackEngine(taskDefinition);
-  }
-
-  public boolean isStreamDriverExists(PartitionKey partitionKey) {
-    return streamDriverMap.containsKey(partitionKey);
-  }
-
-  public IStreamDriver getOrCreateStreamDriver(PartitionKey partitionKey) {
-    return streamDriverMap.computeIfAbsent(
-        partitionKey,
-        key ->
-            StreamDriverFactory.createDriver(
-                partitionKey, taskDefinition.getTaskName(), subTasks.get(partitionKey)));
   }
 
   public void start() {
@@ -116,11 +109,13 @@ public class StreamTaskInstance {
       if (sourceInstance != null) {
         sourceInstance.stop();
       }
-      // Stop write-back
-      writeBackEngine.stop();
 
-      // Clear sub-tasks
-      subTasks.clear();
+      subTaskExecutions.values().forEach(StreamSubTaskExecution::stop);
+      subTaskExecutions.values().forEach(StreamSubTaskExecution::awaitCleanupFinished);
+      subTaskExecutions.clear();
+
+      // Stop write-back after all sub-task executions have entered terminal cleanup.
+      writeBackEngine.stop();
 
       LOGGER.info("Task instance stopped: {}", taskDefinition.getTaskName());
     } catch (Exception e) {
@@ -140,23 +135,63 @@ public class StreamTaskInstance {
     return StreamSourceInstance.create(source, taskName, consumer, config);
   }
 
-  public StreamSubTask getOrCreateSubTask(PartitionKey key) {
-    return subTasks.computeIfAbsent(
-        key,
-        partitionKey -> {
-          LOGGER.debug("Creating sub-task for partition: {}", partitionKey);
-          return new StreamSubTask(
-              partitionKey,
-              taskDefinition.getWindow(),
-              subTaskConsumer,
-              computationEngine,
-              writeBackEngine,
-              taskDefinition.getTaskName());
-        });
+  private StreamSubTask getOrCreateSubTask(PartitionKey key) {
+    return subTaskExecutions
+        .computeIfAbsent(
+            key,
+            partitionKey -> {
+              LOGGER.debug("Creating sub-task for partition: {}", partitionKey);
+              StreamSubTaskStateMachine stateMachine =
+                  new StreamSubTaskStateMachine(
+                      taskDefinition.getTaskName() + "-" + partitionKey,
+                      subTaskNotificationExecutor);
+              StreamSubTaskContext subTaskContext =
+                  new StreamSubTaskContext(
+                      taskDefinition.getTaskName(), partitionKey, stateMachine);
+              StreamSubTask subTask =
+                  StreamExecutionPlanner.getInstance().plan(subTaskContext, this);
+              StreamDriver driver = new StreamDriver(subTask, subTask.getDriverContext());
+              subTask.setConsumer(driver::push);
+              StreamSubTaskExecution execution =
+                  StreamSubTaskExecution.create(scheduler, subTask, driver, 0);
+              stateMachine.addStateChangeListener(
+                  newState -> onSubTaskStateChanged(partitionKey, execution, newState));
+              return execution;
+            })
+        .getSubTask();
+  }
+
+  private void onSubTaskStateChanged(
+      PartitionKey partitionKey, StreamSubTaskExecution execution, StreamSubTaskState newState) {
+    if (!newState.isDone()) {
+      return;
+    }
+
+    // TODO: After StreamSubTaskExecution finishes cleanup, remove the old execution with
+    // remove(partitionKey, execution) and decide whether a failed sub-task should be isolated
+    // to its partition or cascade to the whole stream task.
+    if (newState.isFailed()) {
+      LOGGER.warn(
+          "Sub-task of task {} and partition {} failed",
+          taskDefinition.getTaskName(),
+          partitionKey,
+          execution.getContext().getFailureCause().orElse(null));
+      return;
+    }
+
+    LOGGER.info(
+        "Sub-task of task {} and partition {} entered terminal state {}",
+        taskDefinition.getTaskName(),
+        partitionKey,
+        newState);
   }
 
   public StreamTask getTaskDefinition() {
     return taskDefinition;
+  }
+
+  public WriteBackEngine getWriteBackEngine() {
+    return writeBackEngine;
   }
 
   public boolean isRunning() {

@@ -23,9 +23,11 @@ import com.google.common.util.concurrent.SettableFuture;
 import org.apache.tsfile.read.common.block.TsBlock;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
 public class SinkEntry {
-  private final TsBlock tsBlock;
+  private final Optional<TsBlock> tsBlock;
   // All source data consumed to produce this result, commit ID
   private final List<Long> commitIds;
   // source subTask id
@@ -35,8 +37,9 @@ public class SinkEntry {
   // Create as needed only when backpressure is applied
   private SettableFuture<Void> backpressureFuture;
 
-  public SinkEntry(TsBlock block, List<Long> commitIds, int subTaskId, long retainedSizeInBytes) {
-    this.tsBlock = block;
+  public SinkEntry(
+      Optional<TsBlock> block, List<Long> commitIds, int subTaskId, long retainedSizeInBytes) {
+    this.tsBlock = Objects.requireNonNull(block, "block should not be null");
     this.commitIds = commitIds;
     this.subTaskId = subTaskId;
     this.memorySizeInBytes = retainedSizeInBytes;
@@ -50,7 +53,7 @@ public class SinkEntry {
     return backpressureFuture;
   }
 
-  public TsBlock getTsBlock() {
+  public Optional<TsBlock> getTsBlock() {
     return tsBlock;
   }
 

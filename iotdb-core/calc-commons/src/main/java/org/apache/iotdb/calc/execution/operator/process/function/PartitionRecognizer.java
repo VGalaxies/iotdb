@@ -84,6 +84,14 @@ public class PartitionRecognizer {
     noMoreData = true;
   }
 
+  public void reset() {
+    noMoreData = false;
+    currentPartitionKey = null;
+    currentTsBlock = null;
+    currentIndex = 0;
+    currentState = PartitionState.INIT_STATE;
+  }
+
   public PartitionState nextState() {
     updateState();
     return currentState;

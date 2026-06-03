@@ -18,8 +18,6 @@
  */
 package org.apache.iotdb.streamnode.engine.scheduler.task;
 
-import org.apache.iotdb.calc.execution.schedule.queue.ID;
-
 import com.google.common.util.concurrent.ListenableFuture;
 import io.airlift.units.Duration;
 import org.apache.tsfile.read.common.block.TsBlock;
@@ -63,5 +61,5 @@ public interface IStreamDriver {
 
   DriverTaskId getDriverTaskId();
 
-  void setDriverTaskId(ID id);
+  void setDriverTaskId(DriverTaskId id);
 }

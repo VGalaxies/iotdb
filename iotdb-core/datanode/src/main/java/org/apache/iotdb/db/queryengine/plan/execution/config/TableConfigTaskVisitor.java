@@ -75,6 +75,7 @@ import org.apache.iotdb.commons.stream.HopWindow;
 import org.apache.iotdb.commons.stream.IoTDBSubscriptionSource;
 import org.apache.iotdb.commons.stream.IoTDBTarget;
 import org.apache.iotdb.commons.stream.PeriodWindow;
+import org.apache.iotdb.commons.stream.StreamNodeTableTypeProvider;
 import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.commons.stream.StreamWindow;
 import org.apache.iotdb.commons.stream.TumbleWindow;
@@ -1723,6 +1724,11 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
         analysis.containsRowsPlaceholder()
             ? planner.doLogicalPlan(analysis, context).getRootNode()
             : new SessionScanNode(context.getQueryId().genPlanNodeId(), calcSql);
+    planner
+        .getSymbolAllocator()
+        .getTypes()
+        .allTableModelTypes()
+        .forEach((k, v) -> context.getTypeProvider().putTableModelType(k, v));
     StreamTask streamTask = buildStreamTask(node, context, calcSql, calcPlanNode, analysis);
     return new CreateStreamTask(streamTask);
   }
@@ -1868,6 +1874,8 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
     task.setWindow(window);
     task.setSubQuery(calcSql);
     task.setCalcPlan(calcPlan);
+    task.setTypeProvider(
+        new StreamNodeTableTypeProvider(context.getTypeProvider().allTableModelTypes()));
     task.setTarget(target);
     task.setEpoch(0);
     return task;

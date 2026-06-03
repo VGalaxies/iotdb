@@ -36,6 +36,7 @@ import org.apache.tsfile.read.common.block.column.TimeColumnBuilder;
 import org.apache.tsfile.utils.RamUsageEstimator;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -66,6 +67,20 @@ public abstract class MergeSortOperator extends AbstractConsumeAllOperator {
     this.comparator = comparator;
     this.noMoreTsBlocks = new boolean[inputOperatorsCount];
     this.tsBlockBuilder = new TsBlockBuilder(dataTypes);
+    operatorContext.recordSpecifiedInfo("Merge sort branches", String.valueOf(inputOperatorsCount));
+  }
+
+  protected MergeSortOperator(MergeSortOperator mergeSortOperator, List<Operator> inputOperators) {
+    super(mergeSortOperator, inputOperators);
+    this.dataTypes = mergeSortOperator.dataTypes;
+    this.mergeSortHeap = mergeSortOperator.mergeSortHeap;
+    this.comparator = mergeSortOperator.comparator;
+    this.noMoreTsBlocks = mergeSortOperator.noMoreTsBlocks;
+    this.tsBlockBuilder = mergeSortOperator.tsBlockBuilder;
+    this.mergeSortHeap.clear();
+    Arrays.fill(this.noMoreTsBlocks, false);
+    this.tsBlockBuilder.reset();
+    this.finished = false;
     operatorContext.recordSpecifiedInfo("Merge sort branches", String.valueOf(inputOperatorsCount));
   }
 

@@ -339,6 +339,12 @@ public class ExpressionAnalyzer {
     return unmodifiableMap(expressionTypes);
   }
 
+  public Type setPlaceholderType(PlaceHolderLiteral placeHolderLiteral, Type type) {
+    placeHolderLiteral.setDataType(type);
+    setExpressionType(placeHolderLiteral, type);
+    return type;
+  }
+
   public Type setExpressionType(Expression expression, Type type) {
     requireNonNull(expression, "expression cannot be null");
     requireNonNull(type, "type cannot be null");
@@ -2129,9 +2135,9 @@ public class ExpressionAnalyzer {
         case NEXT_TIME:
         case START_TIME:
         case END_TIME:
-          return setExpressionType(node, TIMESTAMP);
+          return setPlaceholderType(node, TIMESTAMP);
         case ROW_NUM:
-          return setExpressionType(node, INT64);
+          return setPlaceholderType(node, INT64);
         case N:
           Analysis analysis = context.getAnalysis();
           List<Expression> partitionByExpressions = analysis.getPartitionByExpressions();
@@ -2147,7 +2153,7 @@ public class ExpressionAnalyzer {
                     partitionByExpressions.size(), n));
           }
           Type columnType = analysis.getType(partitionByExpressions.get(n - 1));
-          return setExpressionType(node, columnType);
+          return setPlaceholderType(node, columnType);
         default:
           throw new SemanticException("Unknown Type");
       }

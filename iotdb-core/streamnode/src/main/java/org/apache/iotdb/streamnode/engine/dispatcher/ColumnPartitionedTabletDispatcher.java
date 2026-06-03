@@ -36,8 +36,6 @@ public class ColumnPartitionedTabletDispatcher extends TabletDispatcher {
 
   private final List<String> partitionColumns;
 
-  private final Function<PartitionKey, StreamSubTask> subTaskMapper;
-
   public ColumnPartitionedTabletDispatcher(
       List<String> partitionColumns, Function<PartitionKey, StreamSubTask> subTaskMapper) {
     this.partitionColumns = partitionColumns;

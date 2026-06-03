@@ -19,13 +19,11 @@
 
 package org.apache.iotdb.streamnode.engine.task;
 
-import org.apache.iotdb.commons.stream.PartitionKey;
-
 import org.apache.tsfile.read.common.block.TsBlock;
 
 import java.util.concurrent.Future;
 
 @FunctionalInterface
 public interface StreamDataConsumer {
-  Future<?> accept(TsBlock tsBlock, long commitId, PartitionKey partitionKey);
+  Future<?> accept(TsBlock tsBlock, long commitId);
 }

@@ -20,7 +20,6 @@
 package org.apache.iotdb.streamnode.engine.task;
 
 import org.apache.iotdb.commons.stream.PartitionKey;
-import org.apache.iotdb.commons.stream.TumbleWindow;
 import org.apache.iotdb.streamnode.engine.task.StreamSubTask.DataSlice;
 
 import org.apache.tsfile.enums.TSDataType;
@@ -60,8 +59,7 @@ public class StreamSubTaskTest {
             return 0;
           }
         };
-    TumbleWindow window = new TumbleWindow("test", 1000, 0);
-    subTask = new StreamSubTask(partitionKey, window, null, null, null, "test");
+    subTask = new StreamSubTask(partitionKey, null, null, null, null, null, null);
 
     toTsBlockMethod = StreamSubTask.class.getDeclaredMethod("toTsBlock", List.class);
     toTsBlockMethod.setAccessible(true);
