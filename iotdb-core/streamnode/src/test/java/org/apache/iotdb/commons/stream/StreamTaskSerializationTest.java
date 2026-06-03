@@ -104,6 +104,7 @@ public class StreamTaskSerializationTest {
     task.setCreationTime(123L);
     task.setSubQuery("select count(*) from table1");
     task.setDatabase("db");
+    task.setTypeProvider(new StreamNodeTableTypeProvider(Collections.emptyMap()));
     task.setCalcPlan(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     task.setSource(
         new IoTDBSubscriptionSource(

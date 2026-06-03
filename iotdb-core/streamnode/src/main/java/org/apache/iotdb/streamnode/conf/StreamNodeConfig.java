@@ -29,10 +29,15 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class StreamNodeConfig {
   private static final Logger LOGGER = LoggerFactory.getLogger(StreamNodeConfig.class);
+
+  private static final String SN_ROLE = "streamnode";
+  private static final String SN_DEFAULT_DATA_DIR = "data" + File.separator + SN_ROLE;
 
   /** Cluster name this StreamNode belongs to */
   private String clusterName = "defaultCluster";
@@ -45,6 +50,18 @@ public class StreamNodeConfig {
 
   /** Seed ConfigNode endpoint (address:port) for registration */
   private TEndPoint snSeedConfigNode = new TEndPoint("127.0.0.1", 10710);
+
+  /** DataNode node urls for fetching IoTDB data */
+  private List<String> snClusterIngressNodeUrls = Collections.singletonList("127.0.0.1:6667");
+
+  /** Username used to fetch IoTDB data */
+  private String snClusterIngressUsername = "root";
+
+  /** Password used to fetch IoTDB data */
+  private String snClusterIngressPassword = "root";
+
+  /** Concurrency of session scan. Used as session pool size and executor thread number. */
+  private int sessionScanConcurrency = Runtime.getRuntime().availableProcessors();
 
   /** Max concurrent client connections for RPC */
   private int rpcMaxConcurrentClientNum = 1000;
@@ -67,6 +84,8 @@ public class StreamNodeConfig {
   /** System directory, including version file for each database and metadata */
   private String systemDir =
       IoTDBConstant.SN_DEFAULT_DATA_DIR + File.separator + IoTDBConstant.SYSTEM_FOLDER_NAME;
+
+  private String sortTmpDir = SN_DEFAULT_DATA_DIR + File.separator + IoTDBConstant.TMP_FOLDER_NAME;
 
   /** StreamNode ID assigned by ConfigNode after registration */
   private int streamNodeId = -1;
@@ -126,6 +145,38 @@ public class StreamNodeConfig {
     this.snSeedConfigNode = snSeedConfigNode;
   }
 
+  public List<String> getSnClusterIngressNodeUrls() {
+    return snClusterIngressNodeUrls;
+  }
+
+  public void setSnClusterIngressNodeUrls(List<String> snClusterIngressNodeUrls) {
+    this.snClusterIngressNodeUrls = snClusterIngressNodeUrls;
+  }
+
+  public String getSnClusterIngressUsername() {
+    return snClusterIngressUsername;
+  }
+
+  public void setSnClusterIngressUsername(String snClusterIngressUsername) {
+    this.snClusterIngressUsername = snClusterIngressUsername;
+  }
+
+  public String getSnClusterIngressPassword() {
+    return snClusterIngressPassword;
+  }
+
+  public void setSnClusterIngressPassword(String snClusterIngressPassword) {
+    this.snClusterIngressPassword = snClusterIngressPassword;
+  }
+
+  public int getSessionScanConcurrency() {
+    return sessionScanConcurrency;
+  }
+
+  public void setSessionScanConcurrency(int sessionScanConcurrency) {
+    this.sessionScanConcurrency = sessionScanConcurrency;
+  }
+
   public int getRpcMaxConcurrentClientNum() {
     return rpcMaxConcurrentClientNum;
   }
@@ -180,6 +231,14 @@ public class StreamNodeConfig {
 
   public void setSystemDir(String systemDir) {
     this.systemDir = systemDir;
+  }
+
+  public String getSortTmpDir() {
+    return sortTmpDir;
+  }
+
+  public void setSortTmpDir(String sortTmpDir) {
+    this.sortTmpDir = sortTmpDir;
   }
 
   public String getClusterId() {

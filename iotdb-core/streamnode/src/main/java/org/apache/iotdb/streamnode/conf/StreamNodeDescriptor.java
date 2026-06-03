@@ -19,9 +19,11 @@
 
 package org.apache.iotdb.streamnode.conf;
 
+import org.apache.iotdb.commons.conf.IoTDBConstant;
 import org.apache.iotdb.commons.exception.BadNodeUrlException;
 import org.apache.iotdb.commons.utils.NodeUrlUtils;
 
+import org.apache.tsfile.utils.FilePathUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,7 +31,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.Properties;
+import java.util.stream.Collectors;
 
 public class StreamNodeDescriptor {
 
@@ -106,6 +110,30 @@ public class StreamNodeDescriptor {
       config.setSnSeedConfigNode(NodeUrlUtils.parseTEndPointUrls(seedConfigNode).get(0));
     }
 
+    config.setSnClusterIngressNodeUrls(
+        Arrays.stream(
+                properties
+                    .getProperty(
+                        "sn_cluster_ingress_node_urls",
+                        String.join(",", config.getSnClusterIngressNodeUrls()))
+                    .split(","))
+            .map(String::trim)
+            .collect(Collectors.toList()));
+
+    config.setSnClusterIngressUsername(
+        properties.getProperty(
+            "sn_cluster_ingress_username", config.getSnClusterIngressUsername()));
+
+    config.setSnClusterIngressPassword(
+        properties.getProperty(
+            "sn_cluster_ingress_password", config.getSnClusterIngressPassword()));
+
+    config.setSessionScanConcurrency(
+        Integer.parseInt(
+            properties.getProperty(
+                "sn_session_scan_concurrency",
+                String.valueOf(config.getSessionScanConcurrency()))));
+
     config.setRpcMaxConcurrentClientNum(
         Integer.parseInt(
             properties.getProperty(
@@ -122,6 +150,20 @@ public class StreamNodeDescriptor {
         Integer.parseInt(
             properties.getProperty(
                 "sn_executor_thread_num", String.valueOf(config.getExecutorThreadNum()))));
+
+    // tmp filePath for sort operator
+    config.setSortTmpDir(properties.getProperty("sort_tmp_dir", config.getSortTmpDir()));
+
+    String systemDir = properties.getProperty("dn_system_dir");
+    if (systemDir == null) {
+      systemDir = properties.getProperty("base_dir");
+      if (systemDir != null) {
+        systemDir = FilePathUtils.regularizePath(systemDir) + IoTDBConstant.SYSTEM_FOLDER_NAME;
+      } else {
+        systemDir = config.getSystemDir();
+      }
+    }
+    config.setSystemDir(systemDir);
   }
 
   public StreamNodeConfig getConfig() {

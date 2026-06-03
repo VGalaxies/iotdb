@@ -20,7 +20,6 @@
 package org.apache.iotdb.streamnode.engine.task;
 
 import org.apache.iotdb.commons.stream.PartitionKey;
-import org.apache.iotdb.commons.stream.TumbleWindow;
 import org.apache.iotdb.streamnode.engine.task.StreamSubTask.DataSlice;
 
 import org.apache.tsfile.enums.TSDataType;
@@ -72,8 +71,7 @@ public class StreamSubTaskTest {
             return 0;
           }
         };
-    TumbleWindow window = new TumbleWindow("test", 1000, 0);
-    subTask = new StreamSubTask(partitionKey, window, null, null, null, "test");
+    subTask = new StreamSubTask(partitionKey, null, null, null, null, null, null);
 
     toTsBlockMethod = StreamSubTask.class.getDeclaredMethod("toTsBlock", List.class);
     toTsBlockMethod.setAccessible(true);
@@ -447,18 +445,12 @@ public class StreamSubTaskTest {
     fillRow(tablet, 2, true, 30, 300L, 3.0f, 3.3, "c");
 
     AtomicLong acceptedCommitId = new AtomicLong(-1L);
-    StreamSubTask task =
-        new StreamSubTask(
-            partitionKey,
-            new TumbleWindow("test", 1000, 0),
-            (tsBlock, commitId, key) -> {
-              assertEquals(partitionKey, key);
-              acceptedCommitId.set(commitId);
-              return java.util.concurrent.CompletableFuture.completedFuture(null);
-            },
-            null,
-            null,
-            "test");
+    StreamSubTask task = new StreamSubTask(partitionKey, null, null, null, "test", null, null);
+    task.setConsumer(
+        (tsBlock, commitId) -> {
+          acceptedCommitId.set(commitId);
+          return java.util.concurrent.CompletableFuture.completedFuture(null);
+        });
 
     task.offer(
             Arrays.asList(
@@ -478,7 +470,9 @@ public class StreamSubTaskTest {
     setTimestamp(tablet, 1, 2000L);
     fillRow(tablet, 1, false, 20, 200L, 2.0f, 2.2, "b");
 
-    subTask.offer(tablet, 0, 1, 10L);
+    subTask
+        .offer(Collections.singletonList(new DataSlice(partitionKey, tablet, 0, 1, 10L)))
+        .get(1, TimeUnit.SECONDS);
     subTask
         .offer(Collections.singletonList(new DataSlice(partitionKey, tablet, 1, 2, 7L)))
         .get(1, TimeUnit.SECONDS);

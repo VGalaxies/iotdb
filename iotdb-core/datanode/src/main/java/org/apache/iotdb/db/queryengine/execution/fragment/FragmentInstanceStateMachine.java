@@ -19,9 +19,9 @@
 
 package org.apache.iotdb.db.queryengine.execution.fragment;
 
+import org.apache.iotdb.calc.execution.StateMachine;
+import org.apache.iotdb.calc.execution.StateMachine.StateChangeListener;
 import org.apache.iotdb.db.queryengine.common.FragmentInstanceId;
-import org.apache.iotdb.db.queryengine.execution.StateMachine;
-import org.apache.iotdb.db.queryengine.execution.StateMachine.StateChangeListener;
 import org.apache.iotdb.db.utils.SetThreadName;
 
 import com.google.common.collect.ImmutableList;

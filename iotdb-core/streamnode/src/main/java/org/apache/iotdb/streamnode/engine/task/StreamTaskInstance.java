@@ -19,16 +19,18 @@
 
 package org.apache.iotdb.streamnode.engine.task;
 
+import org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory;
 import org.apache.iotdb.commons.concurrent.threadpool.ScheduledExecutorUtil;
 import org.apache.iotdb.commons.stream.PartitionKey;
 import org.apache.iotdb.commons.stream.StreamSource;
 import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.streamnode.conf.StreamNodeConfig;
 import org.apache.iotdb.streamnode.conf.StreamNodeDescriptor;
-import org.apache.iotdb.streamnode.engine.computation.ComputationEngine;
+import org.apache.iotdb.streamnode.engine.computation.planner.StreamExecutionPlanner;
 import org.apache.iotdb.streamnode.engine.dispatcher.TabletDispatcher;
-import org.apache.iotdb.streamnode.engine.scheduler.task.IStreamDriver;
-import org.apache.iotdb.streamnode.engine.scheduler.task.StreamDriverFactory;
+import org.apache.iotdb.streamnode.engine.scheduler.IStreamTaskScheduler;
+import org.apache.iotdb.streamnode.engine.scheduler.StreamTaskScheduler;
+import org.apache.iotdb.streamnode.engine.scheduler.task.StreamDriver;
 import org.apache.iotdb.streamnode.engine.sink.WriteBackEngine;
 import org.apache.iotdb.streamnode.engine.source.StreamSourceInstance;
 
@@ -39,8 +41,8 @@ import org.slf4j.LoggerFactory;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -58,13 +60,14 @@ public class StreamTaskInstance {
   private static final long COMMIT_INTERVAL_IN_MS = 1000L;
 
   private final StreamTask taskDefinition;
-  private final Map<PartitionKey, StreamSubTask> subTasks = new ConcurrentHashMap<>();
-  private final ComputationEngine computationEngine = new ComputationEngine();
+  private final Map<PartitionKey, StreamSubTaskExecution> subTaskExecutions =
+      new ConcurrentHashMap<>();
   private final WriteBackEngine writeBackEngine;
+  private final ExecutorService subTaskNotificationExecutor;
+  private final IStreamTaskScheduler scheduler;
+  private final boolean ownsExecutionResources;
   private final AtomicBoolean running = new AtomicBoolean(false);
   private final AtomicLong lastCommittedSourceIndex = new AtomicLong(-1L);
-  private final StreamDataConsumer subTaskConsumer;
-  private final Map<PartitionKey, IStreamDriver> streamDriverMap = new ConcurrentHashMap<>();
   private final StreamNodeConfig nodeConfig = StreamNodeDescriptor.getInstance().getConfig();
 
   private StreamSourceInstance sourceInstance;
@@ -74,28 +77,28 @@ public class StreamTaskInstance {
   public StreamTaskInstance(StreamTask taskDefinition) {
     this(
         taskDefinition,
-        (tsBlock, commitId, partitionKey) -> CompletableFuture.completedFuture(null));
+        new StreamTaskScheduler(),
+        IoTDBThreadPoolFactory.newFixedThreadPool(4, "Stream-SubTask-Notification"),
+        true);
   }
 
-  public StreamTaskInstance(StreamTask taskDefinition, StreamDataConsumer subTaskConsumer) {
+  public StreamTaskInstance(
+      StreamTask taskDefinition,
+      IStreamTaskScheduler scheduler,
+      ExecutorService subTaskNotificationExecutor) {
+    this(taskDefinition, scheduler, subTaskNotificationExecutor, false);
+  }
+
+  private StreamTaskInstance(
+      StreamTask taskDefinition,
+      IStreamTaskScheduler scheduler,
+      ExecutorService subTaskNotificationExecutor,
+      boolean ownsExecutionResources) {
     this.taskDefinition = taskDefinition;
+    this.scheduler = scheduler;
+    this.subTaskNotificationExecutor = subTaskNotificationExecutor;
+    this.ownsExecutionResources = ownsExecutionResources;
     this.writeBackEngine = new WriteBackEngine(taskDefinition);
-    this.subTaskConsumer =
-        subTaskConsumer == null
-            ? (tsBlock, commitId, partitionKey) -> CompletableFuture.completedFuture(null)
-            : subTaskConsumer;
-  }
-
-  public boolean isStreamDriverExists(PartitionKey partitionKey) {
-    return streamDriverMap.containsKey(partitionKey);
-  }
-
-  public IStreamDriver getOrCreateStreamDriver(PartitionKey partitionKey) {
-    return streamDriverMap.computeIfAbsent(
-        partitionKey,
-        key ->
-            StreamDriverFactory.createDriver(
-                key, taskDefinition.getTaskName(), getOrCreateSubTask(key)));
   }
 
   public void start() {
@@ -105,6 +108,10 @@ public class StreamTaskInstance {
     }
 
     try {
+      if (ownsExecutionResources) {
+        scheduler.start();
+      }
+
       if (taskDefinition.getTarget() != null) {
         writeBackEngine.start();
       }
@@ -125,6 +132,9 @@ public class StreamTaskInstance {
     } catch (Exception e) {
       LOGGER.error("Failed to start task instance: {}", taskDefinition.getTaskName(), e);
       stopTaskCommitter();
+      if (ownsExecutionResources) {
+        scheduler.stop();
+      }
       running.set(false);
     }
   }
@@ -139,9 +149,16 @@ public class StreamTaskInstance {
       if (sourceInstance != null) {
         sourceInstance.stop();
       }
+
+      subTaskExecutions.values().forEach(StreamSubTaskExecution::stop);
+      subTaskExecutions.values().forEach(StreamSubTaskExecution::awaitCleanupFinished);
+      subTaskExecutions.clear();
+
       writeBackEngine.stop();
-      subTasks.clear();
-      streamDriverMap.clear();
+      if (ownsExecutionResources) {
+        scheduler.stop();
+        subTaskNotificationExecutor.shutdown();
+      }
 
       LOGGER.info("Task instance stopped: {}", taskDefinition.getTaskName());
     } catch (Exception e) {
@@ -162,22 +179,62 @@ public class StreamTaskInstance {
   }
 
   public StreamSubTask getOrCreateSubTask(PartitionKey key) {
-    return subTasks.computeIfAbsent(
-        key,
-        partitionKey -> {
-          LOGGER.debug("Creating sub-task for partition: {}", partitionKey);
-          return new StreamSubTask(
-              partitionKey,
-              taskDefinition.getWindow(),
-              subTaskConsumer,
-              computationEngine,
-              writeBackEngine,
-              taskDefinition.getTaskName());
-        });
+    return subTaskExecutions
+        .computeIfAbsent(
+            key,
+            partitionKey -> {
+              LOGGER.debug("Creating sub-task for partition: {}", partitionKey);
+              StreamSubTaskStateMachine stateMachine =
+                  new StreamSubTaskStateMachine(
+                      taskDefinition.getTaskName() + "-" + partitionKey,
+                      subTaskNotificationExecutor);
+              StreamSubTaskContext subTaskContext =
+                  new StreamSubTaskContext(
+                      taskDefinition.getTaskName(), partitionKey, stateMachine);
+              StreamSubTask subTask =
+                  StreamExecutionPlanner.getInstance().plan(subTaskContext, this);
+              StreamDriver driver = new StreamDriver(subTask, subTask.getDriverContext());
+              subTask.setConsumer(driver::push);
+              StreamSubTaskExecution execution =
+                  StreamSubTaskExecution.create(scheduler, subTask, driver, 0);
+              stateMachine.addStateChangeListener(
+                  newState -> onSubTaskStateChanged(partitionKey, execution, newState));
+              return execution;
+            })
+        .getSubTask();
+  }
+
+  private void onSubTaskStateChanged(
+      PartitionKey partitionKey, StreamSubTaskExecution execution, StreamSubTaskState newState) {
+    if (!newState.isDone()) {
+      return;
+    }
+
+    // TODO: After StreamSubTaskExecution finishes cleanup, remove the old execution with
+    // remove(partitionKey, execution) and decide whether a failed sub-task should be isolated
+    // to its partition or cascade to the whole stream task.
+    if (newState.isFailed()) {
+      LOGGER.warn(
+          "Sub-task of task {} and partition {} failed",
+          taskDefinition.getTaskName(),
+          partitionKey,
+          execution.getContext().getFailureCause().orElse(null));
+      return;
+    }
+
+    LOGGER.info(
+        "Sub-task of task {} and partition {} entered terminal state {}",
+        taskDefinition.getTaskName(),
+        partitionKey,
+        newState);
   }
 
   public StreamTask getTaskDefinition() {
     return taskDefinition;
+  }
+
+  public WriteBackEngine getWriteBackEngine() {
+    return writeBackEngine;
   }
 
   public boolean isRunning() {
@@ -185,7 +242,10 @@ public class StreamTaskInstance {
   }
 
   public Map<PartitionKey, StreamSubTask> getSubTasksSnapshot() {
-    return Collections.unmodifiableMap(new HashMap<>(subTasks));
+    Map<PartitionKey, StreamSubTask> snapshot = new HashMap<>();
+    subTaskExecutions.forEach(
+        (partitionKey, execution) -> snapshot.put(partitionKey, execution.getSubTask()));
+    return Collections.unmodifiableMap(snapshot);
   }
 
   public long getLastCommittedSourceIndex() {
@@ -193,11 +253,15 @@ public class StreamTaskInstance {
   }
 
   public long getMinimumSubTaskCommitId() {
-    return subTasks.values().stream().mapToLong(StreamSubTask::getCommitId).min().orElse(-1L);
+    return subTaskExecutions.values().stream()
+        .map(StreamSubTaskExecution::getSubTask)
+        .mapToLong(StreamSubTask::getCommitId)
+        .min()
+        .orElse(-1L);
   }
 
   public synchronized long commitProcessedProgress() throws Exception {
-    if (sourceInstance == null || subTasks.isEmpty()) {
+    if (sourceInstance == null || subTaskExecutions.isEmpty()) {
       return lastCommittedSourceIndex.get();
     }
 

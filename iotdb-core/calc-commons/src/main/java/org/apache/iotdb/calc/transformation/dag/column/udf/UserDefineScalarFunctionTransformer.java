@@ -102,6 +102,11 @@ public class UserDefineScalarFunctionTransformer extends MultiColumnTransformer 
   }
 
   @Override
+  public void reset() {
+    super.reset();
+  }
+
+  @Override
   protected void checkType() {
     // do nothing
   }

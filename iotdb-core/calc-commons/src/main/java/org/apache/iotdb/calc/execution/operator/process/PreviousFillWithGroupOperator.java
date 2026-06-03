@@ -79,6 +79,21 @@ public class PreviousFillWithGroupOperator implements ProcessOperator {
     this.resultBuilder = new TsBlockBuilder(dataTypes);
   }
 
+  public PreviousFillWithGroupOperator(
+      PreviousFillWithGroupOperator previousFillWithGroupOperator, Operator child) {
+    this.operatorContext = previousFillWithGroupOperator.operatorContext;
+    this.fillArray = previousFillWithGroupOperator.fillArray;
+    this.child = requireNonNull(child, "child operator is null");
+    this.outputColumnCount = previousFillWithGroupOperator.outputColumnCount;
+    this.helperColumnIndex = previousFillWithGroupOperator.helperColumnIndex;
+    this.groupKeyComparator = previousFillWithGroupOperator.groupKeyComparator;
+    this.resultBuilder = previousFillWithGroupOperator.resultBuilder;
+    this.resultBuilder.reset();
+    for (IFill fill : fillArray) {
+      fill.reset();
+    }
+  }
+
   @Override
   public TsBlock next() throws Exception {
     TsBlock block = child.nextWithTimer();

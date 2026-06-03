@@ -43,6 +43,10 @@ public class TableTopKOperator extends TopKOperator {
     super(operatorContext, childrenOperators, dataTypes, comparator, topValue, childrenDataInOrder);
   }
 
+  public TableTopKOperator(TableTopKOperator tableTopKOperator, List<Operator> childrenOperators) {
+    super(tableTopKOperator, childrenOperators);
+  }
+
   @Override
   protected TsBlock constrcutResultTsBlock(int positionCount, Column[] columns) {
     return new TsBlock(

@@ -52,6 +52,16 @@ public abstract class AbstractFillOperator implements ProcessOperator {
     this.outputColumnCount = fillArray.length;
   }
 
+  protected AbstractFillOperator(AbstractFillOperator fillOperator, Operator child) {
+    this.operatorContext = fillOperator.operatorContext;
+    this.fillArray = fillOperator.fillArray;
+    this.child = requireNonNull(child, "child operator is null");
+    this.outputColumnCount = fillOperator.outputColumnCount;
+    for (IFill fill : fillArray) {
+      fill.reset();
+    }
+  }
+
   @Override
   public CommonOperatorContext getOperatorContext() {
     return operatorContext;

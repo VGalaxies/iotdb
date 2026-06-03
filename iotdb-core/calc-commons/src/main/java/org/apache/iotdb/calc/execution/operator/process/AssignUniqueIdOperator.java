@@ -45,7 +45,7 @@ public class AssignUniqueIdOperator implements ProcessOperator {
   private final CommonOperatorContext operatorContext;
   private final Operator child;
 
-  private final AtomicLong rowIdPool = new AtomicLong();
+  private final AtomicLong rowIdPool;
   private final long uniqueValueMask;
 
   private long rowIdCounter;
@@ -54,6 +54,7 @@ public class AssignUniqueIdOperator implements ProcessOperator {
   public AssignUniqueIdOperator(CommonOperatorContext operatorContext, Operator child) {
     this.operatorContext = operatorContext;
     this.child = child;
+    this.rowIdPool = new AtomicLong();
 
     this.uniqueValueMask =
         (((long) operatorContext.getFragmentId()) << 54)

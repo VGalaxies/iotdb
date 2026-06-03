@@ -54,6 +54,7 @@ import org.apache.iotdb.streamnode.conf.StreamNodeStartupCheck;
 import org.apache.iotdb.streamnode.conf.StreamNodeSystemPropertiesHandler;
 import org.apache.iotdb.streamnode.manager.StreamTaskManager;
 import org.apache.iotdb.streamnode.service.StreamNodeRPCService;
+import org.apache.iotdb.streamnode.service.StreamNodeSessionScanService;
 
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -120,6 +121,7 @@ public class StreamNode extends ServerCommandLine implements StreamNodeMBean {
       // Check if this StreamNode is start for the first time and do other pre-checks
       isFirstStart = prepareStreamNode();
 
+      // Step 2: Start RPC service to receive CN requests
       if (isFirstStart) {
         LOGGER.info("StreamNode is starting for the first time...");
         ConfigNodeInfo.getInstance()
@@ -202,6 +204,8 @@ public class StreamNode extends ServerCommandLine implements StreamNodeMBean {
     setUncaughtExceptionHandler();
 
     registerManager.register(MetricService.getInstance());
+
+    registerManager.register(StreamNodeSessionScanService.getInstance());
     registerManager.register(StreamTaskManager.getInstance());
     registerInternalRPCService();
     LOGGER.info("Successfully setup internal services.");

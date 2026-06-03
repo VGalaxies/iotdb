@@ -42,6 +42,11 @@ public class TableMergeSortOperator extends MergeSortOperator {
     super(operatorContext, inputOperators, dataTypes, comparator);
   }
 
+  public TableMergeSortOperator(
+      TableMergeSortOperator tableMergeSortOperator, List<Operator> inputOperators) {
+    super(tableMergeSortOperator, inputOperators);
+  }
+
   @Override
   protected void appendTime(TimeColumnBuilder timeBuilder, long time) {
     // do nothing for table related operator

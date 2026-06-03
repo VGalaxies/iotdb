@@ -19,20 +19,25 @@
 
 package org.apache.iotdb.streamnode.engine.sink;
 
+import org.apache.iotdb.streamnode.engine.task.StreamSubTaskContext;
+
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.apache.tsfile.read.common.block.TsBlock;
 
 import java.util.List;
+import java.util.Optional;
 
 public class StreamSinkTask implements IStreamSinkTask {
   private final SinkPipeline pipeline;
   private final int subTaskId;
+  private final StreamSubTaskContext subTaskContext;
   private volatile boolean stopped = false;
 
-  StreamSinkTask(SinkPipeline pipeline, int subTaskId) {
+  StreamSinkTask(SinkPipeline pipeline, int subTaskId, StreamSubTaskContext subTaskContext) {
     this.pipeline = pipeline;
     this.subTaskId = subTaskId;
+    this.subTaskContext = subTaskContext;
   }
 
   @Override
@@ -40,7 +45,14 @@ public class StreamSinkTask implements IStreamSinkTask {
     if (stopped) {
       return Futures.immediateFailedFuture(new IllegalStateException("SinkTask is stopped"));
     }
-    SinkEntry entry = new SinkEntry(block, commitIds, subTaskId, block.getRetainedSizeInBytes());
+    Optional<TsBlock> optionalBlock =
+        block == null || block.isEmpty() ? Optional.empty() : Optional.of(block);
+    SinkEntry entry =
+        new SinkEntry(
+            optionalBlock,
+            commitIds,
+            subTaskId,
+            optionalBlock.map(TsBlock::getRetainedSizeInBytes).orElse(0L));
     return pipeline.push(entry);
   }
 
@@ -49,5 +61,9 @@ public class StreamSinkTask implements IStreamSinkTask {
     if (stopped) return;
     stopped = true;
     pipeline.onTaskStopped();
+  }
+
+  public StreamSubTaskContext getSubTaskContext() {
+    return subTaskContext;
   }
 }

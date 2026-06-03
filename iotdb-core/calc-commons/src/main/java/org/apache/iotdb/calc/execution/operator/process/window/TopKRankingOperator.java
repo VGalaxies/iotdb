@@ -119,6 +119,29 @@ public class TopKRankingOperator implements ProcessOperator {
     this.groupedTopNBuilderSupplier = getGroupedTopNBuilderSupplier();
   }
 
+  public TopKRankingOperator(TopKRankingOperator topKRankingOperator, Operator inputOperator) {
+    this.operatorContext = topKRankingOperator.operatorContext;
+    this.inputOperator = inputOperator;
+    this.rankingType = topKRankingOperator.rankingType;
+    this.inputTypes = topKRankingOperator.inputTypes;
+    this.outputChannels = topKRankingOperator.outputChannels;
+    this.partitionChannels = topKRankingOperator.partitionChannels;
+    this.partitionTSDataTypes = topKRankingOperator.partitionTSDataTypes;
+    this.sortChannels = topKRankingOperator.sortChannels;
+    this.sortOrders = topKRankingOperator.sortOrders;
+    this.maxRowCountPerPartition = topKRankingOperator.maxRowCountPerPartition;
+    this.partial = topKRankingOperator.partial;
+    this.hashChannel = topKRankingOperator.hashChannel;
+    this.expectedPositions = topKRankingOperator.expectedPositions;
+    this.maxFlushableBytes = topKRankingOperator.maxFlushableBytes;
+    this.groupByHashSupplier = topKRankingOperator.groupByHashSupplier;
+    this.groupedTopNBuilderSupplier = topKRankingOperator.groupedTopNBuilderSupplier;
+    this.groupByHash = null;
+    this.groupedTopNBuilder = null;
+    this.finished = false;
+    this.outputIterator = null;
+  }
+
   private Supplier<GroupByHash> getGroupByHashSupplier() {
     boolean hasPrecomputedHash = hashChannel.isPresent();
 

@@ -77,6 +77,18 @@ public class TableStreamSortOperator extends AbstractSortOperator {
     this.minLinesToOutput = minLinesToOutput;
   }
 
+  public TableStreamSortOperator(
+      TableStreamSortOperator tableStreamSortOperator, Operator inputOperator) {
+    super(tableStreamSortOperator, inputOperator);
+    this.streamSortComparator = tableStreamSortOperator.streamSortComparator;
+    this.minLinesToOutput = tableStreamSortOperator.minLinesToOutput;
+    this.remainingCount = 0;
+    this.noMoreDataFromChild = false;
+    this.currentTsBlock = null;
+    this.canStreamOutput = false;
+    this.lastRow = null;
+  }
+
   @Override
   public TsBlock next() throws Exception {
     if (canStreamOutput || !tsBlockBuilder.isEmpty()) {
@@ -200,13 +212,6 @@ public class TableStreamSortOperator extends AbstractSortOperator {
   @Override
   public boolean hasNext() throws Exception {
     return super.hasNext() || !tsBlockBuilder.isEmpty() || currentTsBlock != null;
-  }
-
-  @Override
-  public void close() throws Exception {
-    super.close();
-    lastRow = null;
-    currentTsBlock = null;
   }
 
   @Override

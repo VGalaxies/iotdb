@@ -49,6 +49,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.Previou
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.ProjectNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.RowNumberNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.SemiJoinNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.SessionScanNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.SortNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.StreamSortNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.TableFunctionNode;
@@ -97,6 +98,10 @@ public interface ICoreQueryPlanVisitor<R, C> extends IPlanVisitor<R, C> {
 
   default R visitEventScan(EventScanNode node, C context) {
     return visitTableScan(node, context);
+  }
+
+  default R visitSessionScan(SessionScanNode node, C context) {
+    return visitPlan(node, context);
   }
 
   default R visitFilter(FilterNode node, C context) {

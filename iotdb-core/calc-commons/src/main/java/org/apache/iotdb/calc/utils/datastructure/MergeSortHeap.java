@@ -114,4 +114,9 @@ public class MergeSortHeap {
   public int getHeapSize() {
     return this.heapSize;
   }
+
+  public void clear() {
+    Arrays.fill(heap, 0, heapSize, null);
+    heapSize = 0;
+  }
 }

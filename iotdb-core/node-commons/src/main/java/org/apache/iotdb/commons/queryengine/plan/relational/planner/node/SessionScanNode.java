@@ -19,6 +19,7 @@
 
 package org.apache.iotdb.commons.queryengine.plan.relational.planner.node;
 
+import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.ICoreQueryPlanVisitor;
 import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.IPlanVisitor;
 import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.PlanNode;
 import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.PlanNodeId;
@@ -75,7 +76,7 @@ public class SessionScanNode extends PlanNode {
 
   @Override
   public <R, C> R accept(IPlanVisitor<R, C> visitor, C context) {
-    throw new UnsupportedOperationException("SessionScanNode is only used to storage sql string!");
+    return ((ICoreQueryPlanVisitor<R, C>) visitor).visitSessionScan(this, context);
   }
 
   @Override

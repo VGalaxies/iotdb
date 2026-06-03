@@ -118,4 +118,12 @@ public abstract class TernaryColumnTransformer extends ColumnTransformer {
     secondColumnTransformer.close();
     thirdColumnTransformer.close();
   }
+
+  @Override
+  public void reset() {
+    super.reset();
+    firstColumnTransformer.reset();
+    secondColumnTransformer.reset();
+    thirdColumnTransformer.reset();
+  }
 }

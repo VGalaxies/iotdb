@@ -61,9 +61,9 @@ public abstract class AbstractSortOperator implements ProcessOperator {
   private int curRow = -1;
 
   private List<SortKey> cachedData;
-  private final Comparator<SortKey> comparator;
+  protected final Comparator<SortKey> comparator;
   private long cachedBytes;
-  private final DiskSpiller diskSpiller;
+  protected final DiskSpiller diskSpiller;
   private SortBufferManager sortBufferManager;
 
   // For mergeSort
@@ -98,6 +98,19 @@ public abstract class AbstractSortOperator implements ProcessOperator {
             CommonDescriptor.getInstance().getConfig().getSortBufferSize());
   }
 
+  protected AbstractSortOperator(AbstractSortOperator sortOperator, Operator inputOperator) {
+    this.operatorContext = sortOperator.operatorContext;
+    this.inputOperator = inputOperator;
+    this.tsBlockBuilder = sortOperator.tsBlockBuilder;
+    this.comparator = sortOperator.comparator;
+    this.diskSpiller = sortOperator.diskSpiller;
+    tsBlockBuilder.reset();
+    prepareUntilReadyCost = 0;
+    dataSize = 0;
+    sortCost = 0;
+    resetSortRelatedResource();
+  }
+
   protected void buildResult() throws IoTDBException {
     if (diskSpiller.hasSpilledData()) {
       try {
@@ -121,6 +134,10 @@ public abstract class AbstractSortOperator implements ProcessOperator {
   @Override
   public CommonOperatorContext getOperatorContext() {
     return operatorContext;
+  }
+
+  public Operator getInputOperator() {
+    return inputOperator;
   }
 
   @Override

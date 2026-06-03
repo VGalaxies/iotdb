@@ -83,4 +83,11 @@ public class DiffColumnTransformer extends BinaryColumnTransformer {
     // Diff do not support short circuit evaluation
     doTransform(leftColumn, rightColumn, builder, positionCount);
   }
+
+  @Override
+  public void reset() {
+    super.reset();
+    lastValue = 0D;
+    lastValueIsNull = true;
+  }
 }

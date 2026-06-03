@@ -61,13 +61,6 @@ public class ScanNodeSerdeTest {
   }
 
   @Test
-  public void testSessionScanNodeAcceptThrowsException() {
-    SessionScanNode node = new SessionScanNode(new PlanNodeId("session-scan"), "select 1");
-    Assert.assertThrows(
-        UnsupportedOperationException.class, () -> node.accept(new DummyVisitor(), null));
-  }
-
-  @Test
   public void testEventScanNodeSerdeCloneAndVisitorDispatch() {
     Symbol time = new Symbol("time");
     Symbol value = new Symbol("s1");

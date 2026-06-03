@@ -21,6 +21,7 @@ package org.apache.iotdb.streamnode.engine.sink;
 
 import org.apache.iotdb.commons.stream.IoTDBTarget;
 import org.apache.iotdb.commons.stream.StreamTask;
+import org.apache.iotdb.streamnode.engine.task.StreamSubTaskContext;
 
 import org.apache.tsfile.enums.TSDataType;
 import org.apache.tsfile.read.common.block.TsBlock;
@@ -55,14 +56,21 @@ public class WriteBackEngineTest {
     return builder.build();
   }
 
+  private StreamSubTaskContext createSubTaskContext() {
+    return Mockito.mock(StreamSubTaskContext.class);
+  }
+
   @Test
-  public void testStartReturnsSinkTask() throws Exception {
+  public void testCreateSinkTaskAfterStart() throws Exception {
     StreamTask task = createTestStreamTask();
     WriteBackEngine engine = new WriteBackEngine(task);
 
-    IStreamSinkTask sinkTask = engine.start();
+    engine.start();
+    StreamSubTaskContext subTaskContext = createSubTaskContext();
+    IStreamSinkTask sinkTask = engine.createSinkSubTask(subTaskContext);
     Assert.assertNotNull(sinkTask);
     Assert.assertTrue(sinkTask instanceof StreamSinkTask);
+    Assert.assertSame(subTaskContext, ((StreamSinkTask) sinkTask).getSubTaskContext());
 
     engine.stop();
   }
@@ -72,7 +80,8 @@ public class WriteBackEngineTest {
     StreamTask task = createTestStreamTask();
     WriteBackEngine engine = new WriteBackEngine(task);
 
-    IStreamSinkTask sinkTask = engine.start();
+    engine.start();
+    IStreamSinkTask sinkTask = engine.createSinkSubTask(createSubTaskContext());
 
     long[] timestamps = {1L, 2L, 3L, 4L, 5L};
     long[] s1Values = {100L, 200L, 300L, 400L, 500L};
@@ -91,7 +100,8 @@ public class WriteBackEngineTest {
     StreamTask task = createTestStreamTask();
     WriteBackEngine engine = new WriteBackEngine(task);
 
-    IStreamSinkTask sinkTask = engine.start();
+    engine.start();
+    IStreamSinkTask sinkTask = engine.createSinkSubTask(createSubTaskContext());
 
     for (int batch = 0; batch < 3; batch++) {
       long[] timestamps = new long[5];
@@ -115,7 +125,8 @@ public class WriteBackEngineTest {
     StreamTask task = createTestStreamTask();
     WriteBackEngine engine = new WriteBackEngine(task);
 
-    IStreamSinkTask sinkTask = engine.start();
+    engine.start();
+    IStreamSinkTask sinkTask = engine.createSinkSubTask(createSubTaskContext());
 
     TsBlockBuilder builder = new TsBlockBuilder(Arrays.asList(TSDataType.INT64, TSDataType.INT64));
     builder.getTimeColumnBuilder().writeLong(1L);
@@ -140,7 +151,8 @@ public class WriteBackEngineTest {
     StreamTask task = createTestStreamTask();
     WriteBackEngine engine = new WriteBackEngine(task);
 
-    IStreamSinkTask sinkTask = engine.start();
+    engine.start();
+    IStreamSinkTask sinkTask = engine.createSinkSubTask(createSubTaskContext());
 
     TsBlock block = createInt64LongTsBlock(new long[] {1L}, new long[] {100L}, new long[] {10L});
     sinkTask.push(block, Collections.singletonList(0L));

@@ -54,28 +54,28 @@ public class FilterAndProjectOperator implements ProcessOperator {
   private static final long INSTANCE_SIZE =
       RamUsageEstimator.shallowSizeOfInstance(FilterAndProjectOperator.class);
 
-  private final Operator inputOperator;
+  protected final Operator inputOperator;
 
-  private final List<LeafColumnTransformer> filterLeafColumnTransformerList;
+  protected final List<LeafColumnTransformer> filterLeafColumnTransformerList;
 
-  private final ColumnTransformer filterOutputTransformer;
+  protected final ColumnTransformer filterOutputTransformer;
 
-  private final List<ColumnTransformer> commonTransformerList;
+  protected final List<ColumnTransformer> commonTransformerList;
 
-  private final List<LeafColumnTransformer> projectLeafColumnTransformerList;
+  protected final List<LeafColumnTransformer> projectLeafColumnTransformerList;
 
-  private final List<ColumnTransformer> projectOutputTransformerList;
+  protected final List<ColumnTransformer> projectOutputTransformerList;
 
-  private final TsBlockBuilder filterTsBlockBuilder;
+  protected final TsBlockBuilder filterTsBlockBuilder;
 
-  private final boolean hasNonMappableUDF;
+  protected final boolean hasNonMappableUDF;
 
-  private final CommonOperatorContext operatorContext;
+  protected final CommonOperatorContext operatorContext;
 
   // false when we only need to do projection
-  private final boolean hasFilter;
+  protected final boolean hasFilter;
 
-  private long filteredRowCount = 0;
+  protected long filteredRowCount = 0;
 
   @SuppressWarnings("squid:S107")
   public FilterAndProjectOperator(
@@ -300,6 +300,17 @@ public class FilterAndProjectOperator implements ProcessOperator {
       filterOutputTransformer.close();
     }
     inputOperator.close();
+  }
+
+  protected void resetForReuse() {
+    filteredRowCount = 0;
+    filterTsBlockBuilder.reset();
+    for (ColumnTransformer columnTransformer : projectOutputTransformerList) {
+      columnTransformer.reset();
+    }
+    if (filterOutputTransformer != null) {
+      filterOutputTransformer.reset();
+    }
   }
 
   @Override
