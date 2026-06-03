@@ -57,6 +57,7 @@ unit-test:
     - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH 
         || $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^rel/ 
         || $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^rc/
+        || $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "queryStage"
         || $CI_PIPELINE_SOURCE == "schedule"
 
 streamnode-integration-test:
