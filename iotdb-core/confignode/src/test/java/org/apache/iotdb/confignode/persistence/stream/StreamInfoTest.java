@@ -23,6 +23,7 @@ import org.apache.iotdb.common.rpc.thrift.TSStatus;
 import org.apache.iotdb.commons.stream.IoTDBSubscriptionSource;
 import org.apache.iotdb.commons.stream.IoTDBTarget;
 import org.apache.iotdb.commons.stream.PeriodWindow;
+import org.apache.iotdb.commons.stream.StreamNodeTableTypeProvider;
 import org.apache.iotdb.commons.stream.StreamProperties;
 import org.apache.iotdb.commons.stream.StreamSource;
 import org.apache.iotdb.commons.stream.StreamSourceType;
@@ -112,6 +113,7 @@ public class StreamInfoTest {
     task.setCreator("creator");
     task.setCreationTime(1L);
     task.setSubQuery("select count(*) from test_table");
+    task.setTypeProvider(new StreamNodeTableTypeProvider(Collections.emptyMap()));
     task.setSource(
         new IoTDBSubscriptionSource(
             "db",

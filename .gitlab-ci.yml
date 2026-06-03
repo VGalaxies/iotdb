@@ -57,7 +57,6 @@ unit-test:
     - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH 
         || $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^rel/ 
         || $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^rc/
-        || $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "queryStage"
         || $CI_PIPELINE_SOURCE == "schedule"
 
 streamnode-integration-test:
@@ -65,8 +64,8 @@ streamnode-integration-test:
   tags:
     - hybrid-db
   script:
-    - 'mvn -T16 -pl iotdb-core/streamnode -am -DskipITs -Drat.skip=true -Dsurefire.failIfNoSpecifiedTests=false -Dtest=StreamTaskManagerTest,StreamTaskSchedulerTest,StreamTaskSchedulerIntegrationTest,StreamTaskInstanceTest,StreamSubTaskTest,WriteBackEngineTest,PartitionKeyTest,StreamTaskSerializationTest,ColumnPartitionedTabletDispatcherTest,IoTDBSubscriptionSourceInstanceTest,PlaceholderReplacerTest test'
-    - 'mvn -T16 clean verify -P with-integration-tests -P SimpleIT -DskipUTs -DfailIfNoTests=false -Dfailsafe.failIfNoSpecifiedTests=false -Dit.test=IoTDBSubscriptionSourceInstanceIT,StreamNodeManualRuntimeAssemblyIT,StreamSqlMetadataIT,StreamTaskInstanceIT -DConfigNodeMaxHeapSize=1024 -DDataNodeMaxHeapSize=1024 -pl integration-test -am'
+    - 'mvn -T16 -pl iotdb-core/streamnode -am -DskipITs -Drat.skip=true -Dsurefire.failIfNoSpecifiedTests=false -Dtest=StreamTaskManagerTest,StreamTaskSchedulerTest,StreamTaskSchedulerIntegrationTest,StreamTaskInstanceTest,StreamSubTaskTest,WriteBackEngineTest,PartitionKeyTest,StreamTaskSerializationTest,ColumnPartitionedTabletDispatcherTest,IoTDBSubscriptionSourceInstanceTest,PlaceholderReplacerTest,StreamComputeTaskTest,StreamSinkTaskTest test'
+    - 'mvn -T16 clean verify -P with-integration-tests -P SimpleIT -DskipUTs -DfailIfNoTests=false -Dfailsafe.failIfNoSpecifiedTests=false -Dit.test=IoTDBSubscriptionSourceInstanceIT,StreamNodeManualRuntimeAssemblyIT,StreamSqlMetadataIT -DConfigNodeMaxHeapSize=1024 -DDataNodeMaxHeapSize=1024 -pl integration-test -am'
   interruptible: true
   rules:
     - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "queryStage"
@@ -75,6 +74,7 @@ streamnode-integration-test:
     name: streamnode-it-log
     paths:
       - integration-test/target/cluster-logs
+      - integration-test/target/failsafe-reports
     expire_in: 7 day
 
 integration-test-1c1d:

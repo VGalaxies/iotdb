@@ -27,6 +27,7 @@ import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.commons.cluster.NodeStatus;
 import org.apache.iotdb.commons.stream.IoTDBTarget;
 import org.apache.iotdb.commons.stream.PeriodWindow;
+import org.apache.iotdb.commons.stream.StreamNodeTableTypeProvider;
 import org.apache.iotdb.commons.stream.StreamProperties;
 import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.commons.stream.StreamTaskStatus;
@@ -218,6 +219,7 @@ public class StreamManagerTest {
     task.setCreator("creator");
     task.setCreationTime(1L);
     task.setWindow(new PeriodWindow(1L, 0L));
+    task.setTypeProvider(new StreamNodeTableTypeProvider(Collections.emptyMap()));
     task.setTarget(new IoTDBTarget("db", "target", Collections.singletonList("value")));
     task.setProperties(
         new StreamProperties(-1L, -1L, false, null, -1L, StreamProperties.EventType.WINDOW_CLOSE));
