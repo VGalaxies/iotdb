@@ -40,6 +40,7 @@ struct TStreamNodeHeartbeatResp {
   4: optional common.TLoadSample loadSample
   5: optional string activateStatus
   6: optional set<common.TEndPoint> confirmedConfigNodeEndPoints
+  7: optional list<TTaskHeartbeat> runningTasks
 }
 
 struct TCreateTaskOnStreamNodeReq {
@@ -48,12 +49,15 @@ struct TCreateTaskOnStreamNodeReq {
 }
 
 struct TStartTaskOnStreamNodeReq {
-  1: required string taskName
+  1: required binary streamTask
   2: required i32 epoch
+  3: required i64 cnStartTime
 }
 
 struct TStopTaskOnStreamNodeReq {
   1: required string taskName
+  2: required i32 epoch
+  3: required i64 cnStartTime
 }
 
 struct TDropTaskOnStreamNodeReq {

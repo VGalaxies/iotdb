@@ -69,6 +69,8 @@ import org.apache.iotdb.confignode.procedure.impl.schema.table.view.DropViewProc
 import org.apache.iotdb.confignode.procedure.impl.schema.table.view.RenameViewColumnProcedure;
 import org.apache.iotdb.confignode.procedure.impl.schema.table.view.RenameViewProcedure;
 import org.apache.iotdb.confignode.procedure.impl.schema.table.view.SetViewPropertiesProcedure;
+import org.apache.iotdb.confignode.procedure.impl.stream.CreateStreamProcedure;
+import org.apache.iotdb.confignode.procedure.impl.stream.DropStreamProcedure;
 import org.apache.iotdb.confignode.procedure.impl.subscription.consumer.AlterConsumerGroupProcedure;
 import org.apache.iotdb.confignode.procedure.impl.subscription.consumer.CreateConsumerProcedure;
 import org.apache.iotdb.confignode.procedure.impl.subscription.consumer.DropConsumerProcedure;
@@ -408,6 +410,12 @@ public class ProcedureFactory implements IProcedureFactory {
       case DATA_PARTITION_TABLE_INTEGRITY_CHECK_PROCEDURE:
         procedure = new DataPartitionTableIntegrityCheckProcedure();
         break;
+      case CREATE_STREAM_PROCEDURE:
+        procedure = new CreateStreamProcedure();
+        break;
+      case DROP_STREAM_PROCEDURE:
+        procedure = new DropStreamProcedure();
+        break;
       default:
         LOGGER.error("Unknown Procedure type: {}", typeCode);
         throw new IOException("Unknown Procedure type: " + typeCode);
@@ -560,6 +568,10 @@ public class ProcedureFactory implements IProcedureFactory {
       return ProcedureType.ADD_NEVER_FINISH_SUB_PROCEDURE_PROCEDURE;
     } else if (procedure instanceof DataPartitionTableIntegrityCheckProcedure) {
       return ProcedureType.DATA_PARTITION_TABLE_INTEGRITY_CHECK_PROCEDURE;
+    } else if (procedure instanceof CreateStreamProcedure) {
+      return ProcedureType.CREATE_STREAM_PROCEDURE;
+    } else if (procedure instanceof DropStreamProcedure) {
+      return ProcedureType.DROP_STREAM_PROCEDURE;
     }
     throw new UnsupportedOperationException(
         "Procedure type " + procedure.getClass() + " is not supported");

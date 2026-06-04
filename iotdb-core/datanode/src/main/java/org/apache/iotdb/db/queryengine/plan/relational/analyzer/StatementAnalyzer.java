@@ -115,9 +115,12 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WindowSpecif
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.With;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WithQuery;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CreateStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.DropStream;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.EventWindow;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PeriodEventWindow;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.Rows;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StartStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StopStream;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.VariationEventWindow;
 import org.apache.iotdb.commons.queryengine.plan.relational.type.TypeManager;
 import org.apache.iotdb.commons.queryengine.plan.statement.component.FillPolicy;
@@ -4822,6 +4825,21 @@ public class StatementAnalyzer {
 
     @Override
     public Scope visitDropSubscription(DropSubscription node, Optional<Scope> context) {
+      return createAndAssignScope(node, context);
+    }
+
+    @Override
+    public Scope visitDropStream(DropStream node, Optional<Scope> context) {
+      return createAndAssignScope(node, context);
+    }
+
+    @Override
+    public Scope visitStartStream(StartStream node, Optional<Scope> context) {
+      return createAndAssignScope(node, context);
+    }
+
+    @Override
+    public Scope visitStopStream(StopStream node, Optional<Scope> context) {
       return createAndAssignScope(node, context);
     }
 

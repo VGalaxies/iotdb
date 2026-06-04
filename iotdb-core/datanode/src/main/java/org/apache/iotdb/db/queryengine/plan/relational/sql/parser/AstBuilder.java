@@ -143,11 +143,14 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.ZeroOrMoreQu
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.ZeroOrOneQuantifier;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CapacityEventWindow;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CreateStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.DropStream;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.EventWindow;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PeriodEventWindow;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PlaceHolderLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.Rows;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.ShowStreams;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StartStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StopStream;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StreamSink;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StreamSource;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.TumbleEventWindow;
@@ -4080,6 +4083,26 @@ public class AstBuilder extends RelationalSqlBaseVisitor<Node> {
         calcPlan,
         sink.getTable(),
         sink.getColumns());
+  }
+
+  @Override
+  public Node visitDropStreamStatement(RelationalSqlParser.DropStreamStatementContext ctx) {
+    final Identifier streamName = (Identifier) visit(ctx.streamName);
+    final boolean hasIfExistsCondition = ctx.IF() != null && ctx.EXISTS() != null;
+    return new DropStream(
+        getLocation(ctx), QualifiedName.of(streamName.getValue()), hasIfExistsCondition);
+  }
+
+  @Override
+  public Node visitStartStreamStatement(RelationalSqlParser.StartStreamStatementContext ctx) {
+    final Identifier streamName = (Identifier) visit(ctx.streamName);
+    return new StartStream(getLocation(ctx), QualifiedName.of(streamName.getValue()));
+  }
+
+  @Override
+  public Node visitStopStreamStatement(RelationalSqlParser.StopStreamStatementContext ctx) {
+    final Identifier streamName = (Identifier) visit(ctx.streamName);
+    return new StopStream(getLocation(ctx), QualifiedName.of(streamName.getValue()));
   }
 
   public EventWindow createEventWindow(RelationalSqlParser.TableFunctionCallContext ctx) {

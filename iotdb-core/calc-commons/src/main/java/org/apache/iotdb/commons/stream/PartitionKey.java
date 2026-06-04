@@ -19,7 +19,31 @@
 
 package org.apache.iotdb.commons.stream;
 
+import java.util.Objects;
+
 public interface PartitionKey {
 
   int partitionHash();
+
+  int segmentNum();
+
+  Object segmentValue(int segmentIndex);
+
+  default boolean equals(PartitionKey partitionKey) {
+    if (this == partitionKey) {
+      return true;
+    }
+    if (partitionKey == null) {
+      return false;
+    }
+    if (this.segmentNum() != partitionKey.segmentNum()) {
+      return false;
+    }
+    for (int i = 0; i < this.segmentNum(); i++) {
+      if (!Objects.equals(this.segmentValue(i), partitionKey.segmentValue(i))) {
+        return false;
+      }
+    }
+    return true;
+  }
 }

@@ -54,6 +54,16 @@ public class StreamTaskSchedulerTest {
           public int partitionHash() {
             return 0;
           }
+
+          @Override
+          public int segmentNum() {
+            return 1;
+          }
+
+          @Override
+          public Object segmentValue(int segmentIndex) {
+            return 0;
+          }
         };
     scheduler = new StreamTaskScheduler();
   }
@@ -193,6 +203,16 @@ public class StreamTaskSchedulerTest {
             new PartitionKey() {
               @Override
               public int partitionHash() {
+                return 0;
+              }
+
+              @Override
+              public int segmentNum() {
+                return 1;
+              }
+
+              @Override
+              public Object segmentValue(int segmentIndex) {
                 return 0;
               }
             });

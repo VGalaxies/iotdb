@@ -20,10 +20,12 @@
 package org.apache.iotdb.streamnode.engine.task;
 
 import org.apache.iotdb.commons.stream.PartitionKey;
+import org.apache.iotdb.commons.stream.StreamWindow;
 import org.apache.iotdb.streamnode.engine.computation.IStreamComputeTask;
 import org.apache.iotdb.streamnode.engine.scheduler.task.StreamDriverContext;
 import org.apache.iotdb.streamnode.engine.sink.IStreamSinkTask;
 import org.apache.iotdb.streamnode.engine.window.WindowEngine;
+import org.apache.iotdb.streamnode.engine.window.WindowEvent;
 
 import org.apache.tsfile.block.column.ColumnBuilder;
 import org.apache.tsfile.enums.TSDataType;
@@ -74,23 +76,42 @@ public class StreamSubTask {
     this.streamName = streamName;
     this.context = context;
     this.driverContext = driverContext;
+    this.consumer = (tsBlock, commitId) -> CompletableFuture.completedFuture(null);
   }
 
   public void setConsumer(StreamDataConsumer consumer) {
-    this.consumer = consumer;
+    this.consumer =
+        consumer == null
+            ? (tsBlock, commitId) -> CompletableFuture.completedFuture(null)
+            : consumer;
+  }
+
+  public StreamSubTask(PartitionKey partitionKey, StreamWindow window) {
+    this(partitionKey, WindowEngine.create(window), null, null, "", null, null);
   }
 
   public String getStreamName() {
     return streamName;
   }
 
+  public List<WindowEvent> offer(Object data, int startRow, int endRow, long dataId) {
+    List<WindowEvent> events = windowEngine.process(data, startRow, endRow);
+    lastCommitId.updateAndGet(lastCommittedId -> Math.max(lastCommittedId, dataId));
+    return events;
+  }
+
   public Future<?> offer(List<DataSlice> dataSlices) {
-    if (dataSlices.isEmpty()) {
+    if (dataSlices == null || dataSlices.isEmpty()) {
       return CompletableFuture.completedFuture(null);
     }
     TsBlock tsBlock = toTsBlock(dataSlices);
-    long commitId = dataSlices.get(0).getTabletId();
-    return consumer.accept(tsBlock, commitId);
+    long commitId = -1;
+    for (DataSlice slice : dataSlices) {
+      commitId = Math.max(commitId, slice.getTabletId());
+    }
+    final long maxCommitId = commitId;
+    lastCommitId.updateAndGet(lastCommittedId -> Math.max(lastCommittedId, maxCommitId));
+    return consumer.accept(tsBlock, maxCommitId);
   }
 
   private TsBlock toTsBlock(List<DataSlice> dataSlices) {
@@ -108,14 +129,14 @@ public class StreamSubTask {
     }
 
     TsBlockBuilder builder = new TsBlockBuilder(dataTypes);
-    Object[] values = tablet.getValues();
-    BitMap[] bitMaps = tablet.getBitMaps();
-    long[] timestamps = tablet.getTimestamps();
-
     long[] resultTimestamps = new long[totalRows];
     int timestampIdx = 0;
 
     for (DataSlice slice : dataSlices) {
+      Tablet sliceTablet = slice.getTablet();
+      Object[] values = sliceTablet.getValues();
+      BitMap[] bitMaps = sliceTablet.getBitMaps();
+      long[] timestamps = sliceTablet.getTimestamps();
       for (int row = slice.getStartRow(); row < slice.getEndRow(); row++) {
         resultTimestamps[timestampIdx++] = timestamps[row];
         for (int col = 0; col < schemas.size(); col++) {

@@ -19,17 +19,16 @@
 
 package org.apache.iotdb.streamnode.engine.computation;
 
-import org.apache.iotdb.commons.stream.ColumnPartitionKey;
+import org.apache.iotdb.commons.stream.ListPartitionKey;
 import org.apache.iotdb.streamnode.engine.window.IEventInfo;
 import org.apache.iotdb.streamnode.utils.IEventRowsIterator;
 
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 
@@ -39,10 +38,7 @@ public class PlaceholderReplacerTest {
   public void testReplaceBracketPlaceholders() {
     PlaceholderReplacer replacer = new PlaceholderReplacer();
     IEventInfo event = new TestEventInfo(100, 200, 10);
-    Map<String, Object> partitionValues = new LinkedHashMap<>();
-    partitionValues.put("device", "d1");
-    partitionValues.put("region", 7);
-    ColumnPartitionKey key = new ColumnPartitionKey(partitionValues);
+    ListPartitionKey key = new ListPartitionKey(Arrays.asList("d1", 7));
 
     String sql = "select ${start_time}, ${END_TIME}, ${ROW_NUM}, ${1}, ${2} from table1";
     String result = replacer.replace(sql, event, key);

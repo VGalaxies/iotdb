@@ -30,6 +30,7 @@ import org.apache.iotdb.streamnode.rpc.thrift.TCreateTaskOnStreamNodeReq;
 import org.apache.iotdb.streamnode.rpc.thrift.TDropTaskOnStreamNodeReq;
 import org.apache.iotdb.streamnode.rpc.thrift.TStartTaskOnStreamNodeReq;
 import org.apache.iotdb.streamnode.rpc.thrift.TStopTaskOnStreamNodeReq;
+import org.apache.iotdb.streamnode.rpc.thrift.TStreamNodeHeartbeatReq;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.ratis.util.function.CheckedBiFunction;
@@ -68,6 +69,9 @@ public class SyncStreamNodeClientPool {
             CnToSnSyncRequestType,
             CheckedBiFunction<Object, SyncStreamNodeClient, Object, Exception>>
         actionMapBuilder = ImmutableMap.builder();
+    actionMapBuilder.put(
+        CnToSnSyncRequestType.GET_HEARTBEAT,
+        (req, client) -> client.getHeartbeat((TStreamNodeHeartbeatReq) req));
     actionMapBuilder.put(
         CnToSnSyncRequestType.CREATE_TASK,
         (req, client) -> client.createTask((TCreateTaskOnStreamNodeReq) req));

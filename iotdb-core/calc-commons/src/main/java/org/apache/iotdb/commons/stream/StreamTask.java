@@ -21,10 +21,11 @@ package org.apache.iotdb.commons.stream;
 
 import org.apache.iotdb.commons.utils.BasicStructureSerDeUtil;
 
+import org.apache.tsfile.utils.PublicBAOS;
+
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Objects;
 
 public class StreamTask {
 
@@ -44,6 +45,12 @@ public class StreamTask {
   private StreamTaskStatus status;
   private String runningOn;
   private int epoch;
+  private long leaderTerm;
+  private long cnStartTime;
+  private long lastUpTime;
+  private long lastDownTime;
+  private long lastHeartbeatTime;
+  private String lastDownReason;
   private StreamProperties properties;
 
   public StreamTask() {}
@@ -154,11 +161,11 @@ public class StreamTask {
   }
 
   public ByteBuffer getCalcPlan() {
-    return calcPlan;
+    return calcPlan == null ? ByteBuffer.allocate(0) : calcPlan.duplicate();
   }
 
   public void setCalcPlan(ByteBuffer calcPlan) {
-    this.calcPlan = Objects.requireNonNull(calcPlan, "calcPlan");
+    this.calcPlan = calcPlan == null ? ByteBuffer.allocate(0) : calcPlan.duplicate();
   }
 
   public StreamTarget getTarget() {
@@ -199,6 +206,64 @@ public class StreamTask {
 
   public void setProperties(StreamProperties properties) {
     this.properties = properties;
+  }
+
+  public long getLastUpTime() {
+    return lastUpTime;
+  }
+
+  public void setLastUpTime(long lastUpTime) {
+    this.lastUpTime = lastUpTime;
+  }
+
+  public long getLastDownTime() {
+    return lastDownTime;
+  }
+
+  public void setLastDownTime(long lastDownTime) {
+    this.lastDownTime = lastDownTime;
+  }
+
+  public String getLastDownReason() {
+    return lastDownReason;
+  }
+
+  public void setLastDownReason(String lastDownReason) {
+    this.lastDownReason = lastDownReason;
+  }
+
+  public long getLeaderTerm() {
+    return leaderTerm;
+  }
+
+  public void setLeaderTerm(long leaderTerm) {
+    this.leaderTerm = leaderTerm;
+  }
+
+  public long getCnStartTime() {
+    return cnStartTime;
+  }
+
+  public void setCnStartTime(long cnStartTime) {
+    this.cnStartTime = cnStartTime;
+  }
+
+  public long getLastHeartbeatTime() {
+    return lastHeartbeatTime;
+  }
+
+  public void setLastHeartbeatTime(long lastHeartbeatTime) {
+    this.lastHeartbeatTime = lastHeartbeatTime;
+  }
+
+  public ByteBuffer toByteBuffer() {
+    try (PublicBAOS baos = new PublicBAOS();
+        DataOutputStream dos = new DataOutputStream(baos)) {
+      serialize(dos);
+      return ByteBuffer.wrap(baos.getBuf(), 0, baos.size());
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   public void serialize(DataOutputStream stream) throws IOException {
@@ -306,11 +371,12 @@ public class StreamTask {
 
   private static void writeCalcPlan(DataOutputStream stream, ByteBuffer calcPlan)
       throws IOException {
-    int len = calcPlan.remaining();
+    ByteBuffer calcPlanToWrite = calcPlan == null ? ByteBuffer.allocate(0) : calcPlan.duplicate();
+    int len = calcPlanToWrite.remaining();
     stream.writeInt(len);
     if (len > 0) {
       byte[] chunk = new byte[len];
-      calcPlan.get(chunk);
+      calcPlanToWrite.get(chunk);
       stream.write(chunk);
     }
   }
@@ -320,8 +386,11 @@ public class StreamTask {
       throw new IOException("unexpected end of buffer");
     }
     int len = buf.getInt();
-    if (len <= 0) {
+    if (len < 0) {
       throw new IOException("invalid calcPlan length: " + len);
+    }
+    if (len == 0) {
+      return ByteBuffer.allocate(0);
     }
     if (buf.remaining() < len) {
       throw new IOException("unexpected end of buffer reading calcPlan payload");

@@ -47,6 +47,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -54,6 +55,7 @@ import java.util.List;
 public class StreamNodeRPCServiceProcessor implements IStreamNodeRPCService.Iface {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(StreamNodeRPCServiceProcessor.class);
+  private final StreamTaskManager streamTaskManager = StreamTaskManager.getInstance();
 
   private final CommonConfig commonConfig = CommonDescriptor.getInstance().getConfig();
 
@@ -92,6 +94,7 @@ public class StreamNodeRPCServiceProcessor implements IStreamNodeRPCService.Ifac
     }
 
     resp.setHeartbeatTimestamp(req.getHeartbeatTimestamp());
+    resp.setRunningTasks(streamTaskManager.getRunningTaskHeartbeats());
     resp.setStatus(commonConfig.getNodeStatus().getStatus());
     if (commonConfig.getStatusReason() != null) {
       resp.setStatusReason(commonConfig.getStatusReason());
@@ -110,48 +113,44 @@ public class StreamNodeRPCServiceProcessor implements IStreamNodeRPCService.Ifac
   public TSStatus createTask(TCreateTaskOnStreamNodeReq req) throws TException {
     LOGGER.info("Received createTask request, epoch={}", req.getEpoch());
     try {
-      // TODO:  deserialize StreamTask from TStartTaskOnStreamNodeReq
-      StreamTask task = StreamTask.deserialize(null);
-      StreamTaskManager.getInstance().create(task);
-    } catch (IOException e) {
-      LOGGER.error("Failed to deserialize StreamTask", e);
-      throw new TException(e);
+      return streamTaskManager.createTask(
+          StreamTask.deserialize(ByteBuffer.wrap(req.getStreamTask())), req.getEpoch());
+    } catch (final IOException e) {
+      return new TSStatus(TSStatusCode.EXECUTE_STATEMENT_ERROR.getStatusCode())
+          .setMessage("Failed to deserialize stream task: " + e.getMessage());
     }
-    return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
   }
 
   @Override
   public TSStatus startTask(TStartTaskOnStreamNodeReq req) throws TException {
-    LOGGER.info("Received startTask request: {}, epoch={}", req.getTaskName(), req.getEpoch());
+    LOGGER.info("Received startTask request: {}, epoch={}", req.getStreamTask(), req.getEpoch());
     try {
-      // TODO:  deserialize StreamTask from TStartTaskOnStreamNodeReq
-      StreamTask task = StreamTask.deserialize(null);
-      StreamTaskManager.getInstance().start(task);
-    } catch (IOException e) {
-      LOGGER.error("Failed to deserialize StreamTask", e);
-      throw new TException(e);
+      return streamTaskManager.startTask(
+          StreamTask.deserialize(ByteBuffer.wrap(req.getStreamTask())),
+          req.getEpoch(),
+          req.getCnStartTime());
+    } catch (final IOException e) {
+      return new TSStatus(TSStatusCode.EXECUTE_STATEMENT_ERROR.getStatusCode())
+          .setMessage("Failed to deserialize stream task: " + e.getMessage());
     }
-    return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
   }
 
   @Override
   public TSStatus stopTask(TStopTaskOnStreamNodeReq req) throws TException {
     LOGGER.info("Received stopTask request: {}", req.getTaskName());
-    StreamTaskManager.getInstance().stop(req.getTaskName());
-    return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
+    return streamTaskManager.stopTask(req.getTaskName(), req.getEpoch(), req.getCnStartTime());
   }
 
   @Override
   public TSStatus dropTask(TDropTaskOnStreamNodeReq req) throws TException {
     LOGGER.info("Received dropTask request: {}", req.getTaskName());
-    StreamTaskManager.getInstance().drop(req.getTaskName());
-    return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
+    return streamTaskManager.dropTask(req.getTaskName());
   }
 
   @Override
   public TSStatus dropAllTasks() throws TException {
     LOGGER.info("Received dropAllTasks request");
-    StreamTaskManager.getInstance().dropAll();
+    streamTaskManager.dropAllTasks();
     return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
   }
 

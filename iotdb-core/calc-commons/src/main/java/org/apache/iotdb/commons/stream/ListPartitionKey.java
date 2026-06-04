@@ -19,40 +19,58 @@
 
 package org.apache.iotdb.commons.stream;
 
-import java.util.Map;
-import java.util.Objects;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
-public class ColumnPartitionKey implements PartitionKey {
+public class ListPartitionKey implements PartitionKey {
 
-  private final Map<String, Object> columnValues;
+  private final List<Object> values;
 
-  public ColumnPartitionKey(Map<String, Object> columnValues) {
-    this.columnValues = columnValues;
+  public ListPartitionKey(final List<Object> values) {
+    this.values =
+        values == null
+            ? Collections.emptyList()
+            : Collections.unmodifiableList(new ArrayList<>(values));
   }
 
-  public Map<String, Object> getColumnValues() {
-    return columnValues;
+  public List<Object> getValues() {
+    return values;
   }
 
   @Override
   public int partitionHash() {
-    return columnValues == null ? 0 : columnValues.hashCode();
+    return values.hashCode();
   }
 
   @Override
-  public boolean equals(Object o) {
+  public int segmentNum() {
+    return values.size();
+  }
+
+  @Override
+  public Object segmentValue(final int segmentIndex) {
+    return values.get(segmentIndex);
+  }
+
+  @Override
+  public boolean equals(final Object o) {
     if (this == o) {
       return true;
     }
-    if (o == null || getClass() != o.getClass()) {
+    if (!(o instanceof PartitionKey)) {
       return false;
     }
-    ColumnPartitionKey that = (ColumnPartitionKey) o;
-    return Objects.equals(columnValues, that.columnValues);
+    return PartitionKey.super.equals((PartitionKey) o);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(columnValues);
+    return partitionHash();
+  }
+
+  @Override
+  public String toString() {
+    return "ListPartitionKey{" + "values=" + values + '}';
   }
 }

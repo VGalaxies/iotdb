@@ -19,6 +19,8 @@
 
 package org.apache.iotdb.streamnode.engine.task;
 
+import org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory;
+import org.apache.iotdb.commons.concurrent.threadpool.ScheduledExecutorUtil;
 import org.apache.iotdb.commons.stream.PartitionKey;
 import org.apache.iotdb.commons.stream.StreamSource;
 import org.apache.iotdb.commons.stream.StreamTask;
@@ -27,40 +29,75 @@ import org.apache.iotdb.streamnode.conf.StreamNodeDescriptor;
 import org.apache.iotdb.streamnode.engine.computation.planner.StreamExecutionPlanner;
 import org.apache.iotdb.streamnode.engine.dispatcher.TabletDispatcher;
 import org.apache.iotdb.streamnode.engine.scheduler.IStreamTaskScheduler;
+import org.apache.iotdb.streamnode.engine.scheduler.StreamTaskScheduler;
 import org.apache.iotdb.streamnode.engine.scheduler.task.StreamDriver;
 import org.apache.iotdb.streamnode.engine.sink.WriteBackEngine;
 import org.apache.iotdb.streamnode.engine.source.StreamSourceInstance;
 
+import org.apache.tsfile.write.record.Tablet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
+
+import static org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory.newScheduledThreadPoolWithDaemon;
 
 public class StreamTaskInstance {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(StreamTaskInstance.class);
+  private static final ScheduledExecutorService TASK_COMMITTER_POOL =
+      newScheduledThreadPoolWithDaemon(1, "StreamTaskInstance-Committer");
+  private static final long COMMIT_INTERVAL_IN_MS = 1000L;
 
   private final StreamTask taskDefinition;
-  private StreamSourceInstance sourceInstance;
-  private TabletDispatcher dispatcher;
   private final Map<PartitionKey, StreamSubTaskExecution> subTaskExecutions =
       new ConcurrentHashMap<>();
   private final WriteBackEngine writeBackEngine;
   private final ExecutorService subTaskNotificationExecutor;
-  private final AtomicBoolean running = new AtomicBoolean(false);
   private final IStreamTaskScheduler scheduler;
+  private final boolean ownsExecutionResources;
+  private final AtomicBoolean running = new AtomicBoolean(false);
+  private final AtomicLong lastCommittedSourceIndex = new AtomicLong(-1L);
   private final StreamNodeConfig nodeConfig = StreamNodeDescriptor.getInstance().getConfig();
+
+  private StreamSourceInstance sourceInstance;
+  private TabletDispatcher dispatcher;
+  private ScheduledFuture<?> taskCommitter;
+
+  public StreamTaskInstance(StreamTask taskDefinition) {
+    this(
+        taskDefinition,
+        new StreamTaskScheduler(),
+        IoTDBThreadPoolFactory.newFixedThreadPool(4, "Stream-SubTask-Notification"),
+        true);
+  }
 
   public StreamTaskInstance(
       StreamTask taskDefinition,
       IStreamTaskScheduler scheduler,
       ExecutorService subTaskNotificationExecutor) {
+    this(taskDefinition, scheduler, subTaskNotificationExecutor, false);
+  }
+
+  private StreamTaskInstance(
+      StreamTask taskDefinition,
+      IStreamTaskScheduler scheduler,
+      ExecutorService subTaskNotificationExecutor,
+      boolean ownsExecutionResources) {
     this.taskDefinition = taskDefinition;
     this.scheduler = scheduler;
     this.subTaskNotificationExecutor = subTaskNotificationExecutor;
+    this.ownsExecutionResources = ownsExecutionResources;
     this.writeBackEngine = new WriteBackEngine(taskDefinition);
   }
 
@@ -71,30 +108,33 @@ public class StreamTaskInstance {
     }
 
     try {
-      // Initialize write-back
+      if (ownsExecutionResources) {
+        scheduler.start();
+      }
+
       if (taskDefinition.getTarget() != null) {
         writeBackEngine.start();
       }
 
-      // Initialize dispatcher
       if (taskDefinition.getSource() != null) {
         dispatcher = createDispatcher(taskDefinition.getSource());
-      }
-
-      // Initialize source
-      if (taskDefinition.getSource() != null) {
         sourceInstance =
             createSourceInstance(
                 taskDefinition.getSource(),
                 taskDefinition.getTaskName(),
                 dispatcher::dispatch,
                 nodeConfig);
+        startTaskCommitter();
         sourceInstance.start();
       }
 
       LOGGER.info("Task instance started: {}", taskDefinition.getTaskName());
     } catch (Exception e) {
       LOGGER.error("Failed to start task instance: {}", taskDefinition.getTaskName(), e);
+      stopTaskCommitter();
+      if (ownsExecutionResources) {
+        scheduler.stop();
+      }
       running.set(false);
     }
   }
@@ -105,7 +145,7 @@ public class StreamTaskInstance {
     }
 
     try {
-      // Stop source
+      stopTaskCommitter();
       if (sourceInstance != null) {
         sourceInstance.stop();
       }
@@ -114,8 +154,11 @@ public class StreamTaskInstance {
       subTaskExecutions.values().forEach(StreamSubTaskExecution::awaitCleanupFinished);
       subTaskExecutions.clear();
 
-      // Stop write-back after all sub-task executions have entered terminal cleanup.
       writeBackEngine.stop();
+      if (ownsExecutionResources) {
+        scheduler.stop();
+        subTaskNotificationExecutor.shutdown();
+      }
 
       LOGGER.info("Task instance stopped: {}", taskDefinition.getTaskName());
     } catch (Exception e) {
@@ -130,12 +173,12 @@ public class StreamTaskInstance {
   StreamSourceInstance createSourceInstance(
       StreamSource source,
       String taskName,
-      java.util.function.BiConsumer<org.apache.tsfile.write.record.Tablet, Long> consumer,
+      BiConsumer<Tablet, Long> consumer,
       StreamNodeConfig config) {
     return StreamSourceInstance.create(source, taskName, consumer, config);
   }
 
-  private StreamSubTask getOrCreateSubTask(PartitionKey key) {
+  public StreamSubTask getOrCreateSubTask(PartitionKey key) {
     return subTaskExecutions
         .computeIfAbsent(
             key,
@@ -196,5 +239,70 @@ public class StreamTaskInstance {
 
   public boolean isRunning() {
     return running.get();
+  }
+
+  public Map<PartitionKey, StreamSubTask> getSubTasksSnapshot() {
+    Map<PartitionKey, StreamSubTask> snapshot = new HashMap<>();
+    subTaskExecutions.forEach(
+        (partitionKey, execution) -> snapshot.put(partitionKey, execution.getSubTask()));
+    return Collections.unmodifiableMap(snapshot);
+  }
+
+  public long getLastCommittedSourceIndex() {
+    return lastCommittedSourceIndex.get();
+  }
+
+  public long getMinimumSubTaskCommitId() {
+    return subTaskExecutions.values().stream()
+        .map(StreamSubTaskExecution::getSubTask)
+        .mapToLong(StreamSubTask::getCommitId)
+        .min()
+        .orElse(-1L);
+  }
+
+  public synchronized long commitProcessedProgress() throws Exception {
+    if (sourceInstance == null || subTaskExecutions.isEmpty()) {
+      return lastCommittedSourceIndex.get();
+    }
+
+    long minimumCommitId = getMinimumSubTaskCommitId();
+    if (minimumCommitId > lastCommittedSourceIndex.get()) {
+      sourceInstance.commit(minimumCommitId);
+      lastCommittedSourceIndex.set(minimumCommitId);
+      LOGGER.debug(
+          "Committed source progress {} for task {}",
+          minimumCommitId,
+          taskDefinition.getTaskName());
+    }
+    return lastCommittedSourceIndex.get();
+  }
+
+  private void startTaskCommitter() {
+    stopTaskCommitter();
+    taskCommitter =
+        ScheduledExecutorUtil.safelyScheduleWithFixedDelay(
+            TASK_COMMITTER_POOL,
+            this::commitProcessedProgressSafely,
+            COMMIT_INTERVAL_IN_MS,
+            COMMIT_INTERVAL_IN_MS,
+            TimeUnit.MILLISECONDS);
+  }
+
+  private void stopTaskCommitter() {
+    if (taskCommitter != null) {
+      taskCommitter.cancel(true);
+      taskCommitter = null;
+    }
+  }
+
+  private void commitProcessedProgressSafely() {
+    if (!running.get()) {
+      return;
+    }
+    try {
+      commitProcessedProgress();
+    } catch (Exception e) {
+      LOGGER.warn("Failed to commit source progress for task {}", taskDefinition.getTaskName(), e);
+    }
   }
 }

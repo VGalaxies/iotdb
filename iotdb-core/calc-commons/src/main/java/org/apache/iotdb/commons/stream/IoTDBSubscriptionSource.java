@@ -37,6 +37,10 @@ public class IoTDBSubscriptionSource extends StreamSource {
   private String tableName;
   @Nullable private Expression preFilter;
   @Nullable private List<String> partitionColumns;
+  private String host = "127.0.0.1";
+  private int rpcPort = 6667;
+  private String user = "root";
+  private String encryptedPassword = "root";
 
   public IoTDBSubscriptionSource(
       String database, String tableName, Expression preFilter, List<String> partitionColumns) {
@@ -44,6 +48,22 @@ public class IoTDBSubscriptionSource extends StreamSource {
     this.tableName = tableName;
     this.preFilter = preFilter;
     this.partitionColumns = partitionColumns;
+  }
+
+  public IoTDBSubscriptionSource(
+      String database,
+      String tableName,
+      Expression preFilter,
+      List<String> partitionColumns,
+      String host,
+      int rpcPort,
+      String user,
+      String encryptedPassword) {
+    this(database, tableName, preFilter, partitionColumns);
+    this.host = host;
+    this.rpcPort = rpcPort;
+    this.user = user;
+    this.encryptedPassword = encryptedPassword;
   }
 
   @Override
@@ -65,6 +85,22 @@ public class IoTDBSubscriptionSource extends StreamSource {
 
   public List<String> getPartitionColumns() {
     return partitionColumns;
+  }
+
+  public String getHost() {
+    return host;
+  }
+
+  public int getRpcPort() {
+    return rpcPort;
+  }
+
+  public String getUser() {
+    return user;
+  }
+
+  public String getEncryptedPassword() {
+    return encryptedPassword;
   }
 
   @Override

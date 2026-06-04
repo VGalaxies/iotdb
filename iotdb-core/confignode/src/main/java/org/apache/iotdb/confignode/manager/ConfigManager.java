@@ -37,6 +37,8 @@ import org.apache.iotdb.common.rpc.thrift.TSetSpaceQuotaReq;
 import org.apache.iotdb.common.rpc.thrift.TSetThrottleQuotaReq;
 import org.apache.iotdb.common.rpc.thrift.TShowAppliedConfigurationsResp;
 import org.apache.iotdb.common.rpc.thrift.TShowConfigurationResp;
+import org.apache.iotdb.common.rpc.thrift.TShowStreamResp;
+import org.apache.iotdb.common.rpc.thrift.TStreamInfo;
 import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TTimePartitionSlot;
 import org.apache.iotdb.commons.auth.AuthException;
@@ -65,6 +67,7 @@ import org.apache.iotdb.commons.schema.template.Template;
 import org.apache.iotdb.commons.schema.tree.AlterTimeSeriesOperationType;
 import org.apache.iotdb.commons.schema.ttl.TTLCache;
 import org.apache.iotdb.commons.service.metric.MetricService;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.commons.utils.AuthUtils;
 import org.apache.iotdb.commons.utils.PathUtils;
 import org.apache.iotdb.commons.utils.StatusUtils;
@@ -398,7 +401,8 @@ public class ConfigManager implements IManager {
             pipeInfo,
             subscriptionInfo,
             quotaInfo,
-            ttlInfo);
+            ttlInfo,
+            streamInfo);
     this.stateMachine = new ConfigRegionStateMachine(this, executor);
 
     // Build the manager module
@@ -464,6 +468,9 @@ public class ConfigManager implements IManager {
     }
     if (procedureManager != null) {
       procedureManager.stopExecutor();
+    }
+    if (streamManager != null) {
+      streamManager.close();
     }
     if (consensusManager.get() != null) {
       consensusManager.get().close();
@@ -2728,6 +2735,72 @@ public class ConfigManager implements IManager {
     return status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()
         ? externalServiceManager.showService(dataNodeId)
         : new TExternalServiceListResp(status, Collections.emptyList());
+  }
+
+  @Override
+  public TShowStreamResp showStreams(String username) {
+    TSStatus status = confirmLeader();
+    if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+      return new TShowStreamResp(status, Collections.emptyList());
+    }
+    List<TStreamInfo> streamInfoList =
+        streamManager.showStreams(username).stream()
+            .map(
+                task -> {
+                  TStreamInfo info = new TStreamInfo();
+                  info.setStreamName(task.getTaskName());
+                  info.setStatus(task.getStatus().name());
+                  info.setCreationTime(task.getCreationTime());
+                  info.setCreator(task.getCreator() != null ? task.getCreator() : "");
+                  info.setSource(task.getSource() != null ? task.getSource().toString() : "");
+                  info.setEventWindow(task.getWindow() != null ? task.getWindow().toString() : "");
+                  info.setSubQuery(task.getSubQuery() != null ? task.getSubQuery() : "");
+                  info.setTarget(task.getTarget() != null ? task.getTarget().toString() : "");
+                  info.setRunningOn(task.getRunningOn() != null ? task.getRunningOn() : "");
+                  info.setLastUpTime(task.getLastUpTime());
+                  info.setLastDownTime(task.getLastDownTime());
+                  info.setLastDownReason(
+                      task.getLastDownReason() != null ? task.getLastDownReason() : "");
+                  info.setLastHeartbeatTime(task.getLastHeartbeatTime());
+                  return info;
+                })
+            .collect(Collectors.toList());
+    return new TShowStreamResp(
+        new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode()), streamInfoList);
+  }
+
+  @Override
+  public TSStatus createStream(StreamTask streamTask) {
+    TSStatus status = confirmLeader();
+    LOGGER.info("Submitting CreateStreamProcedure for task: {}", streamTask.getTaskName());
+    return status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()
+        ? getProcedureManager().createStream(streamTask)
+        : status;
+  }
+
+  @Override
+  public TSStatus dropStream(String streamName) {
+    TSStatus status = confirmLeader();
+    LOGGER.info("Submitting DropStreamProcedure for stream: {}", streamName);
+    return status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()
+        ? getProcedureManager().dropStream(streamName)
+        : status;
+  }
+
+  @Override
+  public TSStatus startStream(String streamName) {
+    TSStatus status = confirmLeader();
+    return status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()
+        ? streamManager.startStream(streamName)
+        : status;
+  }
+
+  @Override
+  public TSStatus stopStream(String streamName) {
+    TSStatus status = confirmLeader();
+    return status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()
+        ? streamManager.stopStream(streamName)
+        : status;
   }
 
   /**

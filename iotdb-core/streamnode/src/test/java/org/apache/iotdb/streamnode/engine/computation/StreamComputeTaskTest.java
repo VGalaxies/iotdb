@@ -32,7 +32,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.Project
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.SymbolReference;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PlaceHolderLiteral;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnCategory;
-import org.apache.iotdb.commons.stream.ColumnPartitionKey;
+import org.apache.iotdb.commons.stream.ListPartitionKey;
 import org.apache.iotdb.commons.stream.StreamNodeTableTypeProvider;
 import org.apache.iotdb.streamnode.engine.computation.planner.LocalStreamExecutionPlanContext;
 import org.apache.iotdb.streamnode.engine.computation.planner.StreamMetadataImpl;
@@ -159,7 +159,7 @@ public class StreamComputeTaskTest {
     StreamSubTaskContext subTaskContext =
         new StreamSubTaskContext(
             "stream",
-            new ColumnPartitionKey(Collections.emptyMap()),
+            new ListPartitionKey(Collections.emptyList()),
             new StreamSubTaskStateMachine("stream-0", Runnable::run));
     return new LocalStreamExecutionPlanContext(
         createTypeProvider(),

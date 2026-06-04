@@ -20,7 +20,7 @@ package org.apache.iotdb.streamnode.engine.scheduler.task;
 
 import org.apache.iotdb.calc.execution.schedule.queue.ID;
 import org.apache.iotdb.calc.execution.schedule.queue.IDIndexedAccessible;
-import org.apache.iotdb.commons.stream.ColumnPartitionKey;
+import org.apache.iotdb.commons.stream.ListPartitionKey;
 import org.apache.iotdb.streamnode.engine.scheduler.DriverTaskHandle;
 import org.apache.iotdb.streamnode.engine.scheduler.queue.Priority;
 
@@ -187,7 +187,7 @@ public class StreamDriverTask implements IDIndexedAccessible {
   private static class StubFragmentInstance implements IStreamDriver {
 
     private DriverTaskId driverTaskId =
-        new DriverTaskId("stub-stream", new ColumnPartitionKey(Collections.emptyMap()));
+        new DriverTaskId("stub-stream", new ListPartitionKey(Collections.emptyList()));
 
     @Override
     public boolean isFinished() {

@@ -62,6 +62,7 @@ public class InformationSchema {
   public static final String CURRENT_QUERIES = "current_queries";
   public static final String QUERIES_COSTS_HISTOGRAM = "queries_costs_histogram";
   public static final String SERVICES = "services";
+  public static final String STREAMS = "streams";
 
   static {
     final TsTable queriesTable = new TsTable(QUERIES);
@@ -422,6 +423,47 @@ public class InformationSchema {
         new AttributeColumnSchema(ColumnHeaderConstant.STATE_TABLE_MODEL, TSDataType.STRING));
     servicesTable.removeColumnSchema(TsTable.TIME_COLUMN_NAME);
     schemaTables.put(SERVICES, servicesTable);
+
+    final TsTable streamsTable = new TsTable(STREAMS);
+    streamsTable.addColumnSchema(
+        new TagColumnSchema(ColumnHeaderConstant.STREAM_NAME_TABLE_MODEL, TSDataType.STRING));
+    streamsTable.addColumnSchema(
+        new AttributeColumnSchema(
+            ColumnHeaderConstant.CREATION_TIME_TABLE_MODEL, TSDataType.TIMESTAMP));
+    streamsTable.addColumnSchema(
+        new AttributeColumnSchema(
+            ColumnHeaderConstant.STREAM_CREATOR_TABLE_MODEL, TSDataType.STRING));
+    streamsTable.addColumnSchema(
+        new AttributeColumnSchema(
+            ColumnHeaderConstant.STREAM_SOURCE_TABLE_MODEL, TSDataType.STRING));
+    streamsTable.addColumnSchema(
+        new AttributeColumnSchema(
+            ColumnHeaderConstant.STREAM_EVENT_WINDOW_TABLE_MODEL, TSDataType.STRING));
+    streamsTable.addColumnSchema(
+        new AttributeColumnSchema(
+            ColumnHeaderConstant.STREAM_SUB_QUERY_TABLE_MODEL, TSDataType.STRING));
+    streamsTable.addColumnSchema(
+        new AttributeColumnSchema(
+            ColumnHeaderConstant.STREAM_TARGET_TABLE_MODEL, TSDataType.STRING));
+    streamsTable.addColumnSchema(
+        new AttributeColumnSchema(
+            ColumnHeaderConstant.STREAM_STATUS_TABLE_MODEL, TSDataType.STRING));
+    streamsTable.addColumnSchema(
+        new AttributeColumnSchema(
+            ColumnHeaderConstant.STREAM_RUNNING_ON_TABLE_MODEL, TSDataType.STRING));
+    streamsTable.addColumnSchema(
+        new AttributeColumnSchema(
+            ColumnHeaderConstant.STREAM_LAST_UP_TIME_TABLE_MODEL, TSDataType.TIMESTAMP));
+    streamsTable.addColumnSchema(
+        new AttributeColumnSchema(
+            ColumnHeaderConstant.STREAM_LAST_DOWN_TIME_TABLE_MODEL, TSDataType.TIMESTAMP));
+    streamsTable.addColumnSchema(
+        new AttributeColumnSchema(
+            ColumnHeaderConstant.STREAM_LAST_HEARTBEAT_TIME_TABLE_MODEL, TSDataType.TIMESTAMP));
+    streamsTable.addColumnSchema(
+        new AttributeColumnSchema(
+            ColumnHeaderConstant.STREAM_LAST_DOWN_REASON_TABLE_MODEL, TSDataType.STRING));
+    schemaTables.put(STREAMS, streamsTable);
   }
 
   static {

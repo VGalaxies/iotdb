@@ -715,6 +715,11 @@ time_partition_interval=604800000
 # Datatype: long
 heartbeat_interval_in_ms=1000
 
+# Stream heartbeat lost threshold in milliseconds, default is 15000ms
+# effectiveMode: restart
+# Datatype: long
+stream_heartbeat_lost_threshold_ms=15000
+
 # Default failure detector, enum from {fixed, phi_accrual}
 # effectiveMode: restart
 # Datatype: string

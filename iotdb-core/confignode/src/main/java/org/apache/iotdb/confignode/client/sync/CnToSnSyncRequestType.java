@@ -20,6 +20,7 @@
 package org.apache.iotdb.confignode.client.sync;
 
 public enum CnToSnSyncRequestType {
+  GET_HEARTBEAT,
   CREATE_TASK,
   START_TASK,
   STOP_TASK,
