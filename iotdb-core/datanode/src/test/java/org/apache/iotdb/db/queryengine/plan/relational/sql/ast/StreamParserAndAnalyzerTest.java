@@ -174,6 +174,46 @@ public class StreamParserAndAnalyzerTest {
   }
 
   @Test
+  public void testAnalyzeRowsCanReferenceSourceTableColumn() {
+    String sql =
+        "create stream s1 from testdb.table1 "
+            + "tumble(size => 1h, origin => 2000-01-01T00:00:00) "
+            + "into testdb.table2(time, s3, s1) "
+            + "select ${start_time}, sin(${row_num}), s1 from ${rows}";
+    testAnalyzeSuccess(sql);
+  }
+
+  @Test
+  public void testAnalyzeVariationPlaceholderTypes() {
+    String sql =
+        "create stream s1 from testdb.table1 partition by tag1, tag2, tag3 "
+            + "variation(col => s1, delta => 1.0) "
+            + "into testdb.table2(s1, tag1, tag2, tag3, s2) "
+            + "select ${prev_value}, ${1}, ${2}, ${3}, ${current_value} from ${rows}";
+    testAnalyzeSuccess(sql);
+  }
+
+  @Test
+  public void testAnalyzePrevValueRequiresVariationWindow() {
+    String sql =
+        "create stream s1 from testdb.table1 "
+            + "tumble(size => 1h, origin => 2000-01-01T00:00:00) "
+            + "into testdb.table2(time, s1) "
+            + "select ${prev_value} from ${rows}";
+    testAnalyzeError(sql, "Placeholder ${prev_value} can only be used with variation event window");
+  }
+
+  @Test
+  public void testAnalyzeIndexedPlaceholderOutOfRange() {
+    String sql =
+        "create stream s1 from testdb.table1 partition by tag1, tag2, tag3 "
+            + "variation(col => s1, delta => 1.0) "
+            + "into testdb.table2(s1, tag1, tag2, tag3, s2) "
+            + "select ${prev_value}, ${1}, ${2}, ${3}, ${4} from ${rows}";
+    testAnalyzeError(sql, "N must be between 1 and partition by size 3 (inclusive), but got 4");
+  }
+
+  @Test
   public void testParseCapacityWindowInvalidArgumentError() {
     String sql =
         "create stream s1 from testdb.t1 "

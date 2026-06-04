@@ -19,6 +19,10 @@
 
 package org.apache.iotdb.commons.utils;
 
+import org.apache.iotdb.commons.queryengine.plan.relational.utils.TypeUtil;
+
+import org.apache.tsfile.read.common.type.Type;
+
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -73,6 +77,35 @@ public class BasicStructureSerDeUtil {
     for (String s : stringList) {
       write(s, stream);
     }
+  }
+
+  /**
+   * Write nullable type list: {@code -1} if {@code typeList} is null; otherwise size then each type
+   * via {@link TypeUtil#serialize(Type, DataOutputStream)}.
+   */
+  public static void writeNullableTypeList(List<Type> typeList, DataOutputStream stream)
+      throws IOException {
+    if (typeList == null) {
+      write(-1, stream);
+      return;
+    }
+    write(typeList.size(), stream);
+    for (Type type : typeList) {
+      TypeUtil.serialize(type, stream);
+    }
+  }
+
+  /** read type list from byteBuffer. Returns null if size is {@code -1}. */
+  public static List<Type> readTypeList(ByteBuffer buffer) {
+    int size = readInt(buffer);
+    if (size < 0) {
+      return null;
+    }
+    List<Type> typeList = new ArrayList<>(size);
+    for (int i = 0; i < size; i++) {
+      typeList.add(TypeUtil.deserialize(buffer));
+    }
+    return typeList;
   }
 
   /** read a int var from byteBuffer. */

@@ -28,6 +28,7 @@ import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.PlanNodeType;
 import org.apache.iotdb.commons.queryengine.plan.relational.metadata.ColumnSchema;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.Symbol;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.EventScanNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.OutputNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CreateStream;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PlaceHolderLiteral;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnCategory;
@@ -81,6 +82,32 @@ public class StreamPlannerTest {
 
     LogicalQueryPlan logicalQueryPlan = planTester.createPlan(sql);
     Assert.assertTrue(containsNode(logicalQueryPlan.getRootNode(), EventScanNode.class));
+  }
+
+  @Test
+  public void testCreateStreamWithRowsCanReferenceSourceColumnAndKeepOutputs() {
+    PlanTester planTester = new PlanTester();
+    String sql =
+        "create stream s_rows from testdb.table1 "
+            + "tumble(size => 1h, origin => 2000-01-01T00:00:00) "
+            + "into testdb.table2(time, s3, s1) "
+            + "select ${start_time}, sin(${row_num}), s1 from ${rows}";
+
+    Analysis analysis = PlanTester.analyze(sql, new TestMetadata(), newTestContext(sql));
+    Assert.assertTrue(analysis.containsRowsPlaceholder());
+    Assert.assertEquals(3, analysis.getOutputDescriptor().getVisibleFieldCount());
+
+    LogicalQueryPlan logicalQueryPlan = planTester.createPlan(sql);
+    OutputNode outputNode = (OutputNode) logicalQueryPlan.getRootNode();
+    Assert.assertEquals(3, outputNode.getOutputSymbols().size());
+
+    EventScanNode eventScanNode =
+        findFirstNode(logicalQueryPlan.getRootNode(), EventScanNode.class);
+    Assert.assertNotNull(eventScanNode);
+    Assert.assertTrue(
+        eventScanNode.getAssignments().values().stream()
+            .map(ColumnSchema::getName)
+            .anyMatch(name -> name.equals("s1")));
   }
 
   @Test
@@ -185,6 +212,8 @@ public class StreamPlannerTest {
     IoTDBSubscriptionSource source =
         (IoTDBSubscriptionSource) createStreamTask.getStreamTask().getSource();
     Assert.assertEquals(Arrays.asList("start_time", "row_num"), source.getPartitionColumns());
+    Assert.assertEquals(Arrays.asList("row_num"), source.getOutputFields());
+    Assert.assertEquals(1, source.getFieldTypes().size());
     verify(streamQueryPlanner, times(1)).doLogicalPlan(same(analysis), same(context));
   }
 
@@ -250,6 +279,8 @@ public class StreamPlannerTest {
     IoTDBSubscriptionSource restoredSource = (IoTDBSubscriptionSource) restored.getSource();
     Assert.assertEquals(
         Arrays.asList("start_time", "row_num"), restoredSource.getPartitionColumns());
+    Assert.assertEquals(source.getOutputFields(), restoredSource.getOutputFields());
+    Assert.assertEquals(source.getFieldTypes(), restoredSource.getFieldTypes());
   }
 
   @Test
@@ -258,6 +289,20 @@ public class StreamPlannerTest {
     PlaceHolderLiteral rewritten =
         ExpressionTreeRewriter.rewriteWith(new ExpressionRewriter<Void>() {}, placeholder);
     Assert.assertSame(placeholder, rewritten);
+  }
+
+  @Test
+  public void testPlaceHolderLiteralSerdeRoundTrip() throws IOException {
+    PlaceHolderLiteral placeholder = new PlaceHolderLiteral(PlaceHolderLiteral.Type.N).withValue(2);
+    placeholder.setDataType(org.apache.tsfile.read.common.type.TypeFactory.getType(INT64));
+
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    placeholder.serialize(new DataOutputStream(baos));
+    PlaceHolderLiteral restored = new PlaceHolderLiteral(ByteBuffer.wrap(baos.toByteArray()));
+
+    Assert.assertEquals(placeholder.getType(), restored.getType());
+    Assert.assertEquals(placeholder.getValue(), restored.getValue());
+    Assert.assertEquals(placeholder.getDataType(), restored.getDataType());
   }
 
   @Test
@@ -318,6 +363,23 @@ public class StreamPlannerTest {
     assertCalcPlanBytesEqual(streamTask.getCalcPlan(), restored.getCalcPlan());
   }
 
+  @Test
+  public void testCreateStreamPreFilterRecordsColumnTypeInTypeProvider() {
+    String sql =
+        "create stream s_pre from testdb.table1 where s1 > 1 "
+            + "tumble(size => 1h, origin => 2000-01-01T00:00:00) "
+            + "into testdb.table2(time, s1) "
+            + "select ${start_time}, count(*) from ${rows}";
+    MPPQueryContext context = newTestContext(sql);
+    PlanTester.analyze(sql, new TestMetadata(), context);
+
+    Symbol s1 = new Symbol("s1");
+    Assert.assertTrue(context.getTypeProvider().isSymbolExist(s1));
+    Assert.assertEquals(
+        org.apache.tsfile.read.common.type.LongType.INT64,
+        context.getTypeProvider().getTableModelType(s1));
+  }
+
   private static MPPQueryContext newTestContext(String sql) {
     SessionInfo sessionInfo =
         new SessionInfo(
@@ -340,6 +402,19 @@ public class StreamPlannerTest {
       }
     }
     return false;
+  }
+
+  private static <T extends PlanNode> T findFirstNode(PlanNode node, Class<T> clazz) {
+    if (clazz.isInstance(node)) {
+      return clazz.cast(node);
+    }
+    for (PlanNode child : node.getChildren()) {
+      T matched = findFirstNode(child, clazz);
+      if (matched != null) {
+        return matched;
+      }
+    }
+    return null;
   }
 
   private static void assertCalcPlanBytesEqual(ByteBuffer expected, ByteBuffer actual) {

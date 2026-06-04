@@ -37,6 +37,7 @@ import org.apache.iotdb.commons.pipe.config.constant.PipeSinkConstant;
 import org.apache.iotdb.commons.pipe.config.constant.PipeSourceConstant;
 import org.apache.iotdb.commons.pipe.config.constant.SystemConstant;
 import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.PlanNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.metadata.ColumnSchema;
 import org.apache.iotdb.commons.queryengine.plan.relational.metadata.QualifiedObjectName;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.Symbol;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.EventScanNode;
@@ -292,6 +293,7 @@ import org.apache.iotdb.rpc.TSStatusCode;
 
 import org.apache.tsfile.common.conf.TSFileConfig;
 import org.apache.tsfile.enums.TSDataType;
+import org.apache.tsfile.read.common.type.Type;
 import org.apache.tsfile.utils.Binary;
 import org.apache.tsfile.utils.Pair;
 
@@ -1844,12 +1846,21 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
     if (node.getSourceTable() != null) {
       QualifiedObjectName sourceName = getQualifiedObjectName(node.getSourceTable(), analysis);
       List<String> partitionColumns = getSourceColumns(node, calcPlanNode);
+      List<String> outputFields = null;
+      List<Type> fieldTypes = null;
+      if (analysis.containsRowsPlaceholder()) {
+        Pair<List<String>, List<Type>> prunedColumns = getPrunedSourceColumns(calcPlanNode);
+        outputFields = prunedColumns.getLeft();
+        fieldTypes = prunedColumns.getRight();
+      }
       source =
           new IoTDBSubscriptionSource(
               sourceName.getDatabaseName(),
               sourceName.getObjectName(),
               node.getPreFilter(),
-              partitionColumns);
+              partitionColumns,
+              outputFields,
+              fieldTypes);
     }
 
     QualifiedObjectName sinkName = getQualifiedObjectName(node.getSinkTable(), analysis);
@@ -1904,6 +1915,31 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
       return partitionColumns;
     }
     return null;
+  }
+
+  private static Pair<List<String>, List<Type>> getPrunedSourceColumns(PlanNode calcPlanNode) {
+    EventScanNode eventScanNode = findEventScanNode(calcPlanNode);
+    if (eventScanNode == null) {
+      throw new SemanticException("EventScanNode not found in stream calc plan");
+    }
+    return extractColumns(eventScanNode);
+  }
+
+  private static Pair<List<String>, List<Type>> extractColumns(EventScanNode eventScanNode) {
+    List<String> names = new ArrayList<>();
+    List<Type> types = new ArrayList<>();
+    for (Symbol symbol : eventScanNode.getOutputSymbols()) {
+      ColumnSchema columnSchema = eventScanNode.getAssignments().get(symbol);
+      if (columnSchema == null) {
+        throw new SemanticException(
+            String.format("Missing column schema for symbol '%s' in EventScanNode", symbol));
+      }
+      if (columnSchema.getColumnCategory() == TsTableColumnCategory.FIELD) {
+        names.add(columnSchema.getName());
+        types.add(columnSchema.getType());
+      }
+    }
+    return new Pair<>(names, types);
   }
 
   private static EventScanNode findEventScanNode(PlanNode node) {

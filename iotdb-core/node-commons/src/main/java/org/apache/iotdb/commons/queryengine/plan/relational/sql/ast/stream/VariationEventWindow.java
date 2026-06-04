@@ -19,13 +19,17 @@
 
 package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream;
 
+import org.apache.iotdb.commons.exception.SemanticException;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.AstMemoryEstimationHelper;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.CommonQueryAstVisitor;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.DoubleLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.IAstVisitor;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Identifier;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.LongLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.NodeLocation;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.StringLiteral;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Table;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TableFunctionArgument;
 
 import com.google.common.collect.ImmutableList;
@@ -117,5 +121,30 @@ public class VariationEventWindow extends EventWindow {
   }
 
   @Override
-  public void parseArguments(Map<String, Node> argumentMap) {}
+  public void parseArguments(Map<String, Node> argumentMap) {
+    if (!argumentMap.containsKey(COL_PARAMETER_NAME)) {
+      throw new SemanticException("Variation event window requires 'col' argument");
+    }
+    try {
+      Node colNode = argumentMap.get(COL_PARAMETER_NAME);
+      if (colNode instanceof StringLiteral) {
+        column = new Identifier(((StringLiteral) colNode).getValue());
+      } else if (colNode instanceof Identifier) {
+        column = (Identifier) colNode;
+      } else if (colNode instanceof Table) {
+        column = new Identifier(((Table) colNode).getName().toString());
+      } else {
+        throw new ClassCastException();
+      }
+
+      Node deltaNode = argumentMap.get(DELTA_PARAMETER_NAME);
+      if (deltaNode instanceof DoubleLiteral) {
+        delta = (DoubleLiteral) deltaNode;
+      } else if (deltaNode instanceof LongLiteral) {
+        delta = new DoubleLiteral(((LongLiteral) deltaNode).getParsedValue());
+      }
+    } catch (ClassCastException e) {
+      throw new SemanticException("Invalid argument type for variation event window");
+    }
+  }
 }

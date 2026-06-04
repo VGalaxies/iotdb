@@ -85,7 +85,9 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.SymbolRefere
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Trim;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WhenClause;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WindowFrame;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.EventWindow;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PlaceHolderLiteral;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.VariationEventWindow;
 import org.apache.iotdb.commons.queryengine.plan.relational.type.TypeNotFoundException;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnCategory;
 import org.apache.iotdb.db.queryengine.common.MPPQueryContext;
@@ -2138,6 +2140,14 @@ public class ExpressionAnalyzer {
           return setPlaceholderType(node, TIMESTAMP);
         case ROW_NUM:
           return setPlaceholderType(node, INT64);
+        case PREV_VALUE:
+        case CURRENT_VALUE:
+          Analysis valueAnalysis = context.getAnalysis();
+          validateVariationEventWindow(node, valueAnalysis);
+          return setPlaceholderType(
+              node,
+              resolveVariationColumnType(
+                  valueAnalysis, (VariationEventWindow) valueAnalysis.getCurrentEventWindow()));
         case N:
           Analysis analysis = context.getAnalysis();
           List<Expression> partitionByExpressions = analysis.getPartitionByExpressions();
@@ -2157,6 +2167,35 @@ public class ExpressionAnalyzer {
         default:
           throw new SemanticException("Unknown Type");
       }
+    }
+
+    private void validateVariationEventWindow(PlaceHolderLiteral node, Analysis analysis) {
+      EventWindow eventWindow = analysis.getCurrentEventWindow();
+      if (!(eventWindow instanceof VariationEventWindow)) {
+        throw new SemanticException(
+            String.format(
+                "Placeholder ${%s} can only be used with variation event window",
+                node.getType().getName()));
+      }
+    }
+
+    private Type resolveVariationColumnType(
+        Analysis analysis, VariationEventWindow variationEventWindow) {
+      RelationType relationType = analysis.getStreamSourceRelationType();
+      if (relationType == null) {
+        throw new IllegalStateException("streamSourceRelationType should not be null");
+      }
+
+      String columnName = variationEventWindow.getColumn().getValue();
+      for (Field field : relationType.getVisibleFields()) {
+        if (field.getOriginColumnName().map(name -> name.equalsIgnoreCase(columnName)).orElse(false)
+            || field.getName().map(name -> name.equalsIgnoreCase(columnName)).orElse(false)) {
+          return field.getType();
+        }
+      }
+      throw new SemanticException(
+          String.format(
+              "Variation event window column '%s' is not found in source table", columnName));
     }
 
     @Override

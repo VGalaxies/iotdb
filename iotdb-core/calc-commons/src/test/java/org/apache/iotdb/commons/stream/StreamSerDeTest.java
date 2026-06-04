@@ -21,6 +21,8 @@ package org.apache.iotdb.commons.stream;
 
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Identifier;
 
+import org.apache.tsfile.read.common.type.Type;
+import org.apache.tsfile.read.common.type.TypeFactory;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -30,12 +32,15 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
+
+import static org.apache.tsfile.enums.TSDataType.INT64;
 
 public class StreamSerDeTest {
 
   @Test
-  public void streamWindow_roundTrip_eachConcreteType() throws IOException {
+  public void streamWindowTest() throws IOException {
     assertStreamWindowRoundTrip(new PeriodWindow(1000L, 42L));
     assertStreamWindowRoundTrip(new TumbleWindow("time", 5000L, 7L));
     assertStreamWindowRoundTrip(new TumbleWindow(null, 3000L, 0L));
@@ -48,7 +53,7 @@ public class StreamSerDeTest {
   }
 
   @Test(expected = IOException.class)
-  public void streamWindow_deserialize_rejectsUnknownOrdinal() throws IOException {
+  public void streamWindowDeserializeRejectsUnknownOrdinal() throws IOException {
     ByteBuffer buf = ByteBuffer.allocate(4);
     buf.putInt(StreamWindowType.values().length + 10);
     buf.flip();
@@ -56,15 +61,20 @@ public class StreamSerDeTest {
   }
 
   @Test
-  public void streamSource_roundTrip_iotdbSubscription() throws IOException {
+  public void streamSourceTest() throws IOException {
+    List<String> outputFields = Arrays.asList("start_time", "row_num");
+    List<Type> fieldTypes = Arrays.asList(TypeFactory.getType(INT64), TypeFactory.getType(INT64));
     IoTDBSubscriptionSource src =
-        new IoTDBSubscriptionSource("db1", "t1", new Identifier("f"), Arrays.asList("p1", "p2"));
+        new IoTDBSubscriptionSource(
+            "db1", "t1", new Identifier("f"), Arrays.asList("p1", "p2"), outputFields, fieldTypes);
     IoTDBSubscriptionSource copy =
         (IoTDBSubscriptionSource)
             StreamSource.deserialize(writeSingleSourceBuffer(src).duplicate());
     Assert.assertEquals(src.getDatabase(), copy.getDatabase());
     Assert.assertEquals(src.getTableName(), copy.getTableName());
     Assert.assertEquals(src.getPartitionColumns(), copy.getPartitionColumns());
+    Assert.assertEquals(src.getOutputFields(), copy.getOutputFields());
+    Assert.assertEquals(src.getFieldTypes(), copy.getFieldTypes());
     Assert.assertNotNull(copy.getPreFilter());
     Assert.assertTrue(copy.getPreFilter() instanceof Identifier);
     Assert.assertEquals(
@@ -72,7 +82,7 @@ public class StreamSerDeTest {
         ((Identifier) copy.getPreFilter()).getValue());
 
     IoTDBSubscriptionSource nullFilterSource =
-        new IoTDBSubscriptionSource("db1", "t2", null, Arrays.asList("p3"));
+        new IoTDBSubscriptionSource("db1", "t2", null, Arrays.asList("p3"), null, null);
     IoTDBSubscriptionSource nullFilterCopy =
         (IoTDBSubscriptionSource)
             StreamSource.deserialize(writeSingleSourceBuffer(nullFilterSource).duplicate());
@@ -84,7 +94,7 @@ public class StreamSerDeTest {
   }
 
   @Test
-  public void streamTarget_roundTrip_iotdbLocal() throws IOException {
+  public void streamTargetTest() throws IOException {
     IoTDBTarget tgt = new IoTDBTarget("db2", "sink", Arrays.asList("c1"));
     IoTDBTarget copy =
         (IoTDBTarget) StreamTarget.deserialize(writeSingleTargetBuffer(tgt).duplicate());
@@ -99,7 +109,7 @@ public class StreamSerDeTest {
   }
 
   @Test
-  public void streamProperties_roundTrip() throws IOException {
+  public void streamPropertiesTest() throws IOException {
     StreamProperties props =
         new StreamProperties(10L, 20L, true, 30L, 40L, StreamProperties.EventType.WINDOW_CLOSE);
     StreamProperties copy = StreamProperties.deserialize(writePropertiesBuffer(props).duplicate());
@@ -119,7 +129,7 @@ public class StreamSerDeTest {
   }
 
   @Test
-  public void streamTask_roundTrip_withoutSourceWithoutProperties() throws IOException {
+  public void streamTaskTest() throws IOException {
     ByteBuffer calc = ByteBuffer.wrap(new byte[] {0x01, 0x02, 0x03});
     StreamTask original = new StreamTask();
     original.setId(9L);
@@ -149,7 +159,7 @@ public class StreamSerDeTest {
     ByteBuffer calc = ByteBuffer.wrap(new byte[] {(byte) 0xff});
     IoTDBSubscriptionSource source =
         new IoTDBSubscriptionSource(
-            "srcDb", "srcTbl", new Identifier("x"), Collections.singletonList("pk"));
+            "srcDb", "srcTbl", new Identifier("x"), Collections.singletonList("pk"), null, null);
     StreamProperties props =
         new StreamProperties(1L, 2L, false, null, 9L, StreamProperties.EventType.WINDOW_OPEN);
 
@@ -179,7 +189,7 @@ public class StreamSerDeTest {
   @Test
   public void readFromDistributedCreate() throws IOException {
     IoTDBSubscriptionSource source =
-        new IoTDBSubscriptionSource("sdb", "st", new Identifier("pf"), null);
+        new IoTDBSubscriptionSource("sdb", "st", new Identifier("pf"), null, null, null);
     ByteBuffer streamSource = writeSingleSourceBuffer(source);
     ByteBuffer eventWindow = writeSingleWindowBuffer(new VariationWindow("vcol", 0.25));
     ByteBuffer calcPlan = ByteBuffer.wrap(new byte[] {7, 8});

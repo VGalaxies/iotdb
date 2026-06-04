@@ -64,15 +64,6 @@ public class PlaceHolderLiteral extends Literal {
     public String getName() {
       return name;
     }
-
-    public static Type fromName(String name) {
-      for (Type type : values()) {
-        if (type.name.equals(name)) {
-          return type;
-        }
-      }
-      throw new IllegalArgumentException("Unknown placeholder type: " + name);
-    }
   }
 
   public PlaceHolderLiteral(Type type) {
@@ -107,7 +98,7 @@ public class PlaceHolderLiteral extends Literal {
 
   @Override
   public Object getTsValue() {
-    return type;
+    throw new UnsupportedOperationException("PlaceHolderLiteral doesn't support to insert");
   }
 
   @Override
@@ -138,7 +129,7 @@ public class PlaceHolderLiteral extends Literal {
 
   @Override
   public void serialize(DataOutputStream stream) throws IOException {
-    ReadWriteIOUtils.write(this.type.getName(), stream);
+    ReadWriteIOUtils.write(this.type.ordinal(), stream);
     ReadWriteIOUtils.write(this.value, stream);
     ReadWriteIOUtils.write(this.dataType != null, stream);
     if (this.dataType != null) {
@@ -148,7 +139,7 @@ public class PlaceHolderLiteral extends Literal {
 
   public PlaceHolderLiteral(ByteBuffer byteBuffer) {
     super(null);
-    this.type = Type.fromName(ReadWriteIOUtils.readString(byteBuffer));
+    this.type = Type.values()[(ReadWriteIOUtils.readInt(byteBuffer))];
     this.value = ReadWriteIOUtils.readInt(byteBuffer);
     if (ReadWriteIOUtils.readBool(byteBuffer)) {
       this.dataType = TypeUtil.deserialize(byteBuffer);

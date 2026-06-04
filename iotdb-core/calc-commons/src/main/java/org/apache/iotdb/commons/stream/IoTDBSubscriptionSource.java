@@ -22,6 +22,7 @@ package org.apache.iotdb.commons.stream;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
 import org.apache.iotdb.commons.utils.BasicStructureSerDeUtil;
 
+import org.apache.tsfile.read.common.type.Type;
 import org.apache.tsfile.utils.ReadWriteIOUtils;
 
 import javax.annotation.Nullable;
@@ -37,17 +38,26 @@ public class IoTDBSubscriptionSource extends StreamSource {
   private String tableName;
   @Nullable private Expression preFilter;
   @Nullable private List<String> partitionColumns;
+  @Nullable private List<String> outputFields;
+  @Nullable private List<Type> fieldTypes;
   private String host = "127.0.0.1";
   private int rpcPort = 6667;
   private String user = "root";
   private String encryptedPassword = "root";
 
   public IoTDBSubscriptionSource(
-      String database, String tableName, Expression preFilter, List<String> partitionColumns) {
+      String database,
+      String tableName,
+      Expression preFilter,
+      List<String> partitionColumns,
+      @Nullable List<String> outputFields,
+      @Nullable List<Type> fieldTypes) {
     this.database = database;
     this.tableName = tableName;
     this.preFilter = preFilter;
     this.partitionColumns = partitionColumns;
+    this.outputFields = outputFields;
+    this.fieldTypes = fieldTypes;
   }
 
   public IoTDBSubscriptionSource(
@@ -59,7 +69,7 @@ public class IoTDBSubscriptionSource extends StreamSource {
       int rpcPort,
       String user,
       String encryptedPassword) {
-    this(database, tableName, preFilter, partitionColumns);
+    this(database, tableName, preFilter, partitionColumns, null, null);
     this.host = host;
     this.rpcPort = rpcPort;
     this.user = user;
@@ -85,6 +95,16 @@ public class IoTDBSubscriptionSource extends StreamSource {
 
   public List<String> getPartitionColumns() {
     return partitionColumns;
+  }
+
+  @Nullable
+  public List<String> getOutputFields() {
+    return outputFields;
+  }
+
+  @Nullable
+  public List<Type> getFieldTypes() {
+    return fieldTypes;
   }
 
   public String getHost() {
@@ -113,6 +133,8 @@ public class IoTDBSubscriptionSource extends StreamSource {
       Expression.serialize(preFilter, stream);
     }
     BasicStructureSerDeUtil.writeNullableStringList(partitionColumns, stream);
+    BasicStructureSerDeUtil.writeNullableStringList(outputFields, stream);
+    BasicStructureSerDeUtil.writeNullableTypeList(fieldTypes, stream);
   }
 
   public static IoTDBSubscriptionSource deserialize(ByteBuffer byteBuffer) throws IOException {
@@ -126,6 +148,11 @@ public class IoTDBSubscriptionSource extends StreamSource {
       preFilter = Expression.deserialize(byteBuffer);
     }
     List<String> partitionColumns = BasicStructureSerDeUtil.readStringList(byteBuffer);
-    return new IoTDBSubscriptionSource(database, tableName, preFilter, partitionColumns);
+    List<String> outputFields =
+        byteBuffer.hasRemaining() ? BasicStructureSerDeUtil.readStringList(byteBuffer) : null;
+    List<Type> fieldTypes =
+        byteBuffer.hasRemaining() ? BasicStructureSerDeUtil.readTypeList(byteBuffer) : null;
+    return new IoTDBSubscriptionSource(
+        database, tableName, preFilter, partitionColumns, outputFields, fieldTypes);
   }
 }

@@ -5002,8 +5002,12 @@ public class StatementAnalyzer {
       if (eventWindow instanceof PeriodEventWindow) {
         throw new SemanticException("Placeholder ${rows} cannot be used with period event window.");
       }
+      RelationType sourceRelationType = analysis.getStreamSourceRelationType();
+      if (sourceRelationType == null) {
+        throw new SemanticException("Placeholder ${rows} requires a stream source table.");
+      }
       analysis.setContainsRowsPlaceholder(true);
-      return createAndAssignScope(node, context);
+      return createAndAssignScope(node, context, sourceRelationType);
     }
 
     @Override
@@ -5017,7 +5021,8 @@ public class StatementAnalyzer {
           calcPlanScope.getRelationType().getVisibleFields().stream().collect(toImmutableList());
       analyzeStreamSink(node.getSinkTable(), node.getColumns(), calcPlanOutputs);
 
-      return createAndAssignScope(node, Optional.of(calcPlanScope));
+      return createAndAssignScope(
+          node, Optional.of(calcPlanScope), calcPlanScope.getRelationType());
     }
 
     private Scope analyzeCalcPlan(Query query, Optional<Scope> context) {
@@ -5190,6 +5195,7 @@ public class StatementAnalyzer {
         return;
       }
       Scope sourceScope = analyzeTable(sourceTable, true);
+      analysis.setStreamSourceRelationType(sourceScope.getRelationType());
 
       // preFilter
       analyzePreFilter(sourceScope, preFilter);
@@ -5229,9 +5235,27 @@ public class StatementAnalyzer {
                 "PreFilter clause must evaluate to a boolean: actual type %s", predicateType));
       }
 
+      recordPreFilterTypesToTypeProvider(expressionAnalysis);
+
       //      for (ResolvedField field : expressionAnalysis.getColumnReferences().values()) {
       //        recordStreamSourceColumnAccess(field.getField());
       //      }
+    }
+
+    private void recordPreFilterTypesToTypeProvider(ExpressionAnalysis expressionAnalysis) {
+      expressionAnalysis
+          .getColumnReferences()
+          .forEach(
+              (nodeRef, resolvedField) -> {
+                Expression expression = nodeRef.getNode();
+                Type type = expressionAnalysis.getType(expression);
+                Field field = resolvedField.getField();
+                String columnName =
+                    field.getOriginColumnName().orElse(field.getName().orElse(null));
+                if (columnName != null) {
+                  queryContext.getTypeProvider().putTableModelType(new Symbol(columnName), type);
+                }
+              });
     }
 
     private void analyzePartitionBy(

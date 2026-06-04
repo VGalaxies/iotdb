@@ -243,6 +243,7 @@ public class Analysis implements IAnalysis {
   private Insert insert;
 
   @Nullable private EventWindow currentEventWindow;
+  @Nullable private RelationType streamSourceRelationType;
   private boolean containsRowsPlaceholder;
 
   // partition by expressions
@@ -1601,6 +1602,15 @@ public class Analysis implements IAnalysis {
 
   public boolean containsRowsPlaceholder() {
     return containsRowsPlaceholder;
+  }
+
+  public void setStreamSourceRelationType(@Nullable RelationType streamSourceRelationType) {
+    this.streamSourceRelationType = streamSourceRelationType;
+  }
+
+  @Nullable
+  public RelationType getStreamSourceRelationType() {
+    return streamSourceRelationType;
   }
 
   public void setPartitionByExpressions(List<Expression> partitionByExpressions) {
