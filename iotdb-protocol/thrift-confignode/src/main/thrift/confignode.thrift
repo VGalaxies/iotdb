@@ -1262,6 +1262,7 @@ struct TCreateStreamReq {
   5: required string calcSql
   6: required binary calcPlan
   7: required binary streamSink
+  8: optional binary typeProvider
 }
 
 struct TDropStreamReq {
@@ -2174,4 +2175,3 @@ service IConfigNodeRPCService {
 
   common.TSStatus createTableView(TCreateTableViewReq req)
 }
-

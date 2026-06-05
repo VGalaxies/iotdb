@@ -64,6 +64,58 @@ public class StreamSqlMetadataIT extends AbstractStreamNodeIT {
   }
 
   @Test
+  public void testCreatePeriodStreamWithStartTimePlaceholderKeepsQueryableMetadata()
+      throws Exception {
+    final String databaseName = "stream_period_placeholder_db";
+    final String sourceTable = "t1";
+    final String sinkTable = "rows_calc";
+    final String streamName = "stream_period_placeholder_it";
+
+    try (final ITableSession session = EnvFactory.getEnv().getTableSessionConnection()) {
+      session.executeNonQueryStatement("CREATE DATABASE " + databaseName);
+      session.executeNonQueryStatement("USE " + databaseName);
+      session.executeNonQueryStatement(
+          "CREATE TABLE "
+              + sourceTable
+              + " (time TIMESTAMP TIME, device_id STRING TAG, value FLOAT FIELD)");
+      session.executeNonQueryStatement(
+          "CREATE TABLE " + sinkTable + " (time TIMESTAMP TIME, rows INT64 FIELD)");
+
+      session.executeNonQueryStatement(
+          "CREATE STREAM "
+              + streamName
+              + " FROM "
+              + databaseName
+              + "."
+              + sourceTable
+              + " PERIOD(1h) "
+              + "INTO "
+              + databaseName
+              + "."
+              + sinkTable
+              + "(time, rows) "
+              + "SELECT ${START_TIME}, count(*) FROM "
+              + databaseName
+              + "."
+              + sourceTable);
+
+      AWAIT.untilAsserted(
+          () -> {
+            final StreamMetadata metadata = queryStreamMetadata(session, streamName);
+            Assert.assertNotNull("Stream metadata should be queryable after create", metadata);
+            Assert.assertEquals("CREATED", metadata.status);
+            Assert.assertTrue(metadata.source, metadata.source.contains("IoTDBSubscriptionSource"));
+            Assert.assertTrue(
+                metadata.source, metadata.source.contains("tableName='" + sourceTable));
+            Assert.assertTrue(metadata.target, metadata.target.contains("IoTDBTarget"));
+            Assert.assertTrue(metadata.target, metadata.target.contains("tableName='" + sinkTable));
+            Assert.assertFalse(metadata.source, metadata.source.contains("@"));
+            Assert.assertFalse(metadata.target, metadata.target.contains("@"));
+          });
+    }
+  }
+
+  @Test
   public void testDropStreamSqlRemovesQueryableMetadata() throws Exception {
     try (final ITableSession session = EnvFactory.getEnv().getTableSessionConnection()) {
       createTables(session);
@@ -72,14 +124,16 @@ public class StreamSqlMetadataIT extends AbstractStreamNodeIT {
       AWAIT.untilAsserted(
           () ->
               Assert.assertNotNull(
-                  "Stream metadata should exist before drop", queryStreamMetadata(session)));
+                  "Stream metadata should exist before drop",
+                  queryStreamMetadata(session, STREAM_NAME)));
 
       session.executeNonQueryStatement("DROP STREAM " + STREAM_NAME);
 
       AWAIT.untilAsserted(
           () ->
               Assert.assertNull(
-                  "Dropped stream metadata should not be queryable", queryStreamMetadata(session)));
+                  "Dropped stream metadata should not be queryable",
+                  queryStreamMetadata(session, STREAM_NAME)));
     }
   }
 
@@ -93,7 +147,7 @@ public class StreamSqlMetadataIT extends AbstractStreamNodeIT {
 
       AWAIT.untilAsserted(
           () -> {
-            final StreamMetadata metadata = queryStreamMetadata(session);
+            final StreamMetadata metadata = queryStreamMetadata(session, STREAM_NAME);
             Assert.assertNotNull("Stream metadata should still exist after stop", metadata);
             Assert.assertEquals("STOPPED", metadata.status);
             Assert.assertTrue(
@@ -116,7 +170,7 @@ public class StreamSqlMetadataIT extends AbstractStreamNodeIT {
       Assert.assertTrue(
           exception.getMessage(), exception.getMessage().contains("No available StreamNode"));
 
-      final StreamMetadata metadata = queryStreamMetadata(session);
+      final StreamMetadata metadata = queryStreamMetadata(session, STREAM_NAME);
       Assert.assertNotNull("Failed start should keep stream metadata", metadata);
       Assert.assertEquals("CREATED", metadata.status);
     }
@@ -155,11 +209,16 @@ public class StreamSqlMetadataIT extends AbstractStreamNodeIT {
   }
 
   private StreamMetadata queryStreamMetadata(final ITableSession session) throws Exception {
+    return queryStreamMetadata(session, STREAM_NAME);
+  }
+
+  private StreamMetadata queryStreamMetadata(final ITableSession session, final String streamName)
+      throws Exception {
     try (final SessionDataSet dataSet =
         session.executeQueryStatement(
-            "SELECT stream_name, status, running_on FROM information_schema.streams "
+            "SELECT stream_name, source, target, status, running_on FROM information_schema.streams "
                 + "WHERE stream_name = '"
-                + STREAM_NAME
+                + streamName
                 + "'")) {
       if (!dataSet.hasNext()) {
         return null;
@@ -169,18 +228,29 @@ public class StreamSqlMetadataIT extends AbstractStreamNodeIT {
       return new StreamMetadata(
           row.getFields().get(0).getStringValue(),
           row.getFields().get(1).getStringValue(),
-          row.getFields().get(2).getStringValue());
+          row.getFields().get(2).getStringValue(),
+          row.getFields().get(3).getStringValue(),
+          row.getFields().get(4).getStringValue());
     }
   }
 
   private static class StreamMetadata {
 
     private final String streamName;
+    private final String source;
+    private final String target;
     private final String status;
     private final String runningOn;
 
-    private StreamMetadata(final String streamName, final String status, final String runningOn) {
+    private StreamMetadata(
+        final String streamName,
+        final String source,
+        final String target,
+        final String status,
+        final String runningOn) {
       this.streamName = streamName;
+      this.source = source;
+      this.target = target;
       this.status = status;
       this.runningOn = runningOn;
     }

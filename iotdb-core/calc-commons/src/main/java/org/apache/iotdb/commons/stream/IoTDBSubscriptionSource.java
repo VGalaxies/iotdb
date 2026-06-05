@@ -155,4 +155,24 @@ public class IoTDBSubscriptionSource extends StreamSource {
     return new IoTDBSubscriptionSource(
         database, tableName, preFilter, partitionColumns, outputFields, fieldTypes);
   }
+
+  @Override
+  public String toString() {
+    return "IoTDBSubscriptionSource{"
+        + "database='"
+        + database
+        + '\''
+        + ", tableName='"
+        + tableName
+        + '\''
+        + ", preFilter="
+        + preFilter
+        + ", partitionColumns="
+        + partitionColumns
+        + ", outputFields="
+        + outputFields
+        + ", fieldTypes="
+        + fieldTypes
+        + '}';
+  }
 }

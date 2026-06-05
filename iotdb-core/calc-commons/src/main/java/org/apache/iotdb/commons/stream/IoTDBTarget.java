@@ -107,4 +107,21 @@ public class IoTDBTarget extends StreamTarget {
     List<String> columnNames = BasicStructureSerDeUtil.readStringList(byteBuffer);
     return new IoTDBTarget(nodeUrls, database, tableName, columnNames);
   }
+
+  @Override
+  public String toString() {
+    return "IoTDBTarget{"
+        + "nodeUrls='"
+        + nodeUrls
+        + '\''
+        + ", database='"
+        + database
+        + '\''
+        + ", tableName='"
+        + tableName
+        + '\''
+        + ", columnNames="
+        + columnNames
+        + '}';
+  }
 }

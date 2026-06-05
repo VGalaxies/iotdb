@@ -26,6 +26,7 @@ import org.apache.tsfile.utils.PublicBAOS;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 
 public class StreamTask {
 
@@ -284,7 +285,7 @@ public class StreamTask {
     window.serialize(stream);
     BasicStructureSerDeUtil.write(subQuery, stream);
 
-    typeProvider.serialize(stream);
+    getOrCreateTypeProvider().serialize(stream);
     writeCalcPlan(stream, calcPlan);
     if (target == null) {
       throw new IOException("stream target is required for serialization");
@@ -350,11 +351,30 @@ public class StreamTask {
       ByteBuffer calcPlan,
       ByteBuffer streamSink)
       throws IOException {
+    return readFromDistributedCreate(
+        streamName, creator, streamSource, eventWindow, calcSql, calcPlan, streamSink, null);
+  }
+
+  public static StreamTask readFromDistributedCreate(
+      String streamName,
+      String creator,
+      ByteBuffer streamSource,
+      ByteBuffer eventWindow,
+      String calcSql,
+      ByteBuffer calcPlan,
+      ByteBuffer streamSink,
+      ByteBuffer typeProvider)
+      throws IOException {
     StreamTask task = new StreamTask();
     task.setTaskName(streamName);
     task.setCreator(creator);
     task.setSubQuery(calcSql);
     task.setCalcPlan(calcPlan);
+    if (typeProvider != null && typeProvider.hasRemaining()) {
+      task.setTypeProvider(StreamNodeTableTypeProvider.deserialize(typeProvider.duplicate()));
+    } else {
+      task.setTypeProvider(new StreamNodeTableTypeProvider(Collections.emptyMap()));
+    }
     if (streamSource != null && streamSource.hasRemaining()) {
       task.setSource(StreamSource.deserialize(streamSource.duplicate()));
     }
@@ -367,6 +387,13 @@ public class StreamTask {
     }
     task.setTarget(StreamTarget.deserialize(streamSink.duplicate()));
     return task;
+  }
+
+  private StreamNodeTableTypeProvider getOrCreateTypeProvider() {
+    if (typeProvider == null) {
+      typeProvider = new StreamNodeTableTypeProvider(Collections.emptyMap());
+    }
+    return typeProvider;
   }
 
   private static void writeCalcPlan(DataOutputStream stream, ByteBuffer calcPlan)

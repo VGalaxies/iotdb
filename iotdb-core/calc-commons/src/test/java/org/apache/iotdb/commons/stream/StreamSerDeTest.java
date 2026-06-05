@@ -19,6 +19,7 @@
 
 package org.apache.iotdb.commons.stream;
 
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.Symbol;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Identifier;
 
 import org.apache.tsfile.read.common.type.Type;
@@ -75,6 +76,9 @@ public class StreamSerDeTest {
     Assert.assertEquals(src.getPartitionColumns(), copy.getPartitionColumns());
     Assert.assertEquals(src.getOutputFields(), copy.getOutputFields());
     Assert.assertEquals(src.getFieldTypes(), copy.getFieldTypes());
+    Assert.assertEquals(
+        "IoTDBSubscriptionSource{database='db1', tableName='t1', preFilter=f, partitionColumns=[p1, p2], outputFields=[start_time, row_num], fieldTypes=[INT64, INT64]}",
+        src.toString());
     Assert.assertNotNull(copy.getPreFilter());
     Assert.assertTrue(copy.getPreFilter() instanceof Identifier);
     Assert.assertEquals(
@@ -101,6 +105,9 @@ public class StreamSerDeTest {
     Assert.assertEquals(tgt.getDatabase(), copy.getDatabase());
     Assert.assertEquals(tgt.getTableName(), copy.getTableName());
     Assert.assertEquals(tgt.getColumnNames(), copy.getColumnNames());
+    Assert.assertEquals(
+        "IoTDBTarget{nodeUrls='127.0.0.1:6667', database='db2', tableName='sink', columnNames=[c1]}",
+        tgt.toString());
 
     IoTDBTarget nullableCols = new IoTDBTarget("db2", "sink2", null);
     IoTDBTarget copy2 =
@@ -195,6 +202,10 @@ public class StreamSerDeTest {
     ByteBuffer calcPlan = ByteBuffer.wrap(new byte[] {7, 8});
     IoTDBTarget target = new IoTDBTarget("tdb", "tt", Arrays.asList("c"));
     ByteBuffer streamSink = writeSingleTargetBuffer(target);
+    StreamNodeTableTypeProvider typeProvider =
+        new StreamNodeTableTypeProvider(
+            Collections.singletonMap(new Symbol("count"), TypeFactory.getType(INT64)));
+    ByteBuffer typeProviderBuffer = writeTypeProviderBuffer(typeProvider);
 
     StreamTask task =
         StreamTask.readFromDistributedCreate(
@@ -204,12 +215,16 @@ public class StreamSerDeTest {
             eventWindow.duplicate(),
             "SELECT * FROM t",
             calcPlan.duplicate(),
-            streamSink.duplicate());
+            streamSink.duplicate(),
+            typeProviderBuffer.duplicate());
 
     Assert.assertEquals("my.stream", task.getTaskName());
     Assert.assertEquals("alice", task.getCreator());
     Assert.assertEquals("SELECT * FROM t", task.getSubQuery());
     assertCalcPlanBytesEqual(calcPlan.duplicate(), task.getCalcPlan());
+    Assert.assertEquals(
+        typeProvider.allTableModelTypes(), task.getTypeProvider().allTableModelTypes());
+    Assert.assertTrue(task.toByteBuffer().hasRemaining());
 
     IoTDBSubscriptionSource src2 =
         (IoTDBSubscriptionSource) Objects.requireNonNull(task.getSource());
@@ -224,6 +239,26 @@ public class StreamSerDeTest {
     Assert.assertEquals("tdb", tgt2.getDatabase());
     Assert.assertEquals("tt", tgt2.getTableName());
     Assert.assertEquals(Arrays.asList("c"), tgt2.getColumnNames());
+  }
+
+  @Test
+  public void readFromDistributedCreateWithoutTypeProviderCanSerialize() throws IOException {
+    ByteBuffer eventWindow = writeSingleWindowBuffer(new PeriodWindow(1L, 0L));
+    ByteBuffer calcPlan = ByteBuffer.wrap(new byte[] {1});
+    ByteBuffer streamSink = writeSingleTargetBuffer(new IoTDBTarget("tdb", "tt", null));
+
+    StreamTask task =
+        StreamTask.readFromDistributedCreate(
+            "legacy.stream",
+            "alice",
+            null,
+            eventWindow.duplicate(),
+            "SELECT 1",
+            calcPlan.duplicate(),
+            streamSink.duplicate());
+
+    Assert.assertTrue(task.getTypeProvider().allTableModelTypes().isEmpty());
+    Assert.assertTrue(task.toByteBuffer().hasRemaining());
   }
 
   private static void assertStreamWindowRoundTrip(StreamWindow window) throws IOException {
@@ -260,6 +295,15 @@ public class StreamSerDeTest {
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     DataOutputStream dos = new DataOutputStream(baos);
     props.serialize(dos);
+    dos.flush();
+    return ByteBuffer.wrap(baos.toByteArray());
+  }
+
+  private static ByteBuffer writeTypeProviderBuffer(StreamNodeTableTypeProvider typeProvider)
+      throws IOException {
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    DataOutputStream dos = new DataOutputStream(baos);
+    typeProvider.serialize(dos);
     dos.flush();
     return ByteBuffer.wrap(baos.toByteArray());
   }

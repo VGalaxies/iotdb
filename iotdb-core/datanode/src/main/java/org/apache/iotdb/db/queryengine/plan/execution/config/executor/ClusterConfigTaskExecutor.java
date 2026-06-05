@@ -361,6 +361,7 @@ import org.apache.tsfile.enums.TSDataType;
 import org.apache.tsfile.external.commons.codec.digest.DigestUtils;
 import org.apache.tsfile.read.common.block.TsBlockBuilder;
 import org.apache.tsfile.read.common.block.column.TimeColumnBuilder;
+import org.apache.tsfile.utils.PublicBAOS;
 import org.apache.tsfile.utils.ReadWriteIOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -5088,6 +5089,14 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
       }
       req.setCalcSql(streamTask.getSubQuery() != null ? streamTask.getSubQuery() : "");
       req.setCalcPlan(streamTask.getCalcPlan().duplicate());
+      if (streamTask.getTypeProvider() != null) {
+        try (PublicBAOS baos = new PublicBAOS();
+            DataOutputStream dos = new DataOutputStream(baos)) {
+          streamTask.getTypeProvider().serialize(dos);
+          dos.flush();
+          req.setTypeProvider(ByteBuffer.wrap(baos.getBuf(), 0, baos.size()));
+        }
+      }
       try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
           DataOutputStream dos = new DataOutputStream(baos)) {
         streamTask.getTarget().serialize(dos);

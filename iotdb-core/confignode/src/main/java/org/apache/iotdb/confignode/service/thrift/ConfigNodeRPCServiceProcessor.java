@@ -1557,7 +1557,8 @@ public class ConfigNodeRPCServiceProcessor implements IConfigNodeRPCService.Ifac
               req.bufferForEventWindow(),
               req.getCalcSql(),
               req.bufferForCalcPlan(),
-              req.bufferForStreamSink());
+              req.bufferForStreamSink(),
+              req.isSetTypeProvider() ? req.bufferForTypeProvider() : null);
       return configManager.createStream(task);
     } catch (IOException e) {
       LOGGER.warn("Failed to decode create stream RPC payload.", e);
