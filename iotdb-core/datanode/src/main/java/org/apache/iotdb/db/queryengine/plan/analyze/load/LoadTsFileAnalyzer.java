@@ -299,7 +299,8 @@ public class LoadTsFileAnalyzer implements AutoCloseable {
               isConvertOnTypeMismatch,
               isVerifySchema,
               tabletConversionThresholdBytes,
-              isGeneratedByPipe);
+              isGeneratedByPipe,
+              Objects.nonNull(context) ? context.getUsername() : null);
 
       if (LoadUtil.loadTsFileAsyncToActiveDir(tsFiles, activeLoadAttributes, isDeleteAfterLoad)) {
         analysis.setFinishQueryAfterAnalyze(true);
@@ -551,6 +552,8 @@ public class LoadTsFileAnalyzer implements AutoCloseable {
 
       if (isAutoCreateSchemaOrVerifySchemaEnabled) {
         getOrCreateTreeSchemaVerifier().autoCreateAndVerify(reader, device2TimeseriesMetadata);
+      } else {
+        getOrCreateTreeSchemaVerifier().checkWritePermission(device2TimeseriesMetadata);
       }
 
       // TODO: how to get the correct write point count when
