@@ -44,6 +44,11 @@ public enum ConfigPhysicalPlanType {
   RemoveAINode((short) 106),
   GetAINodeConfiguration((short) 107),
 
+  /** StreamNode. */
+  RegisterStreamNode((short) 108),
+  UpdateStreamNodeConfiguration((short) 109),
+  RemoveStreamNode((short) 110),
+
   /** Database. */
   CreateDatabase((short) 200),
   SetTTL((short) 201),
@@ -356,6 +361,13 @@ public enum ConfigPhysicalPlanType {
   StopExternalService((short) 2303),
   DropExternalService((short) 2304),
   ShowExternalService((short) 2305),
+
+  /** Stream. */
+  CreateStream((short) 2400),
+  DropStream((short) 2401),
+  StartStream((short) 2402),
+  StopStream((short) 2403),
+  UpdateStreamEpoch((short) 2404),
 
   /** Test Only. */
   TestOnly((short) 30000),

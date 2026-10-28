@@ -112,6 +112,10 @@ public abstract class ColumnTransformer {
     // do nothing
   }
 
+  public void reset() {
+    // do nothing
+  }
+
   public void clearCache() {
     this.columnCache.clear();
   }

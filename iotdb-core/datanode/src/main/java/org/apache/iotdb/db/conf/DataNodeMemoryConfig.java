@@ -559,7 +559,10 @@ public class DataNodeMemoryConfig {
     long maxMemoryAvailable = queryEngineMemoryManager.getTotalMemorySizeInBytes();
     String queryMemoryAllocateProportion =
         properties.getProperty("chunk_timeseriesmeta_free_memory_proportion");
-    boolean subscriptionEnabled = CommonConfig.SUBSCRIPTION_ENABLED;
+    boolean subscriptionEnabled =
+        Boolean.parseBoolean(
+            properties.getProperty(
+                "subscription_enabled", Boolean.toString(CommonConfig.SUBSCRIPTION_ENABLED)));
     final int[] queryMemoryProportions;
     try {
       queryMemoryProportions =

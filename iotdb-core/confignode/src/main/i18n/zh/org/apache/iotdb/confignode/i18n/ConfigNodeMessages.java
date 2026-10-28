@@ -286,10 +286,10 @@ public final class ConfigNodeMessages {
       "加载快照失败，快照文件 [{}] 不存在。";
   public static final String FAILED_TO_LOAD_SUBSCRIPTION_SNAPSHOT_SNAPSHOT_FILE_IS_NOT_EXIST =
       "加载订阅快照失败，快照文件 {} 不存在。";
-  public static final String FAILED_TO_ON_CONFIGNODE_RESPONSE = "在 ConfigNode: {} 上执行 {} 失败，响应：{}";
-  public static final String FAILED_TO_ON_DATANODE = "在 DataNode {} 上执行 {} 失败，{}";
-  public static final String FAILED_TO_ON_DATANODE_EXCEPTION = "在 DataNode: {} 上执行 {} 失败，异常：{}";
-  public static final String FAILED_TO_ON_DATANODE_RESPONSE = "在 DataNode: {} 上执行 {} 失败，响应：{}";
+  public static final String FAILED_TO_ON_CONFIGNODE_RESPONSE = "执行 {} 失败，ConfigNode：{}，响应：{}";
+  public static final String FAILED_TO_ON_DATANODE = "执行 {} 失败，DataNode {}，{}";
+  public static final String FAILED_TO_ON_DATANODE_EXCEPTION = "执行 {} 失败，DataNode：{}，异常：{}";
+  public static final String FAILED_TO_ON_DATANODE_RESPONSE = "执行 {} 失败，DataNode：{}，响应：{}";
   public static final String FAILED_TO_OPERATE_PIPE = "操作 pipe 失败";
   public static final String FAILED_TO_SET_PIPE_STATUS = "设置 pipe 状态失败";
   public static final String FAILED_TO_SET_PIPE_STATUS_WITH_STOPPED_BY_RUNTIME_EXCEPTION =
@@ -373,6 +373,7 @@ public final class ConfigNodeMessages {
   public static final String RELEASE_UDFTABLELOCK = "释放 UDFTableLock";
   public static final String REMOVED_THE_AINODE_FROM_CLUSTER = "已从集群中移除 AINode {}";
   public static final String REMOVED_THE_DATANODE_FROM_CLUSTER = "已从集群中移除 datanode {}";
+  public static final String REMOVED_THE_STREAMNODE_FROM_CLUSTER = "已从集群中移除 StreamNode {}";
   public static final String REMOVE_ONLINE_CONFIGNODE_FAILED = "移除在线 ConfigNode 失败。";
   public static final String REPORTING_CONFIGNODE_SHUTDOWN_FAILED_THE_CLUSTER_WILL_STILL_TAKE_THE =
       "上报 ConfigNode 关闭失败。集群在接下来几秒内仍会将当前 ConfigNode 视为 Running。";
@@ -410,8 +411,13 @@ public final class ConfigNodeMessages {
   public static final String SUCCESSFULLY_FETCH_SCHEMAENGINE_BLACK_LIST_ON_DATANODE =
       "在 DataNode: {} 上成功拉取 schemaengine 黑名单";
   public static final String SUCCESSFULLY_INITIALIZE_CONFIGMANAGER = "成功初始化 ConfigManager。";
-  public static final String SUCCESSFULLY_ON_CONFIGNODE = "在 ConfigNode: {} 上成功执行 {}";
-  public static final String SUCCESSFULLY_ON_DATANODE = "在 DataNode: {} 上成功执行 {}";
+  public static final String SUCCESSFULLY_ON_CONFIGNODE = "成功执行 {}，ConfigNode：{}";
+  public static final String SUCCESSFULLY_ON_DATANODE = "成功执行 {}，DataNode：{}";
+  public static final String SUCCESSFULLY_ON_STREAMNODE = "成功执行 {}，StreamNode：{}";
+  public static final String FAILED_TO_ON_STREAMNODE_EXCEPTION =
+      "执行 %s 失败，StreamNode：%s，异常：%s";
+  public static final String FAILED_TO_ON_STREAMNODE_RESPONSE =
+      "执行 {} 失败，StreamNode：{}，响应：{}";
   public static final String SUCCESSFULLY_REMOVE_CONFIGNODE_CURRENT_CONFIGNODEGROUP =
       "成功移除 ConfigNode: {}。当前 ConfigNodeGroup: {}";
   public static final String SUCCESSFULLY_SETUP_INTERNAL_SERVICES = "成功初始化内部服务。";
@@ -438,6 +444,10 @@ public final class ConfigNodeMessages {
       "{}, 执行 RemoveDataNodePlan 后集群中有 {} 个 data node";
   public static final String THERE_ARE_DATA_NODE_IN_CLUSTER_BEFORE_EXECUTED_REMOVEDATANODEPLAN =
       "{}, 执行 RemoveDataNodePlan 前集群中有 {} 个 data node";
+  public static final String THERE_ARE_STREAM_NODE_IN_CLUSTER_AFTER_EXECUTED_REMOVESTREAMNODEPLAN =
+      "{}, 执行 RemoveStreamNodePlan 后集群中有 {} 个 StreamNode";
+  public static final String THERE_ARE_STREAM_NODE_IN_CLUSTER_BEFORE_EXECUTED_REMOVESTREAMNODEPLAN =
+      "{}, 执行 RemoveStreamNodePlan 前集群中有 {} 个 StreamNode";
   public static final String THESE_REQUEST_TYPES_SHOULD_BE_ADDED_TO_ACTIONMAP =
       "这些请求类型应被加入 actionMap：%s";
   public static final String THE_CHECK_SUM_OF_THE_NO_LOG_BATCH_IS_INCORRECT = "第 %d 批日志的校验和不正确！位于 ";

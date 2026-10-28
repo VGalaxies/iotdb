@@ -20,6 +20,7 @@
 package org.apache.iotdb.db.subscription.receiver;
 
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
+import org.apache.iotdb.commons.pipe.config.constant.SystemConstant;
 import org.apache.iotdb.commons.subscription.config.SubscriptionConfig;
 import org.apache.iotdb.commons.subscription.meta.consumer.ConsumerGroupMeta;
 import org.apache.iotdb.commons.subscription.meta.consumer.ConsumerMeta;
@@ -30,13 +31,19 @@ import org.apache.iotdb.rpc.TSStatusCode;
 import org.apache.iotdb.rpc.subscription.config.ConsumerConfig;
 import org.apache.iotdb.rpc.subscription.config.ConsumerConstant;
 import org.apache.iotdb.rpc.subscription.config.TopicConstant;
+import org.apache.iotdb.rpc.subscription.payload.poll.PollTabletsPayload;
 import org.apache.iotdb.rpc.subscription.payload.poll.SubscriptionCommitContext;
+import org.apache.iotdb.rpc.subscription.payload.poll.SubscriptionPollRequest;
+import org.apache.iotdb.rpc.subscription.payload.poll.SubscriptionPollRequestType;
 import org.apache.iotdb.rpc.subscription.payload.request.PipeSubscribeCloseReq;
 import org.apache.iotdb.rpc.subscription.payload.request.PipeSubscribeHandshakeReq;
+import org.apache.iotdb.rpc.subscription.payload.request.PipeSubscribePollReq;
 import org.apache.iotdb.rpc.subscription.payload.request.PipeSubscribeRequestType;
 import org.apache.iotdb.rpc.subscription.payload.request.PipeSubscribeRequestVersion;
 import org.apache.iotdb.rpc.subscription.payload.request.PipeSubscribeSliceReqBuilder;
+import org.apache.iotdb.rpc.subscription.payload.request.PipeSubscribeSubscribeReq;
 import org.apache.iotdb.rpc.subscription.payload.request.SubscriptionHeartbeatReq;
+import org.apache.iotdb.rpc.subscription.payload.response.PipeSubscribePollResp;
 import org.apache.iotdb.service.rpc.thrift.TPipeSubscribeReq;
 import org.apache.iotdb.service.rpc.thrift.TPipeSubscribeResp;
 
@@ -537,6 +544,67 @@ public class SubscriptionReceiverV1Test {
     }
   }
 
+  /**
+   * Verifies that after ConfigNode transfers a Stream task's topic to another StreamNode, the old
+   * StreamNode is fenced from both subscribing and polling any data from that topic.
+   */
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testOldStreamNodeCannotSubscribeOrPollAfterOwnerTransfer() throws Exception {
+    final String topicName = "topic-" + UUID.randomUUID();
+    final String consumerGroupId = "stream-group-" + UUID.randomUUID();
+    final ConsumerConfig oldStreamNodeConsumer =
+        createStreamNodeConsumerConfig(consumerGroupId, "stream-node-1", 5L);
+    final ConsumerConfig newStreamNodeConsumer =
+        createStreamNodeConsumerConfig(consumerGroupId, "stream-node-2", 6L);
+    final TopicMeta topicMeta = createTableTopicMeta(topicName, "stream-node-1", 5L);
+    final SubscriptionReceiverV1 receiver = new SubscriptionReceiverV1();
+    final ThreadLocal<ConsumerConfig> consumerConfigThreadLocal =
+        (ThreadLocal<ConsumerConfig>) getField(receiver, "consumerConfigThreadLocal");
+
+    SubscriptionAgent.topic().handleSingleTopicMetaChanges(topicMeta);
+    consumerConfigThreadLocal.set(oldStreamNodeConsumer);
+    try {
+      Assert.assertEquals(
+          TSStatusCode.SUCCESS_STATUS.getStatusCode(),
+          SubscriptionAgent.topic().checkTopicOwner(oldStreamNodeConsumer, topicName).getCode());
+
+      // CN moves the task to another StreamNode with a strictly newer owner epoch.
+      final TopicMeta transferredTopicMeta = topicMeta.deepCopy();
+      transferredTopicMeta.transferOwner("stream-node-2", 6L);
+      SubscriptionAgent.topic().handleSingleTopicMetaChanges(transferredTopicMeta);
+
+      final TPipeSubscribeResp subscribeResponse =
+          receiver.handle(
+              PipeSubscribeSubscribeReq.toTPipeSubscribeReq(Collections.singleton(topicName)));
+      Assert.assertEquals(
+          TSStatusCode.SUBSCRIPTION_OWNER_FENCED.getStatusCode(),
+          subscribeResponse.getStatus().getCode());
+
+      final SubscriptionCommitContext commitContext =
+          new SubscriptionCommitContext(1, 0, topicName, consumerGroupId, 0L);
+      final TPipeSubscribeResp pollResponse =
+          receiver.handle(
+              PipeSubscribePollReq.toTPipeSubscribeReq(
+                  new SubscriptionPollRequest(
+                      SubscriptionPollRequestType.POLL_TABLETS.getType(),
+                      new PollTabletsPayload(commitContext, 0),
+                      1_000L,
+                      1_024L)));
+      Assert.assertEquals(
+          TSStatusCode.SUBSCRIPTION_OWNER_FENCED.getStatusCode(),
+          pollResponse.getStatus().getCode());
+      Assert.assertTrue(
+          PipeSubscribePollResp.fromTPipeSubscribeResp(pollResponse).getResponses().isEmpty());
+      Assert.assertEquals(
+          TSStatusCode.SUCCESS_STATUS.getStatusCode(),
+          SubscriptionAgent.topic().checkTopicOwner(newStreamNodeConsumer, topicName).getCode());
+    } finally {
+      consumerConfigThreadLocal.remove();
+      SubscriptionAgent.topic().handleDropTopic(topicName);
+    }
+  }
+
   @Test
   @SuppressWarnings("unchecked")
   public void testFencedOwnerHeartbeatDoesNotRefreshBufferedEventLeases() throws Exception {
@@ -611,6 +679,15 @@ public class SubscriptionReceiverV1Test {
     return new TopicMeta(topicName, 1, topicAttributes);
   }
 
+  private TopicMeta createTableTopicMeta(
+      final String topicName, final String ownerId, final long ownerEpoch) {
+    final Map<String, String> topicAttributes = new HashMap<>();
+    topicAttributes.put(SystemConstant.SQL_DIALECT_KEY, SystemConstant.SQL_DIALECT_TABLE_VALUE);
+    topicAttributes.put(TopicConstant.OWNER_ID_KEY, ownerId);
+    topicAttributes.put(TopicConstant.OWNER_EPOCH_KEY, String.valueOf(ownerEpoch));
+    return new TopicMeta(topicName, 1, topicAttributes);
+  }
+
   private ConsumerConfig createConsumerConfig(final long heartbeatIntervalMs) {
     return createConsumerConfig(heartbeatIntervalMs, null, null);
   }
@@ -641,6 +718,17 @@ public class SubscriptionReceiverV1Test {
     if (ownerEpoch != null) {
       attributes.put(ConsumerConstant.OWNER_EPOCH_KEY, String.valueOf(ownerEpoch));
     }
+    return new ConsumerConfig(attributes);
+  }
+
+  private ConsumerConfig createStreamNodeConsumerConfig(
+      final String consumerGroupId, final String ownerId, final long ownerEpoch) {
+    final Map<String, String> attributes = new HashMap<>();
+    attributes.put(ConsumerConstant.CONSUMER_ID_KEY, "stream-consumer-" + UUID.randomUUID());
+    attributes.put(ConsumerConstant.CONSUMER_GROUP_ID_KEY, consumerGroupId);
+    attributes.put(ConsumerConstant.SQL_DIALECT_KEY, "table");
+    attributes.put(ConsumerConstant.OWNER_ID_KEY, ownerId);
+    attributes.put(ConsumerConstant.OWNER_EPOCH_KEY, String.valueOf(ownerEpoch));
     return new ConsumerConfig(attributes);
   }
 

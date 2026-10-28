@@ -400,6 +400,8 @@ public final class ConfigNodeMessages {
   public static final String REMOVED_THE_AINODE_FROM_CLUSTER = "Removed the AINode {} from cluster";
   public static final String REMOVED_THE_DATANODE_FROM_CLUSTER =
       "Removed the datanode {} from cluster";
+  public static final String REMOVED_THE_STREAMNODE_FROM_CLUSTER =
+      "Removed the StreamNode {} from cluster";
   public static final String REMOVE_ONLINE_CONFIGNODE_FAILED = "Remove online ConfigNode failed.";
   public static final String REPORTING_CONFIGNODE_SHUTDOWN_FAILED_THE_CLUSTER_WILL_STILL_TAKE_THE =
       "Reporting ConfigNode shutdown failed. The cluster will still take the current ConfigNode as Running for a few seconds.";
@@ -443,6 +445,11 @@ public final class ConfigNodeMessages {
       "Successfully initialize ConfigManager.";
   public static final String SUCCESSFULLY_ON_CONFIGNODE = "Successfully {} on ConfigNode: {}";
   public static final String SUCCESSFULLY_ON_DATANODE = "Successfully {} on DataNode: {}";
+  public static final String SUCCESSFULLY_ON_STREAMNODE = "Successfully {} on StreamNode: {}";
+  public static final String FAILED_TO_ON_STREAMNODE_EXCEPTION =
+      "Failed to %s on StreamNode: %s, exception: %s";
+  public static final String FAILED_TO_ON_STREAMNODE_RESPONSE =
+      "Failed to {} on StreamNode: {}, response: {}";
   public static final String SUCCESSFULLY_REMOVE_CONFIGNODE_CURRENT_CONFIGNODEGROUP =
       "Successfully remove ConfigNode: {}. Current ConfigNodeGroup: {}";
   public static final String SUCCESSFULLY_SETUP_INTERNAL_SERVICES =
@@ -472,6 +479,10 @@ public final class ConfigNodeMessages {
       "{}, There are {} data node in cluster after executed RemoveDataNodePlan";
   public static final String THERE_ARE_DATA_NODE_IN_CLUSTER_BEFORE_EXECUTED_REMOVEDATANODEPLAN =
       "{}, There are {} data node in cluster before executed RemoveDataNodePlan";
+  public static final String THERE_ARE_STREAM_NODE_IN_CLUSTER_AFTER_EXECUTED_REMOVESTREAMNODEPLAN =
+      "{}, There are {} stream node in cluster after executed RemoveStreamNodePlan";
+  public static final String THERE_ARE_STREAM_NODE_IN_CLUSTER_BEFORE_EXECUTED_REMOVESTREAMNODEPLAN =
+      "{}, There are {} stream node in cluster before executed RemoveStreamNodePlan";
   public static final String THESE_REQUEST_TYPES_SHOULD_BE_ADDED_TO_ACTIONMAP =
       "These request types should be added to actionMap: %s";
   public static final String THE_CHECK_SUM_OF_THE_NO_LOG_BATCH_IS_INCORRECT =

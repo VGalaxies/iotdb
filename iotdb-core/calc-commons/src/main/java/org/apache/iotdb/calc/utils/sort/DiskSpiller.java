@@ -183,6 +183,10 @@ public abstract class DiskSpiller {
     return fileIndex;
   }
 
+  public void setFolderCreated(boolean folderCreated) {
+    this.folderCreated = folderCreated;
+  }
+
   public void reset() {
     fileIndex = 0;
   }

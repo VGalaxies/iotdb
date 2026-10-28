@@ -41,6 +41,11 @@ public class TableLinearFillOperator extends AbstractLinearFillOperator {
     this.helperColumnIndex = helperColumnIndex;
   }
 
+  public TableLinearFillOperator(TableLinearFillOperator tableLinearFillOperator, Operator child) {
+    super(tableLinearFillOperator, child);
+    this.helperColumnIndex = tableLinearFillOperator.helperColumnIndex;
+  }
+
   @Override
   protected Column getHelperColumn(TsBlock tsBlock) {
     // if helperColumnIndex is -1, HelperColumn won't be used, so just return TimeColumn in TsBlock

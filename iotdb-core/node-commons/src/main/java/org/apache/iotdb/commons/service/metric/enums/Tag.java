@@ -32,8 +32,10 @@ public enum Tag {
   INTERFACE("interface"),
   PIPE("pipe"),
   CREATION_TIME("creation_time"),
+  RUNNING_ON("running_on"),
   INDEX("index"),
   MODULE("module"),
+  STREAM_NAME("stream_name"),
   LEVEL("level");
 
   final String value;

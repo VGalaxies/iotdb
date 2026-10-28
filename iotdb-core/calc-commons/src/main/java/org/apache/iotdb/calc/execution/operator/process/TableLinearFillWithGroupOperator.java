@@ -62,6 +62,16 @@ public class TableLinearFillWithGroupOperator extends TableLinearFillOperator {
     this.resultBuilder = new TsBlockBuilder(dataTypes);
   }
 
+  public TableLinearFillWithGroupOperator(
+      TableLinearFillWithGroupOperator tableLinearFillWithGroupOperator, Operator child) {
+    super(tableLinearFillWithGroupOperator, child);
+    this.groupSplitter = new ArrayList<>();
+    this.noMoreTsBlockForCurrentGroup = new ArrayList<>();
+    this.groupKeyComparator = tableLinearFillWithGroupOperator.groupKeyComparator;
+    this.resultBuilder = tableLinearFillWithGroupOperator.resultBuilder;
+    this.resultBuilder.reset();
+  }
+
   @Override
   // we won't build timeColumn in this method
   TsBlock append(int length, Column timeColumn, Column[] valueColumns) {

@@ -104,6 +104,7 @@ public class LoadManager {
     this.eventService.register(configManager.getPipeManager().getPipeRuntimeCoordinator());
     this.eventService.register(
         configManager.getSubscriptionManager().getSubscriptionLeaderChangeHandler());
+    this.eventService.register(configManager.getStreamManager());
     this.eventService.register(routeBalancer);
     this.eventService.register(topologyService);
     this.loadServicesStarted = new AtomicBoolean(false);
@@ -308,6 +309,16 @@ public class LoadManager {
    */
   public List<Integer> filterDataNodeThroughStatus(NodeStatus... status) {
     return loadCache.filterDataNodeThroughStatus(status);
+  }
+
+  /**
+   * Filter StreamNodes through the specified NodeStatus.
+   *
+   * @param status The specified NodeStatus
+   * @return Filtered StreamNodes with the specified NodeStatus
+   */
+  public List<Integer> filterStreamNodeThroughStatus(NodeStatus... status) {
+    return loadCache.filterStreamNodeThroughStatus(status);
   }
 
   /**

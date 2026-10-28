@@ -37,10 +37,12 @@ import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.LimitNo
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.OffsetNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.OutputNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.ProjectNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.SessionScanNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.SortNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Query;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Statement;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Table;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CreateStream;
 import org.apache.iotdb.commons.queryengine.plan.relational.type.InternalTypeManager;
 import org.apache.iotdb.commons.schema.column.ColumnHeader;
 import org.apache.iotdb.commons.schema.column.ColumnHeaderConstant;
@@ -189,6 +191,11 @@ public class TableLogicalPlanner {
           .recordTablePlanCost(LOGICAL_PLANNER, logicalPlanCostTime);
       queryContext.setLogicalPlanCost(logicalPlanCostTime);
 
+      // don't need to optimize when planNode is SessionScanNode
+      if (planNode instanceof SessionScanNode) {
+        return new LogicalQueryPlan(queryContext, planNode);
+      }
+
       startTime = System.nanoTime();
       for (PlanOptimizer optimizer : planOptimizers) {
         planNode =
@@ -246,12 +253,21 @@ public class TableLogicalPlanner {
     if (statement instanceof Update) {
       return planUpdate((Update) statement, analysis);
     }
+    if (statement instanceof CreateStream) {
+      return createOutputPlan(
+          planStatementWithoutOutput(analysis, statement),
+          analysis,
+          ((CreateStream) statement).getQuery());
+    }
     return createOutputPlan(planStatementWithoutOutput(analysis, statement), analysis);
   }
 
   private RelationPlan planStatementWithoutOutput(Analysis analysis, Statement statement) {
     if (statement instanceof Query) {
       return createRelationPlan(analysis, (Query) statement);
+    }
+    if (statement instanceof CreateStream) {
+      return createRelationPlan(analysis, ((CreateStream) statement).getQuery());
     }
     if (statement instanceof Explain) {
       return planStatementWithoutOutput(analysis, ((Explain) statement).getStatement());
@@ -343,6 +359,11 @@ public class TableLogicalPlanner {
   }
 
   private PlanNode createOutputPlan(RelationPlan plan, Analysis analysis) {
+    return createOutputPlan(plan, analysis, null);
+  }
+
+  private PlanNode createOutputPlan(
+      RelationPlan plan, Analysis analysis, Statement outputDescriptorSource) {
     if (plan.getRoot() instanceof WritePlanNode) {
       return plan.getRoot();
     }
@@ -364,7 +385,10 @@ public class TableLogicalPlanner {
       names.add(ColumnHeaderConstant.EXPLAIN_ANALYZE);
       columnHeaders.add(new ColumnHeader(ColumnHeaderConstant.EXPLAIN_ANALYZE, TSDataType.TEXT));
     } else {
-      RelationType outputDescriptor = analysis.getOutputDescriptor();
+      RelationType outputDescriptor =
+          outputDescriptorSource == null
+              ? analysis.getOutputDescriptor()
+              : analysis.getOutputDescriptor(outputDescriptorSource);
       for (Field field : outputDescriptor.getVisibleFields()) {
         String name = field.getName().orElse(null);
 

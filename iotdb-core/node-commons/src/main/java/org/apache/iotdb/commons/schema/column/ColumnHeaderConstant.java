@@ -126,6 +126,21 @@ public class ColumnHeaderConstant {
   public static final String SERVICE_NAME_TABLE_MODEL = "service_name";
   public static final String SERVICE_TYPE_TABLE_MODEL = "service_type";
 
+  // column names for streams table
+  public static final String STREAM_NAME_TABLE_MODEL = "stream_name";
+  public static final String STREAM_STATUS_TABLE_MODEL = "status";
+  public static final String STREAM_CREATOR_TABLE_MODEL = "creator";
+  public static final String STREAM_SOURCE_TABLE_MODEL = "source";
+  public static final String STREAM_EVENT_WINDOW_TABLE_MODEL = "event_window";
+  public static final String STREAM_SUB_QUERY_TABLE_MODEL = "sub_query";
+  public static final String STREAM_TARGET_TABLE_MODEL = "target";
+  public static final String STREAM_RUNNING_ON_TABLE_MODEL = "running_on";
+  public static final String STREAM_LAST_UP_TIME_TABLE_MODEL = "last_up_time";
+  public static final String STREAM_LAST_DOWN_TIME_TABLE_MODEL = "last_down_time";
+  public static final String STREAM_LAST_DOWN_REASON_TABLE_MODEL = "last_down_reason";
+  public static final String STREAM_LAST_HEARTBEAT_TIME_TABLE_MODEL = "last_heartbeat_time";
+  public static final String STREAM_PROPERTIES_TABLE_MODEL = "properties";
+
   // column names for show pipe plugins statement
   public static final String PLUGIN_NAME = "PluginName";
   public static final String PLUGIN_TYPE = "PluginType";
@@ -161,6 +176,7 @@ public class ColumnHeaderConstant {
   public static final String NODE_TYPE_CONFIG_NODE = "ConfigNode";
   public static final String NODE_TYPE_DATA_NODE = "DataNode";
   public static final String NODE_TYPE_AI_NODE = "AINode";
+  public static final String NODE_TYPE_STREAM_NODE = "StreamNode";
   public static final String COLUMN_CLUSTER_NAME = "ClusterName";
   public static final String CONFIG_NODE_CONSENSUS_PROTOCOL_CLASS =
       "ConfigNodeConsensusProtocolClass";
@@ -568,6 +584,30 @@ public class ColumnHeaderConstant {
           new ColumnHeader(STATUS, TSDataType.TEXT),
           new ColumnHeader(INTERNAL_ADDRESS, TSDataType.TEXT),
           new ColumnHeader(INTERNAL_PORT, TSDataType.INT32));
+
+  public static final List<ColumnHeader> showStreamNodesColumnHeaders =
+      ImmutableList.of(
+          new ColumnHeader(NODE_ID, TSDataType.INT32),
+          new ColumnHeader(STATUS, TSDataType.TEXT),
+          new ColumnHeader(INTERNAL_ADDRESS, TSDataType.TEXT),
+          new ColumnHeader(INTERNAL_PORT, TSDataType.INT32));
+
+  public static final List<ColumnHeader> showStreamColumnHeaders =
+      ImmutableList.of(
+          new ColumnHeader(STREAM_NAME_TABLE_MODEL, TSDataType.TEXT),
+          new ColumnHeader(CREATION_TIME_TABLE_MODEL, TSDataType.TIMESTAMP),
+          new ColumnHeader(STREAM_CREATOR_TABLE_MODEL, TSDataType.TEXT),
+          new ColumnHeader(STREAM_SOURCE_TABLE_MODEL, TSDataType.TEXT),
+          new ColumnHeader(STREAM_EVENT_WINDOW_TABLE_MODEL, TSDataType.TEXT),
+          new ColumnHeader(STREAM_SUB_QUERY_TABLE_MODEL, TSDataType.TEXT),
+          new ColumnHeader(STREAM_TARGET_TABLE_MODEL, TSDataType.TEXT),
+          new ColumnHeader(STREAM_STATUS_TABLE_MODEL, TSDataType.TEXT),
+          new ColumnHeader(STREAM_RUNNING_ON_TABLE_MODEL, TSDataType.TEXT),
+          new ColumnHeader(STREAM_LAST_UP_TIME_TABLE_MODEL, TSDataType.TIMESTAMP),
+          new ColumnHeader(STREAM_LAST_DOWN_TIME_TABLE_MODEL, TSDataType.TIMESTAMP),
+          new ColumnHeader(STREAM_LAST_HEARTBEAT_TIME_TABLE_MODEL, TSDataType.TIMESTAMP),
+          new ColumnHeader(STREAM_LAST_DOWN_REASON_TABLE_MODEL, TSDataType.TEXT),
+          new ColumnHeader(STREAM_PROPERTIES_TABLE_MODEL, TSDataType.TEXT));
 
   public static final List<ColumnHeader> showDataNodesColumnHeaders =
       ImmutableList.of(

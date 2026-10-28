@@ -102,4 +102,11 @@ public abstract class BinaryColumnTransformer extends ColumnTransformer {
     this.leftTransformer.close();
     this.rightTransformer.close();
   }
+
+  @Override
+  public void reset() {
+    super.reset();
+    this.leftTransformer.reset();
+    this.rightTransformer.reset();
+  }
 }

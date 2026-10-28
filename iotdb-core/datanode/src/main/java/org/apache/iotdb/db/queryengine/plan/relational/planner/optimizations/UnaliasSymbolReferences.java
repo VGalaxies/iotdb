@@ -30,6 +30,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.ApplyNo
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.AssignUniqueId;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.CorrelatedJoinNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.EnforceSingleRowNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.EventScanNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.ExceptNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.FilterNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.GapFillNode;
@@ -316,6 +317,33 @@ public class UnaliasSymbolReferences implements PlanOptimizer {
               node.getSchemaFilter());
       rewrittenNode.setRegionReplicaSet(node.getRegionReplicaSet());
       return new PlanAndMappings(rewrittenNode, mapping);
+    }
+
+    @Override
+    public PlanAndMappings visitEventScan(EventScanNode node, UnaliasContext context) {
+      Map<Symbol, Symbol> mapping = new HashMap<>(context.getCorrelationMapping());
+      SymbolMapper mapper = symbolMapper(mapping);
+
+      List<Symbol> newOutputs = mapper.map(node.getOutputSymbols());
+
+      Map<Symbol, ColumnSchema> newAssignments = new HashMap<>();
+      node.getAssignments()
+          .forEach(
+              (symbol, handle) -> {
+                Symbol newSymbol = mapper.map(symbol);
+                newAssignments.put(newSymbol, handle);
+              });
+
+      EventScanNode newNode =
+          new EventScanNode(
+              node.getPlanNodeId(),
+              newOutputs,
+              newAssignments,
+              node.getPushDownPredicate(),
+              node.getPushDownLimit(),
+              node.getPushDownOffset(),
+              node.getRegionReplicaSet());
+      return new PlanAndMappings(newNode, mapping);
     }
 
     @Override

@@ -34,7 +34,9 @@ import org.apache.iotdb.common.rpc.thrift.TSetTTLReq;
 import org.apache.iotdb.common.rpc.thrift.TSetThrottleQuotaReq;
 import org.apache.iotdb.common.rpc.thrift.TShowAppliedConfigurationsResp;
 import org.apache.iotdb.common.rpc.thrift.TShowConfigurationResp;
+import org.apache.iotdb.common.rpc.thrift.TShowStreamResp;
 import org.apache.iotdb.common.rpc.thrift.TShowTTLReq;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TTestConnectionResp;
 import org.apache.iotdb.commons.client.AbstractConfigNodeClient;
 import org.apache.iotdb.commons.client.AbstractConfigNodeInfo;
@@ -81,6 +83,7 @@ import org.apache.iotdb.confignode.rpc.thrift.TCreateFunctionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreatePipePluginReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreatePipeReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateSchemaTemplateReq;
+import org.apache.iotdb.confignode.rpc.thrift.TCreateStreamReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateTableViewReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateTopicReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateTriggerReq;
@@ -109,6 +112,7 @@ import org.apache.iotdb.confignode.rpc.thrift.TDropCQReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDropFunctionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDropPipePluginReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDropPipeReq;
+import org.apache.iotdb.confignode.rpc.thrift.TDropStreamReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDropSubscriptionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDropTopicReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDropTriggerReq;
@@ -173,6 +177,7 @@ import org.apache.iotdb.confignode.rpc.thrift.TShowPipeResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowRegionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowRegionResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowRepairDataPartitionTableProgressResp;
+import org.apache.iotdb.confignode.rpc.thrift.TShowStreamNodesResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowSubscriptionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowSubscriptionResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowTTLResp;
@@ -184,7 +189,14 @@ import org.apache.iotdb.confignode.rpc.thrift.TShowTopicResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowVariablesResp;
 import org.apache.iotdb.confignode.rpc.thrift.TSpaceQuotaResp;
 import org.apache.iotdb.confignode.rpc.thrift.TStartPipeReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStartStreamReq;
 import org.apache.iotdb.confignode.rpc.thrift.TStopPipeReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStopStreamReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRegisterReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRegisterResp;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRemoveReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRestartReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRestartResp;
 import org.apache.iotdb.confignode.rpc.thrift.TSubscribeReq;
 import org.apache.iotdb.confignode.rpc.thrift.TTestOperation;
 import org.apache.iotdb.confignode.rpc.thrift.TThrottleQuotaResp;
@@ -1365,5 +1377,65 @@ public class ConfigNodeClient extends AbstractConfigNodeClient<ConfigNodeClient>
           .map(TTransport::isOpen)
           .orElse(false);
     }
+  }
+
+  // ======================================== STREAM ===========================================
+
+  @Override
+  public TStreamNodeRegisterResp registerStreamNode(TStreamNodeRegisterReq req) throws TException {
+    return null;
+  }
+
+  @Override
+  public TStreamNodeRestartResp restartStreamNode(TStreamNodeRestartReq req) throws TException {
+    return null;
+  }
+
+  @Override
+  public TSStatus removeStreamNode(TStreamNodeRemoveReq req) throws TException {
+    return executeRemoteCallWithRetry(
+        () -> client.removeStreamNode(req), status -> !updateConfigNodeLeader(status));
+  }
+
+  @Override
+  public TShowStreamNodesResp showStreamNodes() throws TException {
+    return executeRemoteCallWithRetry(
+        () -> client.showStreamNodes(), resp -> !updateConfigNodeLeader(resp.status));
+  }
+
+  @Override
+  public TSStatus reportStreamNodeShutdown(TStreamNodeLocation streamNodeLocation)
+      throws TException {
+    return null;
+  }
+
+  @Override
+  public TSStatus createStream(TCreateStreamReq req) throws TException {
+    return executeRemoteCallWithRetry(
+        () -> client.createStream(req), status -> !updateConfigNodeLeader(status));
+  }
+
+  @Override
+  public TSStatus dropStream(TDropStreamReq req) throws TException {
+    return executeRemoteCallWithRetry(
+        () -> client.dropStream(req), status -> !updateConfigNodeLeader(status));
+  }
+
+  @Override
+  public TSStatus startStream(TStartStreamReq req) throws TException {
+    return executeRemoteCallWithRetry(
+        () -> client.startStream(req), status -> !updateConfigNodeLeader(status));
+  }
+
+  @Override
+  public TSStatus stopStream(TStopStreamReq req) throws TException {
+    return executeRemoteCallWithRetry(
+        () -> client.stopStream(req), status -> !updateConfigNodeLeader(status));
+  }
+
+  @Override
+  public TShowStreamResp showStreams() throws TException {
+    return executeRemoteCallWithRetry(
+        () -> client.showStreams(), resp -> !updateConfigNodeLeader(resp.status));
   }
 }

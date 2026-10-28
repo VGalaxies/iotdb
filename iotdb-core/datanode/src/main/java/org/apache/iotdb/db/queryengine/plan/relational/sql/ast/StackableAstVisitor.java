@@ -20,6 +20,7 @@
 package org.apache.iotdb.db.queryengine.plan.relational.sql.ast;
 
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
+import org.apache.iotdb.db.queryengine.plan.relational.analyzer.Analysis;
 
 import java.util.LinkedList;
 import java.util.Optional;
@@ -40,9 +41,19 @@ public class StackableAstVisitor<R, C>
   public static class StackableAstVisitorContext<C> {
     private final LinkedList<Node> stack = new LinkedList<>();
     private final C context;
+    private Analysis analysis;
 
     public StackableAstVisitorContext(C context) {
       this.context = context;
+    }
+
+    public Analysis getAnalysis() {
+      return analysis;
+    }
+
+    public StackableAstVisitorContext<C> withAnalysis(Analysis analysis) {
+      this.analysis = analysis;
+      return this;
     }
 
     public C getContext() {

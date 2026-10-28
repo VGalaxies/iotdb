@@ -49,6 +49,10 @@ public class TableSortOperator extends SortOperator {
         comparator);
   }
 
+  public TableSortOperator(TableSortOperator tableSortOperator, Operator inputOperator) {
+    super(tableSortOperator, inputOperator);
+  }
+
   @Override
   protected void appendTime(TimeColumnBuilder timeBuilder, long time) {
     // do nothing for table related operator

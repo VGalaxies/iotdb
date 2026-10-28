@@ -20,6 +20,7 @@
 package org.apache.iotdb.db.queryengine.plan.planner.plan.node;
 
 import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.ICoreQueryPlanVisitor;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.EventScanNode;
 import org.apache.iotdb.db.queryengine.plan.planner.plan.node.load.LoadTsFileConsensusNode;
 import org.apache.iotdb.db.queryengine.plan.planner.plan.node.metadata.read.CountSchemaMergeNode;
 import org.apache.iotdb.db.queryengine.plan.planner.plan.node.metadata.read.DeviceSchemaFetchScanNode;
@@ -670,6 +671,10 @@ public interface PlanVisitor<R, C> extends ICoreQueryPlanVisitor<R, C> {
   }
 
   default R visitInformationSchemaTableScan(InformationSchemaTableScanNode node, C context) {
+    return visitTableScan(node, context);
+  }
+
+  default R visitEventScan(EventScanNode node, C context) {
     return visitTableScan(node, context);
   }
 

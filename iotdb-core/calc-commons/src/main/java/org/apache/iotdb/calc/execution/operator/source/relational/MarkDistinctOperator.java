@@ -52,7 +52,10 @@ public class MarkDistinctOperator implements ProcessOperator {
   private final Operator child;
 
   private final MarkDistinctHash markDistinctHash;
+  private final List<Type> types;
+  private final List<Integer> distinctChannels;
   private final int[] markDistinctChannels;
+  private final Optional<Integer> hashChannel;
 
   private final MemoryReservationManager memoryReservationManager;
   // memory already occupied by MarkDistinctHash
@@ -70,6 +73,9 @@ public class MarkDistinctOperator implements ProcessOperator {
     this.operatorContext =
         requireNonNull(operatorContext, CalcMessages.EXCEPTION_OPERATORCONTEXT_IS_NULL_D15B1EDB);
     this.child = child;
+    this.types = ImmutableList.copyOf(types);
+    this.distinctChannels = ImmutableList.copyOf(markDistinctChannels);
+    this.hashChannel = hashChannel;
 
     requireNonNull(hashChannel, CalcMessages.EXCEPTION_HASHCHANNEL_IS_NULL_A5E70672);
     requireNonNull(
@@ -92,6 +98,15 @@ public class MarkDistinctOperator implements ProcessOperator {
     this.markDistinctHash =
         new MarkDistinctHash(distinctTypes.build(), hashChannel.isPresent(), UpdateMemory.NOOP);
     this.memoryReservationManager = operatorContext.getMemoryReservationContext();
+  }
+
+  public MarkDistinctOperator(MarkDistinctOperator markDistinctOperator, Operator child) {
+    this(
+        markDistinctOperator.operatorContext,
+        child,
+        markDistinctOperator.types,
+        markDistinctOperator.distinctChannels,
+        markDistinctOperator.hashChannel);
   }
 
   @Override
@@ -136,7 +151,14 @@ public class MarkDistinctOperator implements ProcessOperator {
 
   @Override
   public void close() throws Exception {
-    child.close();
+    try {
+      child.close();
+    } finally {
+      if (previousRetainedSize > 0) {
+        memoryReservationManager.releaseMemoryCumulatively(previousRetainedSize);
+        previousRetainedSize = 0;
+      }
+    }
   }
 
   @Override

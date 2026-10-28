@@ -37,6 +37,10 @@ import org.apache.iotdb.common.rpc.thrift.TSetSpaceQuotaReq;
 import org.apache.iotdb.common.rpc.thrift.TSetThrottleQuotaReq;
 import org.apache.iotdb.common.rpc.thrift.TShowAppliedConfigurationsResp;
 import org.apache.iotdb.common.rpc.thrift.TShowConfigurationResp;
+import org.apache.iotdb.common.rpc.thrift.TShowStreamResp;
+import org.apache.iotdb.common.rpc.thrift.TStreamInfo;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeConfiguration;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TTimePartitionSlot;
 import org.apache.iotdb.commons.auth.AuthException;
 import org.apache.iotdb.commons.auth.entity.PrivilegeUnion;
@@ -68,6 +72,7 @@ import org.apache.iotdb.commons.schema.tree.AlterTimeSeriesOperationType;
 import org.apache.iotdb.commons.schema.ttl.TTLCache;
 import org.apache.iotdb.commons.service.metric.MetricService;
 import org.apache.iotdb.commons.snapshot.SnapshotProcessor;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.commons.subscription.meta.consumer.CommitProgressKeeper;
 import org.apache.iotdb.commons.subscription.meta.consumer.SubscriptionProgressSnapshot;
 import org.apache.iotdb.commons.utils.AuthUtils;
@@ -98,6 +103,7 @@ import org.apache.iotdb.confignode.consensus.request.write.database.SetSchemaRep
 import org.apache.iotdb.confignode.consensus.request.write.database.SetTTLPlan;
 import org.apache.iotdb.confignode.consensus.request.write.database.SetTimePartitionIntervalPlan;
 import org.apache.iotdb.confignode.consensus.request.write.datanode.RemoveDataNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RemoveStreamNodePlan;
 import org.apache.iotdb.confignode.consensus.request.write.template.CreateSchemaTemplatePlan;
 import org.apache.iotdb.confignode.consensus.response.ainode.AINodeRegisterResp;
 import org.apache.iotdb.confignode.consensus.response.auth.PermissionInfoResp;
@@ -111,6 +117,7 @@ import org.apache.iotdb.confignode.consensus.response.partition.DataPartitionRes
 import org.apache.iotdb.confignode.consensus.response.partition.RegionInfoListResp;
 import org.apache.iotdb.confignode.consensus.response.partition.SchemaNodeManagementResp;
 import org.apache.iotdb.confignode.consensus.response.partition.SchemaPartitionResp;
+import org.apache.iotdb.confignode.consensus.response.streamnode.StreamNodeRegisterResp;
 import org.apache.iotdb.confignode.consensus.response.template.TemplateSetInfoResp;
 import org.apache.iotdb.confignode.consensus.response.ttl.ShowTTLResp;
 import org.apache.iotdb.confignode.consensus.statemachine.ConfigRegionStateMachine;
@@ -131,6 +138,8 @@ import org.apache.iotdb.confignode.manager.pipe.agent.PipeConfigNodeAgent;
 import org.apache.iotdb.confignode.manager.pipe.coordinator.PipeManager;
 import org.apache.iotdb.confignode.manager.schema.ClusterSchemaManager;
 import org.apache.iotdb.confignode.manager.schema.ClusterSchemaQuotaStatistics;
+import org.apache.iotdb.confignode.manager.stream.StreamManager;
+import org.apache.iotdb.confignode.manager.stream.StreamMetrics;
 import org.apache.iotdb.confignode.manager.subscription.SubscriptionManager;
 import org.apache.iotdb.confignode.persistence.ClusterInfo;
 import org.apache.iotdb.confignode.persistence.ProcedureInfo;
@@ -145,6 +154,7 @@ import org.apache.iotdb.confignode.persistence.partition.PartitionInfo;
 import org.apache.iotdb.confignode.persistence.pipe.PipeInfo;
 import org.apache.iotdb.confignode.persistence.quota.QuotaInfo;
 import org.apache.iotdb.confignode.persistence.schema.ClusterSchemaInfo;
+import org.apache.iotdb.confignode.persistence.stream.StreamInfo;
 import org.apache.iotdb.confignode.persistence.subscription.SubscriptionInfo;
 import org.apache.iotdb.confignode.procedure.impl.schema.SchemaUtils;
 import org.apache.iotdb.confignode.rpc.thrift.TAINodeRegisterReq;
@@ -250,6 +260,7 @@ import org.apache.iotdb.confignode.rpc.thrift.TShowPipePluginReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowPipeReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowPipeResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowRepairDataPartitionTableProgressResp;
+import org.apache.iotdb.confignode.rpc.thrift.TShowStreamNodesResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowSubscriptionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowSubscriptionResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowTable4InformationSchemaResp;
@@ -261,6 +272,9 @@ import org.apache.iotdb.confignode.rpc.thrift.TShowVariablesResp;
 import org.apache.iotdb.confignode.rpc.thrift.TSpaceQuotaResp;
 import org.apache.iotdb.confignode.rpc.thrift.TStartPipeReq;
 import org.apache.iotdb.confignode.rpc.thrift.TStopPipeReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRegisterReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRestartReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRestartResp;
 import org.apache.iotdb.confignode.rpc.thrift.TSubscribeReq;
 import org.apache.iotdb.confignode.rpc.thrift.TSubscriptionProgressInfo;
 import org.apache.iotdb.confignode.rpc.thrift.TThrottleQuotaResp;
@@ -372,6 +386,11 @@ public class ConfigManager implements IManager {
   /** Subscription */
   private final SubscriptionManager subscriptionManager;
 
+  /** Stream */
+  private final StreamMetrics streamMetrics;
+
+  private final StreamManager streamManager;
+
   private final ConfigRegionStateMachine stateMachine;
 
   private final RetryFailedTasksThread retryFailedTasksThread;
@@ -399,9 +418,11 @@ public class ConfigManager implements IManager {
     context.quotaInfo = new QuotaInfo();
     context.ttlInfo = new TTLInfo();
     context.subscriptionInfo = new SubscriptionInfo();
+    context.streamInfo = new StreamInfo();
     initAdditionalInfos(context);
     // Build state machine and executor
     ConfigPlanExecutor executor = createConfigPlanExecutor(context);
+
     this.stateMachine = new ConfigRegionStateMachine(this, executor);
 
     // Build the manager module
@@ -421,6 +442,9 @@ public class ConfigManager implements IManager {
     this.cqManager = new CQManager(this);
     this.pipeManager = new PipeManager(this, context.pipeInfo);
     this.subscriptionManager = new SubscriptionManager(this, context.subscriptionInfo);
+    this.streamMetrics = new StreamMetrics(context.streamInfo);
+    this.streamManager =
+        new StreamManager(this, context.streamInfo, streamMetrics::registerRunningOn);
     this.auditLogger = new CNAuditLogger(this);
 
     // 1. keep PipeManager initialization before LoadManager initialization, because
@@ -475,6 +499,9 @@ public class ConfigManager implements IManager {
     }
     if (procedureManager != null) {
       procedureManager.stopExecutor();
+    }
+    if (streamManager != null) {
+      streamManager.close();
     }
     if (consensusManager.get() != null) {
       consensusManager.get().close();
@@ -655,11 +682,22 @@ public class ConfigManager implements IManager {
           aiNodeLocation ->
               nodeStatus.putIfAbsent(aiNodeLocation.getAiNodeId(), NodeStatus.Unknown.toString()));
 
+      List<TStreamNodeLocation> streamNodeLocations =
+          getNodeManager().getRegisteredStreamNodes().stream()
+              .map(TStreamNodeConfiguration::getLocation)
+              .sorted(Comparator.comparingInt(TStreamNodeLocation::getStreamNodeId))
+              .collect(Collectors.toList());
+      streamNodeLocations.forEach(
+          streamNodeLocation ->
+              nodeStatus.putIfAbsent(
+                  streamNodeLocation.getStreamNodeId(), NodeStatus.Unknown.toString()));
+
       return new TShowClusterResp()
           .setStatus(status)
           .setConfigNodeList(configNodeLocations)
           .setDataNodeList(dataNodeLocations)
           .setAiNodeList(aiNodeLocations)
+          .setStreamNodeList(streamNodeLocations)
           .setNodeStatus(nodeStatus)
           .setNodeStatusReason(nodeStatusReason)
           .setNodeVersionInfo(nodeVersionInfo);
@@ -669,6 +707,7 @@ public class ConfigManager implements IManager {
           .setConfigNodeList(Collections.emptyList())
           .setDataNodeList(Collections.emptyList())
           .setAiNodeList(Collections.emptyList())
+          .setStreamNodeList(Collections.emptyList())
           .setNodeStatus(Collections.emptyMap())
           .setNodeStatusReason(Collections.emptyMap())
           .setNodeVersionInfo(Collections.emptyMap());
@@ -1362,6 +1401,11 @@ public class ConfigManager implements IManager {
   @Override
   public SubscriptionManager getSubscriptionManager() {
     return subscriptionManager;
+  }
+
+  @Override
+  public StreamManager getStreamManager() {
+    return streamManager;
   }
 
   @Override
@@ -2164,6 +2208,18 @@ public class ConfigManager implements IManager {
   }
 
   @Override
+  public TShowStreamNodesResp showStreamNodes() {
+    TSStatus status = confirmLeader();
+    TShowStreamNodesResp resp = new TShowStreamNodesResp();
+    if (status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+      return resp.setStreamNodesInfoList(nodeManager.getRegisteredStreamNodeInfoList())
+          .setStatus(StatusUtils.OK);
+    } else {
+      return resp.setStatus(status);
+    }
+  }
+
+  @Override
   public TShowDataNodes4InformationSchemaResp showDataNodes4InformationSchema() {
     final TSStatus status = confirmLeader();
     final TShowDataNodes4InformationSchemaResp resp = new TShowDataNodes4InformationSchemaResp();
@@ -2247,6 +2303,7 @@ public class ConfigManager implements IManager {
   public void addMetrics() {
     MetricService.getInstance().addMetricSet(new NodeMetrics(getNodeManager()));
     MetricService.getInstance().addMetricSet(new PartitionMetrics(this));
+    MetricService.getInstance().addMetricSet(streamMetrics);
     getProcedureManager().addMetrics();
   }
 
@@ -2254,6 +2311,7 @@ public class ConfigManager implements IManager {
   public void removeMetrics() {
     MetricService.getInstance().removeMetricSet(new NodeMetrics(getNodeManager()));
     MetricService.getInstance().removeMetricSet(new PartitionMetrics(this));
+    MetricService.getInstance().removeMetricSet(streamMetrics);
     getProcedureManager().removeMetrics();
   }
 
@@ -3126,6 +3184,74 @@ public class ConfigManager implements IManager {
         : new TExternalServiceListResp(status, Collections.emptyList());
   }
 
+  @Override
+  public TShowStreamResp showStreams() {
+    TSStatus status = confirmLeader();
+    if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+      return new TShowStreamResp(status, Collections.emptyList());
+    }
+    List<TStreamInfo> streamInfoList =
+        streamManager.showStreams().stream()
+            .map(
+                task -> {
+                  TStreamInfo info = new TStreamInfo();
+                  info.setStreamName(task.getTaskName());
+                  info.setStatus(task.getStatus().name());
+                  info.setCreationTime(task.getCreationTime());
+                  info.setCreator(task.getCreator() != null ? task.getCreator() : "");
+                  info.setSource(task.getSource() != null ? task.getSource().toString() : "");
+                  info.setEventWindow(task.getWindow() != null ? task.getWindow().toString() : "");
+                  info.setSubQuery(task.getSubQuery() != null ? task.getSubQuery() : "");
+                  info.setTarget(task.getTarget() != null ? task.getTarget().toString() : "");
+                  info.setRunningOn(task.getRunningOn() != null ? task.getRunningOn() : "");
+                  info.setLastUpTime(task.getLastUpTime());
+                  info.setLastDownTime(task.getLastDownTime());
+                  info.setLastDownReason(
+                      task.getLastDownReason() != null ? task.getLastDownReason() : "");
+                  info.setLastHeartbeatTime(task.getLastHeartbeatTime());
+                  info.setProperties(
+                      task.getProperties() != null ? task.getProperties().toString() : "");
+                  return info;
+                })
+            .collect(Collectors.toList());
+    return new TShowStreamResp(
+        new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode()), streamInfoList);
+  }
+
+  @Override
+  public TSStatus createStream(StreamTask streamTask) {
+    TSStatus status = confirmLeader();
+    LOGGER.info("Submitting CreateStreamProcedure for task: {}", streamTask.getTaskName());
+    return status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()
+        ? getProcedureManager().createStream(streamTask)
+        : status;
+  }
+
+  @Override
+  public TSStatus dropStream(String streamName) {
+    TSStatus status = confirmLeader();
+    LOGGER.info("Submitting DropStreamProcedure for stream: {}", streamName);
+    return status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()
+        ? getProcedureManager().dropStream(streamName)
+        : status;
+  }
+
+  @Override
+  public TSStatus startStream(String streamName) {
+    TSStatus status = confirmLeader();
+    return status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()
+        ? getProcedureManager().startStream(streamName)
+        : status;
+  }
+
+  @Override
+  public TSStatus stopStream(String streamName) {
+    TSStatus status = confirmLeader();
+    return status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()
+        ? getProcedureManager().stopStream(streamName)
+        : status;
+  }
+
   /**
    * Get all related schemaRegion which may contains the timeseries matched by given patternTree.
    */
@@ -3513,6 +3639,57 @@ public class ConfigManager implements IManager {
     return resp;
   }
 
+  @Override
+  public synchronized DataSet registerStreamNode(TStreamNodeRegisterReq req) {
+    TSStatus status = confirmLeader();
+    if (status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+      status = ClusterNodeStartUtils.confirmStreamNodeRegistration(req, this);
+      if (!req.isPreCheck() && status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+        return nodeManager.registerStreamNode(req);
+      }
+    }
+    StreamNodeRegisterResp resp = new StreamNodeRegisterResp();
+    resp.setStatus(status);
+    resp.setConfigNodeList(getNodeManager().getRegisteredConfigNodes());
+    return resp;
+  }
+
+  @Override
+  public TStreamNodeRestartResp restartStreamNode(TStreamNodeRestartReq req) {
+    TSStatus status = confirmLeader();
+    if (status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+      status =
+          ClusterNodeStartUtils.confirmNodeRestart(
+              NodeType.StreamNode,
+              req.getClusterName(),
+              req.getClusterId(),
+              req.getStreamNodeConfiguration().getLocation().getStreamNodeId(),
+              req.getStreamNodeConfiguration().getLocation(),
+              this);
+      if (status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+        return nodeManager.updateStreamNodeIfNecessary(req);
+      }
+    }
+    return new TStreamNodeRestartResp()
+        .setStatus(status)
+        .setConfigNodeList(getNodeManager().getRegisteredConfigNodes());
+  }
+
+  @Override
+  public TSStatus removeStreamNode(RemoveStreamNodePlan removeStreamNodePlan) {
+    TSStatus status = confirmLeader();
+    if (status.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+      return nodeManager.removeStreamNode(removeStreamNodePlan);
+    } else {
+      return status;
+    }
+  }
+
+  @Override
+  public TSStatus reportStreamNodeShutdown(TStreamNodeLocation streamNodeLocation) {
+    return reportNodeShutdown(streamNodeLocation.getStreamNodeId());
+  }
+
   @TestOnly
   public void setPermissionManager(final PermissionManager permissionManager) {
     this.permissionManager = permissionManager;
@@ -3534,6 +3711,7 @@ public class ConfigManager implements IManager {
     public SubscriptionInfo subscriptionInfo;
     public QuotaInfo quotaInfo;
     public TTLInfo ttlInfo;
+    public StreamInfo streamInfo;
 
     public List<SnapshotProcessor> getAdditionalInfoList() {
       return Collections.emptyList();

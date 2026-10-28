@@ -141,6 +141,20 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.With;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WithQuery;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.ZeroOrMoreQuantifier;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.ZeroOrOneQuantifier;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CapacityEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CreateStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.DropStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.EventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PeriodEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.ShowStreams;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StartStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StopStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StreamLiteral;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StreamRows;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StreamSink;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StreamSource;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.TumbleEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.VariationEventWindow;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.parser.ParsingException;
 import org.apache.iotdb.commons.queryengine.plan.statement.component.FillPolicy;
 import org.apache.iotdb.commons.queryengine.utils.TimestampPrecisionUtils;
@@ -149,10 +163,12 @@ import org.apache.iotdb.commons.schema.table.InformationSchema;
 import org.apache.iotdb.commons.schema.table.TsTable;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnCategory;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnSchema;
+import org.apache.iotdb.commons.stream.StreamProperties;
 import org.apache.iotdb.commons.udf.builtin.relational.TableBuiltinScalarFunction;
 import org.apache.iotdb.commons.utils.CommonDateTimeUtils;
 import org.apache.iotdb.commons.utils.PathUtils;
 import org.apache.iotdb.db.i18n.DataNodeQueryMessages;
+import org.apache.iotdb.db.i18n.DataNodeStreamMessages;
 import org.apache.iotdb.db.protocol.session.IClientSession;
 import org.apache.iotdb.db.queryengine.execution.operator.process.copyto.CopyToOptions;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.AddColumn;
@@ -213,6 +229,7 @@ import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RemoveAINode;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RemoveConfigNode;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RemoveDataNode;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RemoveRegion;
+import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RemoveStreamNode;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RenameColumn;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RenameTable;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.SetColumnComment;
@@ -248,6 +265,7 @@ import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowPipes;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowQueriesStatement;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowRegions;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowStatement;
+import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowStreamNodes;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowSubscriptions;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowTables;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowTopics;
@@ -356,6 +374,20 @@ import static org.apache.iotdb.db.queryengine.plan.relational.sql.util.QueryUtil
 import static org.apache.iotdb.db.queryengine.plan.relational.sql.util.QueryUtil.table;
 
 public class AstBuilder extends RelationalSqlBaseVisitor<Node> {
+
+  private static final Set<String> PERIOD_WINDOW_DURATION_UNITS =
+      Set.of("s", "second", "m", "minute", "h", "hour", "d", "day", "w", "week", "mo", "month");
+  private static final String PERIOD_WINDOW_DURATION_UNIT_NAMES = "s/m/h/d/w/mo";
+  private static final Set<String> TUMBLE_WINDOW_DURATION_UNITS =
+      Set.of("ns", "us", "ms", "s", "second", "m", "minute", "h", "hour", "d", "day", "w", "week");
+  private static final String TUMBLE_WINDOW_DURATION_UNIT_NAMES = "ns/us/ms/s/m/h/d/w";
+
+  private static final Set<String> EVENT_TIME_DURATION_UNITS =
+      Set.of("ns", "us", "ms", "s", "second", "m", "minute", "h", "hour", "d", "day");
+  private static final String EVENT_TIME_DURATION_UNITS_DURATION_UNIT_NAMES = "ns/us/ms/s/m/h/d";
+  private static final Set<String> SYSTEM_TIME_DURATION_UNITS =
+      Set.of("s", "second", "m", "minute", "h", "hour", "d", "day");
+  private static final String SYSTEM_TIME_DURATION_UNITS_DURATION_UNIT_NAMES = "s/m/h/d";
 
   private int parameterPosition;
 
@@ -1553,6 +1585,12 @@ public class AstBuilder extends RelationalSqlBaseVisitor<Node> {
   }
 
   @Override
+  public Node visitShowStreamNodesStatement(
+      RelationalSqlParser.ShowStreamNodesStatementContext ctx) {
+    return new ShowStreamNodes();
+  }
+
+  @Override
   public Node visitShowClusterIdStatement(RelationalSqlParser.ShowClusterIdStatementContext ctx) {
     return new ShowClusterId(getLocation(ctx));
   }
@@ -1618,6 +1656,13 @@ public class AstBuilder extends RelationalSqlBaseVisitor<Node> {
   public Node visitRemoveDataNodeStatement(RelationalSqlParser.RemoveDataNodeStatementContext ctx) {
     List<Integer> nodeIds = Collections.singletonList(Integer.parseInt(ctx.dataNodeId.getText()));
     return new RemoveDataNode(nodeIds);
+  }
+
+  @Override
+  public Node visitRemoveStreamNodeStatement(
+      RelationalSqlParser.RemoveStreamNodeStatementContext ctx) {
+    Integer nodeId = Integer.parseInt(ctx.streamNodeId.getText());
+    return new RemoveStreamNode(nodeId);
   }
 
   @Override
@@ -2814,9 +2859,7 @@ public class AstBuilder extends RelationalSqlBaseVisitor<Node> {
     if (valueContext instanceof RelationalSqlParser.DefaultPropertyValueContext) {
       return new Property(location, name);
     }
-    Expression value =
-        (Expression)
-            visit(((RelationalSqlParser.NonDefaultPropertyValueContext) valueContext).expression());
+    Expression value = (Expression) visit(valueContext);
     return new Property(location, name, value);
   }
 
@@ -4256,6 +4299,282 @@ public class AstBuilder extends RelationalSqlBaseVisitor<Node> {
     }
 
     return new TypeParameter((DataType) visit(ctx.type()));
+  }
+
+  // ***************** streams *****************
+
+  @Override
+  public Node visitCreateStreamStatement(RelationalSqlParser.CreateStreamStatementContext ctx) {
+    final Identifier streamName = (Identifier) visit(ctx.identifier());
+    final boolean hasIfNotExistsCondition =
+        ctx.IF() != null && ctx.NOT() != null && ctx.EXISTS() != null;
+
+    Expression subscriptionConsensusWalRetentionSizeInBytes = null;
+    Expression subscriptionConsensusWalRetentionTimeMs = null;
+    Map<String, Expression> properties = new HashMap<>();
+    if (ctx.properties() != null) {
+      final Set<String> propertyNames = new HashSet<>();
+      for (final RelationalSqlParser.PropertyContext propertyContext :
+          ctx.properties().propertyAssignments().property()) {
+        final Property property = (Property) visit(propertyContext);
+        final String propertyName = property.getName().getValue().toLowerCase(ENGLISH);
+        if (!propertyNames.add(propertyName)) {
+          throw new SemanticException(
+              String.format(DataNodeQueryMessages.DUPLICATE_PROPERTY_S, propertyName));
+        }
+        validateStreamDurationPropertyUnit(propertyName, propertyContext.propertyValue());
+        final Expression propertyValue =
+            property.isSetToDefault() ? null : property.getNonDefaultValue();
+        switch (propertyName) {
+          case StreamProperties.SUBSCRIPTION_CONSENSUS_WAL_RETENTION_SIZE_IN_BYTES:
+            subscriptionConsensusWalRetentionSizeInBytes = propertyValue;
+            break;
+          case StreamProperties.SUBSCRIPTION_CONSENSUS_WAL_RETENTION_TIME_MS:
+            subscriptionConsensusWalRetentionTimeMs = propertyValue;
+            break;
+          default:
+            if (propertyValue != null) {
+              properties.put(propertyName, propertyValue);
+            }
+        }
+      }
+    }
+
+    // Stream Source
+    StreamSource source = (StreamSource) visitStreamSourceClause(ctx.source);
+    // Stream Sink
+    StreamSink sink = (StreamSink) visitStreamSinkClause(ctx.sink);
+    // Stream Calc Plan
+    Query calcPlan = (Query) visitQuery(ctx.calcPlan);
+
+    // Stream Event Window
+    EventWindow eventWindow = (EventWindow) createEventWindow(ctx.eventWindow);
+
+    return new CreateStream(
+        getLocation(ctx),
+        streamName,
+        hasIfNotExistsCondition,
+        source.getTable(),
+        source.getPreFilter(),
+        source.getPartitionBy(),
+        eventWindow,
+        calcPlan,
+        sink.getTable(),
+        sink.getColumns(),
+        properties,
+        subscriptionConsensusWalRetentionSizeInBytes,
+        subscriptionConsensusWalRetentionTimeMs);
+  }
+
+  @Override
+  public Node visitDropStreamStatement(RelationalSqlParser.DropStreamStatementContext ctx) {
+    final Identifier streamName = (Identifier) visit(ctx.streamName);
+    final boolean hasIfExistsCondition = ctx.IF() != null && ctx.EXISTS() != null;
+    return new DropStream(
+        getLocation(ctx), QualifiedName.of(streamName.getValue()), hasIfExistsCondition);
+  }
+
+  @Override
+  public Node visitStartStreamStatement(RelationalSqlParser.StartStreamStatementContext ctx) {
+    final Identifier streamName = (Identifier) visit(ctx.streamName);
+    return new StartStream(getLocation(ctx), QualifiedName.of(streamName.getValue()));
+  }
+
+  @Override
+  public Node visitStopStreamStatement(RelationalSqlParser.StopStreamStatementContext ctx) {
+    final Identifier streamName = (Identifier) visit(ctx.streamName);
+    return new StopStream(getLocation(ctx), QualifiedName.of(streamName.getValue()));
+  }
+
+  @Override
+  public Node visitTimeDurationPropertyValue(
+      RelationalSqlParser.TimeDurationPropertyValueContext ctx) {
+    return new TimeDurationLiteral(
+        DataNodeDateTimeUtils.constructTimeDuration(ctx.timeDuration().getText()));
+  }
+
+  private static void validateStreamDurationPropertyUnit(
+      final String propertyName, final RelationalSqlParser.PropertyValueContext propertyValue) {
+    if (!(propertyValue instanceof RelationalSqlParser.TimeDurationPropertyValueContext)
+        || !isStreamDurationControlProperty(propertyName)) {
+      return;
+    }
+
+    final String durationText = propertyValue.getText();
+    final boolean isHighPrecisionProperty =
+        StreamProperties.WATERMARK.equals(propertyName)
+            || StreamProperties.ALLOWED_LATENESS.equals(propertyName);
+    final Set<String> allowedUnits =
+        isHighPrecisionProperty ? EVENT_TIME_DURATION_UNITS : SYSTEM_TIME_DURATION_UNITS;
+    final String allowedUnitNames =
+        isHighPrecisionProperty
+            ? EVENT_TIME_DURATION_UNITS_DURATION_UNIT_NAMES
+            : SYSTEM_TIME_DURATION_UNITS_DURATION_UNIT_NAMES;
+    if (!DataNodeDateTimeUtils.validateDurationUnits(durationText, allowedUnits)) {
+      throw new SemanticException(
+          String.format(
+              DataNodeStreamMessages
+                  .EXCEPTION_STREAM_PROPERTY_ARG_ONLY_SUPPORTS_DURATION_UNITS_ARG_BUT_GOT_ARG_C90305A1,
+              propertyName,
+              allowedUnitNames,
+              durationText));
+    }
+  }
+
+  private static boolean isStreamDurationControlProperty(final String propertyName) {
+    return StreamProperties.WATERMARK.equals(propertyName)
+        || StreamProperties.ALLOWED_LATENESS.equals(propertyName)
+        || StreamProperties.MAX_DELAY_WINDOW_CLOSE.equals(propertyName)
+        || StreamProperties.MAX_IDLE_WINDOW_RETAIN.equals(propertyName);
+  }
+
+  public Map<String, Expression> parseStreamProperties(RelationalSqlParser.PropertiesContext ctx) {
+    if (ctx == null) {
+      return Map.of();
+    }
+    // Stream WITH properties
+    Map<String, Expression> properties = new HashMap<>();
+    for (RelationalSqlParser.PropertyContext propertyContext :
+        ctx.propertyAssignments().property()) {
+      Identifier name = (Identifier) visit(propertyContext.identifier());
+      Expression value = (Expression) visit(propertyContext.propertyValue());
+      if (value != null) {
+        properties.put(name.getValue().toLowerCase(), value);
+      }
+    }
+    return properties;
+  }
+
+  public Node createEventWindow(RelationalSqlParser.TableFunctionCallContext ctx) {
+    TableFunctionInvocation node = (TableFunctionInvocation) visitTableFunctionCall(ctx);
+    List<TableFunctionArgument> arguments = node.getArguments();
+
+    String windowName = node.getName().toString().toLowerCase(ENGLISH);
+    switch (windowName) {
+      case "period":
+        validateEventWindowDurationUnit(
+            windowName,
+            "period_time",
+            arguments,
+            ctx.tableFunctionArgument(),
+            PERIOD_WINDOW_DURATION_UNITS,
+            PERIOD_WINDOW_DURATION_UNIT_NAMES);
+        return new PeriodEventWindow(getLocation(ctx), arguments, zoneId);
+      case "tumble":
+        validateEventWindowDurationUnit(
+            windowName,
+            "size",
+            arguments,
+            ctx.tableFunctionArgument(),
+            TUMBLE_WINDOW_DURATION_UNITS,
+            TUMBLE_WINDOW_DURATION_UNIT_NAMES);
+        return new TumbleEventWindow(getLocation(ctx), arguments, zoneId);
+      case "capacity":
+        return new CapacityEventWindow(getLocation(ctx), arguments, zoneId);
+      case "variation":
+        return new VariationEventWindow(getLocation(ctx), arguments, zoneId);
+      default:
+        throw parseError("Unknown stream event window", ctx);
+    }
+  }
+
+  private static void validateEventWindowDurationUnit(
+      final String windowName,
+      final String durationArgumentName,
+      final List<TableFunctionArgument> arguments,
+      final List<RelationalSqlParser.TableFunctionArgumentContext> argumentContexts,
+      final Set<String> allowedUnits,
+      final String allowedUnitNames) {
+    for (int i = 0; i < arguments.size(); i++) {
+      final TableFunctionArgument argument = arguments.get(i);
+      final boolean isDurationArgument =
+          argument
+              .getName()
+              .map(name -> name.getValue().equalsIgnoreCase(durationArgumentName))
+              .orElse(i == 0);
+      final RelationalSqlParser.ScalarArgumentContext scalarArgument =
+          argumentContexts.get(i).scalarArgument();
+      if (!isDurationArgument || scalarArgument == null || scalarArgument.timeDuration() == null) {
+        continue;
+      }
+
+      final String durationText = scalarArgument.timeDuration().getText();
+      if (!DataNodeDateTimeUtils.validateDurationUnits(durationText, allowedUnits)) {
+        throw new SemanticException(
+            String.format(
+                DataNodeStreamMessages
+                    .EXCEPTION_EVENT_WINDOW_ARG_ARGUMENT_ARG_ONLY_SUPPORTS_DURATION_UNITS_ARG_BUT_GOT_ARG_6F47BEF1,
+                windowName,
+                durationArgumentName,
+                allowedUnitNames,
+                durationText));
+      }
+    }
+  }
+
+  @Override
+  public Node visitStreamSourceClause(final RelationalSqlParser.StreamSourceClauseContext ctx) {
+    if (ctx.preFilter != null) {
+      throw new SemanticException(
+          DataNodeStreamMessages
+              .EXCEPTION_PREFILTER_CLAUSE_OF_THE_STREAM_SOURCE_IS_NOT_SUPPORTED_YET_7BCA6A84);
+    }
+    List<Expression> partitionBy =
+        Optional.ofNullable(ctx.partition)
+            .map(expressions -> visit(expressions, Expression.class))
+            .orElse(ImmutableList.of());
+    Table table = ctx.table == null ? null : new Table(getQualifiedName(ctx.table));
+    return new StreamSource(getLocation(ctx), table, null, partitionBy);
+  }
+
+  @Override
+  public Node visitStreamSinkClause(final RelationalSqlParser.StreamSinkClauseContext ctx) {
+    List<Identifier> columns =
+        Optional.ofNullable(ctx.columnAliases())
+            .map(RelationalSqlParser.ColumnAliasesContext::identifier)
+            .map(x -> visit(x, Identifier.class))
+            .orElse(null);
+    Table table = new Table(getQualifiedName(ctx.table));
+    return new StreamSink(getLocation(ctx), table, columns);
+  }
+
+  @Override
+  public Node visitStreamLiteral(RelationalSqlParser.StreamLiteralContext ctx) {
+    RelationalSqlParser.StreamPlaceholderContext spc = ctx.streamPlaceholder();
+    if (spc.PREV_VALUE() != null) {
+      return new StreamLiteral(StreamLiteral.Type.PREV_VALUE);
+    } else if (spc.CURRENT_VALUE() != null) {
+      return new StreamLiteral(StreamLiteral.Type.CURRENT_VALUE);
+    } else if (spc.PREV_TIME() != null) {
+      return new StreamLiteral(StreamLiteral.Type.PREV_TIME);
+    } else if (spc.NEXT_TIME() != null) {
+      return new StreamLiteral(StreamLiteral.Type.NEXT_TIME);
+    } else if (spc.START_TIME() != null) {
+      return new StreamLiteral(StreamLiteral.Type.START_TIME);
+    } else if (spc.END_TIME() != null) {
+      return new StreamLiteral(StreamLiteral.Type.END_TIME);
+    } else if (spc.ROW_NUM() != null) {
+      return new StreamLiteral(StreamLiteral.Type.ROW_NUM);
+    } else if (spc.INTEGER_VALUE() != null) {
+      return new StreamLiteral(StreamLiteral.Type.N)
+          .withValue(Integer.parseInt(spc.INTEGER_VALUE().getText()));
+    }
+    throw parseError("Unknown stream place holder", ctx);
+  }
+
+  @Override
+  public Node visitStreamRowsRelation(RelationalSqlParser.StreamRowsRelationContext ctx) {
+    if (ctx.ROWS() == null) {
+      throw parseError("ROWS should not be null", ctx);
+    }
+    return new StreamRows(getLocation(ctx));
+  }
+
+  @Override
+  public Node visitShowStreamsStatement(RelationalSqlParser.ShowStreamsStatementContext ctx) {
+    final QualifiedName streamName =
+        ctx.identifier() == null ? null : QualifiedName.of(ctx.identifier().getText());
+    return new ShowStreams(getLocation(ctx), streamName);
   }
 
   // ***************** helpers *****************

@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
 import static org.apache.iotdb.commons.schema.column.ColumnHeaderConstant.NODE_TYPE_AI_NODE;
 import static org.apache.iotdb.commons.schema.column.ColumnHeaderConstant.NODE_TYPE_CONFIG_NODE;
 import static org.apache.iotdb.commons.schema.column.ColumnHeaderConstant.NODE_TYPE_DATA_NODE;
+import static org.apache.iotdb.commons.schema.column.ColumnHeaderConstant.NODE_TYPE_STREAM_NODE;
 
 public class ShowClusterDetailsTask implements IConfigTask {
 
@@ -116,9 +117,10 @@ public class ShowClusterDetailsTask implements IConfigTask {
     builder.declarePosition();
   }
 
-  private static void buildAINodeTsBlock(
+  private static void buildExtraNodeTsBlock(
       TsBlockBuilder builder,
       int nodeId,
+      String nodeType,
       String nodeStatus,
       String nodeStatusReason,
       boolean hasStatusReason,
@@ -128,9 +130,7 @@ public class ShowClusterDetailsTask implements IConfigTask {
 
     builder.getTimeColumnBuilder().writeLong(0L);
     builder.getColumnBuilder(0).writeInt(nodeId);
-    builder
-        .getColumnBuilder(1)
-        .writeBinary(new Binary(NODE_TYPE_AI_NODE, TSFileConfig.STRING_CHARSET));
+    builder.getColumnBuilder(1).writeBinary(new Binary(nodeType, TSFileConfig.STRING_CHARSET));
     if (nodeStatus == null) {
       builder.getColumnBuilder(2).appendNull();
     } else {
@@ -306,21 +306,44 @@ public class ShowClusterDetailsTask implements IConfigTask {
                     e.getSchemaRegionConsensusEndPoint().getPort(),
                     e.getDataRegionConsensusEndPoint().getPort(),
                     clusterNodeInfos.getNodeVersionInfo().get(e.getDataNodeId())));
-    clusterNodeInfos
-        .getAiNodeList()
-        .forEach(
-            e ->
-                buildAINodeTsBlock(
-                    builder,
-                    e.getAiNodeId(),
-                    clusterNodeInfos.getNodeStatus().get(e.getAiNodeId()),
-                    hasStatusReason
-                        ? clusterNodeInfos.getNodeStatusReason().get(e.getAiNodeId())
-                        : null,
-                    hasStatusReason,
-                    e.getInternalEndPoint().getIp(),
-                    e.getInternalEndPoint().getPort(),
-                    clusterNodeInfos.getNodeVersionInfo().get(e.getAiNodeId())));
+
+    if (clusterNodeInfos.getAiNodeList() != null) {
+      clusterNodeInfos
+          .getAiNodeList()
+          .forEach(
+              e ->
+                  buildExtraNodeTsBlock(
+                      builder,
+                      e.getAiNodeId(),
+                      NODE_TYPE_AI_NODE,
+                      clusterNodeInfos.getNodeStatus().get(e.getAiNodeId()),
+                      hasStatusReason
+                          ? clusterNodeInfos.getNodeStatusReason().get(e.getAiNodeId())
+                          : null,
+                      hasStatusReason,
+                      e.getInternalEndPoint().getIp(),
+                      e.getInternalEndPoint().getPort(),
+                      clusterNodeInfos.getNodeVersionInfo().get(e.getAiNodeId())));
+    }
+
+    if (clusterNodeInfos.getStreamNodeList() != null) {
+      clusterNodeInfos
+          .getStreamNodeList()
+          .forEach(
+              e ->
+                  buildExtraNodeTsBlock(
+                      builder,
+                      e.getStreamNodeId(),
+                      NODE_TYPE_STREAM_NODE,
+                      clusterNodeInfos.getNodeStatus().get(e.getStreamNodeId()),
+                      hasStatusReason
+                          ? clusterNodeInfos.getNodeStatusReason().get(e.getStreamNodeId())
+                          : null,
+                      hasStatusReason,
+                      e.getInternalEndPoint().getIp(),
+                      e.getInternalEndPoint().getPort(),
+                      clusterNodeInfos.getNodeVersionInfo().get(e.getStreamNodeId())));
+    }
 
     DatasetHeader datasetHeader = new DatasetHeader(columnHeaders, true);
     future.set(new ConfigTaskResult(TSStatusCode.SUCCESS_STATUS, builder.build(), datasetHeader));

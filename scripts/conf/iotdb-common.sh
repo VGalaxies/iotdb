@@ -156,6 +156,32 @@ checkAllConfigNodeVariables()
   fi
 }
 
+checkAllStreamNodeVariables()
+{
+  if [ -z "${IOTDB_INCLUDE}" ]; then
+    #do nothing
+    :
+  elif [ -r "$IOTDB_INCLUDE" ]; then
+      . "$IOTDB_INCLUDE"
+  fi
+
+  if [ -z "${STREAMNODE_HOME}" ]; then
+    export STREAMNODE_HOME="`dirname "$0"`/.."
+  fi
+
+  if [ -z "${STREAMNODE_CONF}" ]; then
+    export STREAMNODE_CONF=${STREAMNODE_HOME}/conf
+  fi
+
+  if [ -z "${STREAMNODE_LOGS}" ]; then
+    export STREAMNODE_LOGS=${STREAMNODE_HOME}/logs
+  fi
+
+  if [ -z "${STREAMNODE_LOG_CONFIG}" ]; then
+    export STREAMNODE_LOG_CONFIG="${STREAMNODE_CONF}/logback-streamnode.xml"
+  fi
+}
+
 check_config_unique() {
   local key=$1
   local values=$2
@@ -370,6 +396,25 @@ initConfigNodeEnv() {
   fi
 }
 
+initStreamNodeEnv() {
+  checkAllStreamNodeVariables
+  if [ -f "$STREAMNODE_CONF/streamnode-env.sh" ]; then
+      if [ "x$PRINT_GC" != "x" ]; then
+        . "$STREAMNODE_CONF/streamnode-env.sh" "printgc"
+      else
+          . "$STREAMNODE_CONF/streamnode-env.sh"
+      fi
+  elif [ -f "${STREAMNODE_HOME}/conf/streamnode-env.sh" ]; then
+      if [ "x$PRINT_GC" != "x" ]; then
+        . "${STREAMNODE_HOME}/conf/streamnode-env.sh" "printgc"
+      else
+        . "${STREAMNODE_HOME}/conf/streamnode-env.sh"
+      fi
+  else
+      echo "can't find $STREAMNODE_CONF/streamnode-env.sh"
+  fi
+}
+
 get_iotdb_include() {
   #reset $1 to $* for this command
   eval set -- "$1"
@@ -392,6 +437,70 @@ get_iotdb_include() {
       esac
   done
   echo "$VARS"
+}
+
+# Cross-platform detection of total system memory in MB.
+# Used by start scripts (standalone / streamnode) that need to split memory across
+# co-located nodes before their env scripts' calculate_memory_sizes runs.
+#
+# Supports Linux (free -m + cgroup v1/v2 clamp), FreeBSD, SunOS, Darwin, and a
+# safe fallback.
+detect_system_memory_mb()
+{
+    local mem=""
+    case "$(uname)" in
+        Linux)
+            mem=$(free -m 2>/dev/null | sed -n '2p' | awk '{print $2}')
+            if [ -n "$mem" ] && [ "$mem" -gt 0 ] 2>/dev/null; then
+                # cgroup v2
+                if [ -f /sys/fs/cgroup/memory.max ]; then
+                    local cg
+                    cg=$(cat /sys/fs/cgroup/memory.max 2>/dev/null)
+                    if [ -n "$cg" ] && [ "$cg" != "max" ]; then
+                        local cgmb
+                        cgmb=$(expr "$cg" / 1024 / 1024 2>/dev/null)
+                        [ -n "$cgmb" ] && [ "$cgmb" -gt 0 ] 2>/dev/null \
+                          && [ "$cgmb" -lt "$mem" ] 2>/dev/null && mem=$cgmb
+                    fi
+                # cgroup v1
+                elif [ -f /sys/fs/cgroup/memory/memory.limit_in_bytes ]; then
+                    local cg
+                    cg=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null)
+                    if [ -n "$cg" ]; then
+                        local cgmb
+                        cgmb=$(expr "$cg" / 1024 / 1024 2>/dev/null)
+                        [ -n "$cgmb" ] && [ "$cgmb" -gt 0 ] 2>/dev/null \
+                          && [ "$cgmb" -lt "$mem" ] 2>/dev/null && mem=$cgmb
+                    fi
+                fi
+            fi
+        ;;
+        FreeBSD)
+            local raw
+            raw=$(sysctl -n hw.physmem 2>/dev/null)
+            [ -n "$raw" ] && mem=$(expr "$raw" / 1024 / 1024 2>/dev/null)
+        ;;
+        SunOS)
+            mem=$(prtconf 2>/dev/null | awk '/Memory size:/ {print $3}')
+        ;;
+        Darwin)
+            local raw
+            raw=$(sysctl -n hw.memsize 2>/dev/null)
+            [ -n "$raw" ] && mem=$(expr "$raw" / 1024 / 1024 2>/dev/null)
+        ;;
+        *)
+            # safe fallback
+            mem="2048"
+        ;;
+    esac
+
+    if [ -z "$mem" ] || [ "$mem" -le 0 ] 2>/dev/null; then
+        echo "ERROR: unable to detect system memory on $(uname)." >&2
+        echo "Set MEMORY_SIZE explicitly (e.g. export MEMORY_SIZE=2G) and re-run." >&2
+        exit 1
+    fi
+
+    echo "$mem"
 }
 
 # Calculate ON_HEAP_MEMORY and OFF_HEAP_MEMORY from system resources.

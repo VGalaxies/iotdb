@@ -264,4 +264,8 @@ public class TableModelPlanner implements IPlanner {
       }
     }
   }
+
+  public SymbolAllocator getSymbolAllocator() {
+    return symbolAllocator;
+  }
 }

@@ -31,11 +31,14 @@ import org.apache.iotdb.common.rpc.thrift.TSetConfigurationReq;
 import org.apache.iotdb.common.rpc.thrift.TSetSpaceQuotaReq;
 import org.apache.iotdb.common.rpc.thrift.TShowAppliedConfigurationsResp;
 import org.apache.iotdb.common.rpc.thrift.TShowConfigurationResp;
+import org.apache.iotdb.common.rpc.thrift.TShowStreamResp;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.commons.auth.entity.PrivilegeUnion;
 import org.apache.iotdb.commons.cluster.NodeStatus;
 import org.apache.iotdb.commons.path.PartialPath;
 import org.apache.iotdb.commons.path.PathPatternTree;
 import org.apache.iotdb.commons.schema.table.TableNodeStatus;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.confignode.audit.CNAuditLogger;
 import org.apache.iotdb.confignode.consensus.request.read.ainode.GetAINodeConfigurationPlan;
 import org.apache.iotdb.confignode.consensus.request.read.database.CountDatabasePlan;
@@ -53,6 +56,7 @@ import org.apache.iotdb.confignode.consensus.request.write.database.SetSchemaRep
 import org.apache.iotdb.confignode.consensus.request.write.database.SetTTLPlan;
 import org.apache.iotdb.confignode.consensus.request.write.database.SetTimePartitionIntervalPlan;
 import org.apache.iotdb.confignode.consensus.request.write.datanode.RemoveDataNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RemoveStreamNodePlan;
 import org.apache.iotdb.confignode.manager.consensus.ConsensusManager;
 import org.apache.iotdb.confignode.manager.cq.CQManager;
 import org.apache.iotdb.confignode.manager.externalservice.ExternalServiceManager;
@@ -61,6 +65,7 @@ import org.apache.iotdb.confignode.manager.node.NodeManager;
 import org.apache.iotdb.confignode.manager.partition.PartitionManager;
 import org.apache.iotdb.confignode.manager.pipe.coordinator.PipeManager;
 import org.apache.iotdb.confignode.manager.schema.ClusterSchemaManager;
+import org.apache.iotdb.confignode.manager.stream.StreamManager;
 import org.apache.iotdb.confignode.manager.subscription.SubscriptionManager;
 import org.apache.iotdb.confignode.rpc.thrift.TAINodeRegisterReq;
 import org.apache.iotdb.confignode.rpc.thrift.TAINodeRestartReq;
@@ -158,6 +163,7 @@ import org.apache.iotdb.confignode.rpc.thrift.TShowPipePluginReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowPipeReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowPipeResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowRepairDataPartitionTableProgressResp;
+import org.apache.iotdb.confignode.rpc.thrift.TShowStreamNodesResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowSubscriptionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowSubscriptionResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowTable4InformationSchemaResp;
@@ -167,6 +173,9 @@ import org.apache.iotdb.confignode.rpc.thrift.TShowTopicResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowVariablesResp;
 import org.apache.iotdb.confignode.rpc.thrift.TStartPipeReq;
 import org.apache.iotdb.confignode.rpc.thrift.TStopPipeReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRegisterReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRestartReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRestartResp;
 import org.apache.iotdb.confignode.rpc.thrift.TSubscribeReq;
 import org.apache.iotdb.confignode.rpc.thrift.TUnsetSchemaTemplateReq;
 import org.apache.iotdb.confignode.rpc.thrift.TUnsubscribeReq;
@@ -285,6 +294,13 @@ public interface IManager {
   SubscriptionManager getSubscriptionManager();
 
   /**
+   * Get {@link StreamManager}.
+   *
+   * @return {@link StreamManager} instance
+   */
+  StreamManager getStreamManager();
+
+  /**
    * Get RetryFailedTasksThread. Get {@link RetryFailedTasksThread}.
    *
    * @return {@link RetryFailedTasksThread} instance
@@ -344,6 +360,39 @@ public interface IManager {
    * @return AINodeToStatusResp
    */
   TSStatus removeAINode();
+
+  /**
+   * Register StreamNode
+   *
+   * @param req TStreamNodeRegisterReq
+   * @return StreamNodeRegisterResp
+   */
+  DataSet registerStreamNode(TStreamNodeRegisterReq req);
+
+  /**
+   * Restart StreamNode.
+   *
+   * @param req TStreamNodeRestartReq
+   * @return {@link TSStatusCode#SUCCESS_STATUS} if allow StreamNode to restart, {@link
+   *     TSStatusCode#REJECT_NODE_START} otherwise
+   */
+  TStreamNodeRestartResp restartStreamNode(TStreamNodeRestartReq req);
+
+  /**
+   * Remove StreamNode.
+   *
+   * @return DataNodeToStatusResp
+   */
+  TSStatus removeStreamNode(RemoveStreamNodePlan removeStreamNodePlan);
+
+  /**
+   * Report that the specified StreamNode will be shutdown.
+   *
+   * <p>The ConfigNode-leader will mark it as {@link NodeStatus#Unknown}
+   *
+   * @return {@link TSStatusCode#SUCCESS_STATUS} if reporting successfully
+   */
+  TSStatus reportStreamNodeShutdown(TStreamNodeLocation streamNodeLocation);
 
   /**
    * Report that the specified DataNode will be shutdown.
@@ -659,6 +708,9 @@ public interface IManager {
   /** Show DataNodes. */
   TShowDataNodesResp showDataNodes();
 
+  /** Show StreamNodes. */
+  TShowStreamNodesResp showStreamNodes();
+
   /** Show DataNodes for information schema. */
   TShowDataNodes4InformationSchemaResp showDataNodes4InformationSchema();
 
@@ -907,6 +959,16 @@ public interface IManager {
   TSStatus dropExternalService(int dataNodeId, String serviceName);
 
   TExternalServiceListResp showExternalService(int dataNodeId);
+
+  TShowStreamResp showStreams();
+
+  TSStatus createStream(StreamTask streamTask);
+
+  TSStatus dropStream(String streamName);
+
+  TSStatus startStream(String streamName);
+
+  TSStatus stopStream(String streamName);
 
   TSStatus checkConfigNodeGlobalConfig(TConfigNodeRegisterReq req);
 

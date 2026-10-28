@@ -1,0 +1,593 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.apache.iotdb.streamnode;
+
+import org.apache.iotdb.common.rpc.thrift.TConfigNodeLocation;
+import org.apache.iotdb.common.rpc.thrift.TEndPoint;
+import org.apache.iotdb.common.rpc.thrift.TNodeResource;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeConfiguration;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
+import org.apache.iotdb.commons.ServerCommandLine;
+import org.apache.iotdb.commons.client.exception.ClientManagerException;
+import org.apache.iotdb.commons.concurrent.IoTDBDefaultThreadExceptionHandler;
+import org.apache.iotdb.commons.conf.CommonDescriptor;
+import org.apache.iotdb.commons.conf.ConfigurationFileUtils;
+import org.apache.iotdb.commons.conf.IoTDBConstant;
+import org.apache.iotdb.commons.exception.StartupException;
+import org.apache.iotdb.commons.schema.SchemaConstant;
+import org.apache.iotdb.commons.service.JMXService;
+import org.apache.iotdb.commons.service.RegisterManager;
+import org.apache.iotdb.commons.service.ServiceType;
+import org.apache.iotdb.commons.service.metric.MetricService;
+import org.apache.iotdb.commons.utils.FileUtils;
+import org.apache.iotdb.confignode.rpc.thrift.TNodeVersionInfo;
+import org.apache.iotdb.confignode.rpc.thrift.TRuntimeConfiguration;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRegisterReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRegisterResp;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRestartReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRestartResp;
+import org.apache.iotdb.confignode.rpc.thrift.TSystemConfigurationResp;
+import org.apache.iotdb.metrics.config.MetricConfigDescriptor;
+import org.apache.iotdb.metrics.utils.NodeType;
+import org.apache.iotdb.rpc.TSStatusCode;
+import org.apache.iotdb.streamnode.client.ConfigNodeClient;
+import org.apache.iotdb.streamnode.client.ConfigNodeClientManager;
+import org.apache.iotdb.streamnode.client.ConfigNodeInfo;
+import org.apache.iotdb.streamnode.conf.IoTDBStartCheck;
+import org.apache.iotdb.streamnode.conf.StreamNodeConfig;
+import org.apache.iotdb.streamnode.conf.StreamNodeDescriptor;
+import org.apache.iotdb.streamnode.conf.StreamNodeStartupCheck;
+import org.apache.iotdb.streamnode.conf.StreamNodeSystemPropertiesHandler;
+import org.apache.iotdb.streamnode.i18n.StreamNodeMessages;
+import org.apache.iotdb.streamnode.manager.StreamTaskManager;
+import org.apache.iotdb.streamnode.service.StreamNodeInternalRPCService;
+import org.apache.iotdb.streamnode.service.StreamNodeSessionScanService;
+import org.apache.iotdb.streamnode.service.metrics.StreamNodeMetricsHelper;
+
+import org.apache.thrift.TException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+
+import static org.apache.iotdb.commons.conf.IoTDBConstant.DEFAULT_CLUSTER_NAME;
+import static org.apache.iotdb.commons.queryengine.utils.DateTimeUtils.initTimestampPrecision;
+import static org.apache.iotdb.commons.utils.StatusUtils.retrieveExitStatusCode;
+
+public class StreamNode extends ServerCommandLine implements StreamNodeMBean {
+  private static final Logger LOGGER = LoggerFactory.getLogger(StreamNode.class);
+  private static final StreamNodeConfig config = StreamNodeDescriptor.getInstance().getConfig();
+
+  private final RegisterManager registerManager = new RegisterManager();
+
+  /**
+   * When joining a cluster or getting configuration this node will retry at most "DEFAULT_RETRY"
+   * times before returning a failure to the client.
+   */
+  private static final int DEFAULT_RETRY = 200;
+
+  private static final long DEFAULT_RETRY_INTERVAL_IN_MS = config.getJoinClusterRetryIntervalMs();
+
+  private static final String REGISTER_INTERRUPTION =
+      "Unexpected interruption when waiting to register to the cluster";
+
+  private static Thread watcherThread;
+
+  private final String mbeanName =
+      String.format(
+          "%s:%s=%s",
+          IoTDBConstant.IOTDB_SERVICE_JMX_NAME,
+          IoTDBConstant.JMX_TYPE,
+          ServiceType.STREAM_NODE.getJmxName());
+
+  private StreamNode() {
+    super("StreamNode");
+    StreamNodeHolder.INSTANCE = this;
+  }
+
+  @Override
+  protected void start() {
+    LOGGER.info(StreamNodeMessages.STREAMNODE_STARTING);
+    LOGGER.info(
+        StreamNodeMessages.STREAMNODE_CONFIG_DETAILS,
+        config.getClusterName(),
+        config.getSnInternalAddress(),
+        config.getSnInternalPort(),
+        config.getSnSeedConfigNode());
+    boolean isFirstStart;
+    try {
+      // Check if this StreamNode is start for the first time and do other pre-checks
+      isFirstStart = prepareStreamNode();
+
+      // Step 2: Start RPC service to receive CN requests
+      if (isFirstStart) {
+        LOGGER.info(StreamNodeMessages.STREAMNODE_FIRST_START);
+        ConfigNodeInfo.getInstance()
+            .updateConfigNodeList(Collections.singletonList(config.getSnSeedConfigNode()));
+      } else {
+        LOGGER.info(StreamNodeMessages.STREAMNODE_RESTARTING);
+        // Load registered ConfigNodes from system.properties
+        ConfigNodeInfo.getInstance().loadConfigNodeList();
+      }
+
+      // Pull and check system configurations from ConfigNode-leader
+      pullAndCheckSystemConfigurations();
+
+      if (isFirstStart) {
+        sendRegisterRequestToConfigNode(true);
+        IoTDBStartCheck.getInstance().generateOrOverwriteSystemPropertiesFile();
+        ConfigNodeInfo.getInstance().storeConfigNodeList();
+        // Register this DataNode to the cluster when first start
+        sendRegisterRequestToConfigNode(false);
+      } else {
+        // Send restart request of this StreamNode
+        sendRestartRequestToConfigNode();
+      }
+
+      // Active StreamNode
+      active();
+
+      // Setup metric service
+      setUpMetricService();
+
+      // Serialize mutable system properties
+      IoTDBStartCheck.getInstance().serializeMutableSystemPropertiesIfNecessary();
+      ConfigurationFileUtils.updateAppliedProperties(
+          IoTDBStartCheck.getInstance().getProperties(), false);
+
+      LOGGER.info(StreamNodeMessages.STREAMNODE_CONFIGURATION, config.getConfigMessage());
+      LOGGER.info(StreamNodeMessages.STREAMNODE_SETUP_SUCCESSFULLY);
+    } catch (Throwable e) {
+      int exitStatusCode = retrieveExitStatusCode(e);
+      LOGGER.error(StreamNodeMessages.FAIL_TO_START_SERVER, e);
+      stop();
+      System.exit(exitStatusCode);
+    }
+    LOGGER.info(StreamNodeMessages.STREAMNODE_STARTED);
+  }
+
+  /**
+   * Register services and set up StreamNode.
+   *
+   * @throws StartupException if start up failed.
+   */
+  private void active() throws StartupException, IOException {
+    try {
+      processPid();
+      setUp();
+    } catch (StartupException | IOException e) {
+      LOGGER.error(StreamNodeMessages.MEET_ERROR_STARTING_UP, e);
+      throw e;
+    }
+    LOGGER.info(StreamNodeMessages.IOTDB_STREAMNODE_HAS_STARTED);
+  }
+
+  protected void registerInternalRPCService() throws StartupException {
+    registerManager.register(StreamNodeInternalRPCService.getInstance());
+    LOGGER.info(
+        StreamNodeMessages.STREAMNODE_RPC_SERVICE_LISTENING,
+        config.getSnInternalAddress(),
+        config.getSnInternalPort());
+  }
+
+  void processPid() {
+    String pidFile = System.getProperty(IoTDBConstant.IOTDB_PIDFILE);
+    if (pidFile != null) {
+      new File(pidFile).deleteOnExit();
+    }
+  }
+
+  private void setUp() throws StartupException, IOException {
+    LOGGER.info(StreamNodeMessages.SETTING_UP_STREAMNODE);
+    registerManager.register(new JMXService());
+    JMXService.registerMBean(getInstance(), mbeanName);
+    cleanupLocalTempDirs();
+    addShutDownHook();
+    setUncaughtExceptionHandler();
+
+    registerManager.register(StreamNodeSessionScanService.getInstance());
+    registerManager.register(StreamTaskManager.getInstance());
+
+    // Start Internal RPC Service
+    registerInternalRPCService();
+    LOGGER.info(StreamNodeMessages.SUCCESSFULLY_SETUP_INTERNAL_SERVICES);
+  }
+
+  private void setUpMetricService() throws StartupException {
+    initMetricConfig();
+    registerManager.register(MetricService.getInstance());
+
+    // bind predefined metrics
+    StreamNodeMetricsHelper.bind();
+  }
+
+  private static void initMetricConfig() {
+    MetricConfigDescriptor.getInstance()
+        .getMetricConfig()
+        .updateRpcInstance(NodeType.STREAMNODE, SchemaConstant.SYSTEM_DATABASE);
+    MetricConfigDescriptor.getInstance().getMetricConfig().setNodeId(config.getStreamNodeId());
+  }
+
+  void cleanupLocalTempDirs() {
+    for (final String dirPath : getLocalTempDataDirs()) {
+      final File dir = new File(dirPath);
+      if (dir.exists()) {
+        FileUtils.deleteFileOrDirectory(dir, true);
+        LOGGER.info("Cleaned up local temp data dir: {}", dirPath);
+      }
+    }
+  }
+
+  List<String> getLocalTempDataDirs() {
+    return Collections.singletonList(config.getTmpDir());
+  }
+
+  private void addShutDownHook() {
+    Runtime.getRuntime().addShutdownHook(new StreamNodeShutdownHook(generateStreamNodeLocation()));
+  }
+
+  private void setUncaughtExceptionHandler() {
+    Thread.setDefaultUncaughtExceptionHandler(new IoTDBDefaultThreadExceptionHandler());
+  }
+
+  @Override
+  protected void remove(Set<Integer> nodeIds) {
+    throw new UnsupportedOperationException();
+  }
+
+  public void stop() {
+    registerManager.deregisterAll();
+    JMXService.deregisterMBean(mbeanName);
+    MetricService.getInstance().stop();
+  }
+
+  public void deleteStreamNodeSystemProperties() {
+    StreamNodeSystemPropertiesHandler.getInstance().delete();
+  }
+
+  /** Prepare cluster IoTDB-StreamNode */
+  private boolean prepareStreamNode() throws StartupException, IOException {
+    long startTime = System.currentTimeMillis();
+
+    // Startup checks
+    StreamNodeStartupCheck checks = new StreamNodeStartupCheck(IoTDBConstant.SN_ROLE);
+    checks.startUpCheck();
+    long endTime = System.currentTimeMillis();
+    LOGGER.info(StreamNodeMessages.STREAMNODE_PREPARED_SUCCESSFULLY, (endTime - startTime));
+    return StreamNodeSystemPropertiesHandler.getInstance().isFirstStart();
+  }
+
+  /**
+   * Pull global configurations from ConfigNode-leader and apply them. StreamNode only needs
+   * timestampPrecision from the global config, unlike DataNode which also needs consensus protocol
+   * and other configs.
+   */
+  private void pullAndCheckSystemConfigurations() throws StartupException {
+    LOGGER.info(StreamNodeMessages.PULLING_SYSTEM_CONFIGURATIONS);
+    long startTime = System.currentTimeMillis();
+    TSystemConfigurationResp configurationResp = null;
+    int retry = DEFAULT_RETRY;
+    while (retry > 0) {
+      try (ConfigNodeClient configNodeClient =
+          ConfigNodeClientManager.getInstance().borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        configurationResp = configNodeClient.getSystemConfiguration();
+        break;
+      } catch (TException | ClientManagerException e) {
+        LOGGER.warn(StreamNodeMessages.CANNOT_PULL_SYSTEM_CONFIGURATIONS, e.getMessage());
+        retry--;
+      }
+
+      try {
+        Thread.sleep(DEFAULT_RETRY_INTERVAL_IN_MS);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        LOGGER.warn(REGISTER_INTERRUPTION, e);
+        retry = -1;
+      }
+    }
+
+    if (configurationResp == null
+        || !configurationResp.isSetStatus()
+        || configurationResp.getStatus().getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+      LOGGER.error(
+          StreamNodeMessages.CANNOT_PULL_SYSTEM_CONFIGURATIONS_AFTER_RETRIES, DEFAULT_RETRY);
+      throw new StartupException(StreamNodeMessages.EXCEPTION_CANNOT_PULL_SYSTEM_CONFIGURATIONS);
+    }
+
+    /* Load system configurations */
+    CommonDescriptor.getInstance().loadGlobalConfig(configurationResp.globalConfig);
+
+    /* Check system configurations */
+    try {
+      IoTDBStartCheck.getInstance().checkSystemConfig();
+      IoTDBStartCheck.getInstance().checkDirectory();
+    } catch (Exception e) {
+      throw new StartupException(e.getMessage());
+    }
+
+    ConfigurationFileUtils.updateAppliedPropertiesFromCN(configurationResp);
+    // init
+    initTimestampPrecision();
+    long endTime = System.currentTimeMillis();
+    LOGGER.info(StreamNodeMessages.PULL_SYSTEM_CONFIGURATIONS_SUCCESSFULLY, (endTime - startTime));
+  }
+
+  /**
+   * Register this StreamNode into cluster.
+   *
+   * @param isPreCheck do pre-check before formal registration
+   * @throws StartupException if register failed.
+   * @throws IOException if serialize cluster name and streamnode id failed.
+   */
+  private void sendRegisterRequestToConfigNode(boolean isPreCheck)
+      throws StartupException, IOException {
+    LOGGER.info(StreamNodeMessages.SENDING_REGISTER_REQUEST);
+    long startTime = System.currentTimeMillis();
+    /* Send register request */
+    int retry = DEFAULT_RETRY;
+    TStreamNodeRegisterReq req = new TStreamNodeRegisterReq();
+    req.setPreCheck(isPreCheck);
+    req.setStreamNodeConfiguration(generateStreamNodeConfiguration());
+    req.setClusterName(config.getClusterName());
+    req.setVersionInfo(new TNodeVersionInfo(IoTDBConstant.VERSION, IoTDBConstant.BUILD_INFO));
+    TStreamNodeRegisterResp streamNodeRegisterResp = null;
+    while (retry > 0) {
+      try (ConfigNodeClient configNodeClient =
+          ConfigNodeClientManager.getInstance().borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        streamNodeRegisterResp = configNodeClient.registerStreamNode(req);
+        break;
+      } catch (TException | ClientManagerException e) {
+        LOGGER.warn(StreamNodeMessages.CANNOT_REGISTER_TO_CLUSTER, e.getMessage());
+        retry--;
+      }
+
+      try {
+        // Wait to start the next try
+        Thread.sleep(DEFAULT_RETRY_INTERVAL_IN_MS);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        LOGGER.warn(REGISTER_INTERRUPTION, e);
+        retry = -1;
+      }
+    }
+    if (streamNodeRegisterResp == null) {
+      // All tries failed
+      LOGGER.error(StreamNodeMessages.CANNOT_REGISTER_AFTER_RETRIES, DEFAULT_RETRY);
+      throw new StartupException(StreamNodeMessages.EXCEPTION_CANNOT_REGISTER_INTO_CLUSTER);
+    }
+
+    if (streamNodeRegisterResp.getStatus().getCode()
+        == TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+      if (isPreCheck) {
+        LOGGER.info(StreamNodeMessages.PRECHECK_PASSED);
+        return;
+      }
+      /* Store runtime configurations when register success */
+      int streamNodeID = streamNodeRegisterResp.getStreamNodeId();
+      config.setStreamNodeId(streamNodeID);
+      IoTDBStartCheck.getInstance().serializeNodeId(streamNodeID);
+      storeRuntimeConfigurations(
+          streamNodeRegisterResp.getConfigNodeList(),
+          streamNodeRegisterResp.getRuntimeConfiguration());
+      long endTime = System.currentTimeMillis();
+
+      LOGGER.info(
+          StreamNodeMessages.REGISTER_TO_CLUSTER_SUCCESSFULLY,
+          config.getClusterName(),
+          (endTime - startTime));
+    } else {
+      /* Throw exception when register failed */
+      LOGGER.error(streamNodeRegisterResp.getStatus().getMessage());
+      throw new StartupException(StreamNodeMessages.EXCEPTION_CANNOT_REGISTER_TO_CLUSTER);
+    }
+  }
+
+  private void sendRestartRequestToConfigNode() throws StartupException {
+    LOGGER.info(StreamNodeMessages.SENDING_RESTART_REQUEST);
+    long startTime = System.currentTimeMillis();
+    /* Send restart request */
+    int retry = DEFAULT_RETRY;
+    TStreamNodeRestartReq req = new TStreamNodeRestartReq();
+    req.setClusterName(
+        config.getClusterName() == null ? DEFAULT_CLUSTER_NAME : config.getClusterName());
+    req.setStreamNodeConfiguration(generateStreamNodeConfiguration());
+    req.setVersionInfo(new TNodeVersionInfo(IoTDBConstant.VERSION, IoTDBConstant.BUILD_INFO));
+    req.setClusterId(config.getClusterId());
+    TStreamNodeRestartResp streamNodeRestartResp = null;
+    while (retry > 0) {
+      try (ConfigNodeClient configNodeClient =
+          ConfigNodeClientManager.getInstance().borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        streamNodeRestartResp = configNodeClient.restartStreamNode(req);
+        break;
+      } catch (TException | ClientManagerException e) {
+        LOGGER.warn(StreamNodeMessages.CANNOT_SEND_RESTART_REQUEST, e.getMessage());
+        retry--;
+      }
+
+      try {
+        // Wait to start the next try
+        Thread.sleep(DEFAULT_RETRY_INTERVAL_IN_MS);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        LOGGER.warn(REGISTER_INTERRUPTION, e);
+        retry = -1;
+      }
+    }
+    if (streamNodeRestartResp == null) {
+      // All tries failed
+      LOGGER.error(StreamNodeMessages.CANNOT_SEND_RESTART_REQUEST_AFTER_RETRIES, DEFAULT_RETRY);
+      throw new StartupException(StreamNodeMessages.EXCEPTION_CANNOT_SEND_RESTART_REQUEST);
+    }
+
+    if (streamNodeRestartResp.getStatus().getCode()
+        == TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+      /* Store runtime configurations when restart request is accepted */
+      storeRuntimeConfigurations(
+          streamNodeRestartResp.getConfigNodeList(),
+          streamNodeRestartResp.getRuntimeConfiguration());
+      long endTime = System.currentTimeMillis();
+      LOGGER.info(
+          StreamNodeMessages.RESTART_REQUEST_ACCEPTED,
+          config.getClusterName(),
+          (endTime - startTime));
+    } else {
+      /* Throw exception when restart is rejected */
+      throw new StartupException(streamNodeRestartResp.getStatus().getMessage());
+    }
+  }
+
+  protected void storeRuntimeConfigurations(
+      List<TConfigNodeLocation> configNodeLocations, TRuntimeConfiguration runtimeConfiguration)
+      throws StartupException {
+    /* Store ConfigNodeList */
+    List<TEndPoint> configNodeList = new ArrayList<>();
+    for (TConfigNodeLocation configNodeLocation : configNodeLocations) {
+      configNodeList.add(configNodeLocation.getInternalEndPoint());
+    }
+    ConfigNodeInfo.getInstance().updateConfigNodeList(configNodeList);
+
+    /* Store cluster ID */
+    String clusterId = runtimeConfiguration.getClusterId();
+    storeClusterID(clusterId);
+  }
+
+  private void storeClusterID(String clusterID) throws StartupException {
+    try {
+      if (config.getClusterId().isEmpty()) {
+        config.setClusterId(clusterID);
+        IoTDBStartCheck.getInstance().serializeClusterID(clusterID);
+      }
+    } catch (IOException e) {
+      throw new StartupException(e);
+    }
+  }
+
+  public static void main(String[] args) {
+    final Thread hookThread = Thread.currentThread();
+    watcherThread =
+        new Thread(
+            () -> {
+              while (!Thread.interrupted() && hookThread.isAlive()) {
+                try {
+                  Thread.sleep(10000);
+                  final StackTraceElement[] stackTrace = hookThread.getStackTrace();
+                  final StringBuilder stackTraceBuilder =
+                      new StringBuilder("Stack trace of main thread:\n");
+                  for (final StackTraceElement traceElement : stackTrace) {
+                    stackTraceBuilder.append(traceElement.toString()).append("\n");
+                  }
+                  LOGGER.info(stackTraceBuilder.toString());
+                } catch (final InterruptedException e) {
+                  Thread.currentThread().interrupt();
+                  return;
+                }
+              }
+            },
+            "StreamNodeStartWatcher");
+    watcherThread.setDaemon(true);
+    watcherThread.start();
+
+    LOGGER.info(StreamNodeMessages.STREAMNODE_ENV_VARS, StreamNodeConfig.getEnvironmentVariables());
+    LOGGER.info(
+        StreamNodeMessages.STREAMNODE_DEFAULT_CHARSET, Charset.defaultCharset().displayName());
+    StreamNode streamNode = new StreamNode();
+    int returnCode = streamNode.run(args);
+    watcherThread.interrupt();
+    if (returnCode != 0) {
+      System.exit(returnCode);
+    }
+  }
+
+  public TStreamNodeLocation generateStreamNodeLocation() {
+    TStreamNodeLocation location = new TStreamNodeLocation();
+    location.setStreamNodeId(config.getStreamNodeId());
+    location.setInternalEndPoint(
+        new TEndPoint(config.getSnInternalAddress(), config.getSnInternalPort()));
+    return location;
+  }
+
+  public TStreamNodeConfiguration generateStreamNodeConfiguration() {
+    TStreamNodeLocation location = generateStreamNodeLocation();
+
+    TNodeResource resource = new TNodeResource();
+    resource.setCpuCoreNum(Runtime.getRuntime().availableProcessors());
+    resource.setMaxMemory(Runtime.getRuntime().totalMemory());
+
+    return new TStreamNodeConfiguration(location, resource);
+  }
+
+  @Override
+  public int getStreamNodeId() {
+    return config.getStreamNodeId();
+  }
+
+  @Override
+  public String getInternalAddress() {
+    return config.getSnInternalAddress();
+  }
+
+  @Override
+  public int getInternalPort() {
+    return config.getSnInternalPort();
+  }
+
+  @Override
+  public int getTaskCount() {
+    return StreamTaskManager.getInstance().getTaskNum();
+  }
+
+  @Override
+  public int getRunningTaskCount() {
+    return StreamTaskManager.getInstance().getRunningTaskNum();
+  }
+
+  @Override
+  public String getClusterName() {
+    return config.getClusterName();
+  }
+
+  @Override
+  public String getClusterId() {
+    return config.getClusterId();
+  }
+
+  @Override
+  public String getNodeStatus() {
+    return CommonDescriptor.getInstance().getConfig().getNodeStatus().getStatus();
+  }
+
+  private static class StreamNodeHolder {
+    private static StreamNode INSTANCE;
+
+    private StreamNodeHolder() {
+      // Empty constructor
+    }
+  }
+
+  public static StreamNode getInstance() {
+    return StreamNodeHolder.INSTANCE;
+  }
+}

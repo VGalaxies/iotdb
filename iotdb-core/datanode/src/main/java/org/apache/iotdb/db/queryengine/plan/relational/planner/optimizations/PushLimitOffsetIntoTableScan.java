@@ -25,6 +25,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.metadata.ColumnSchem
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.OrderingScheme;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.Symbol;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.AggregationNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.EventScanNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.FilterNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.GapFillNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.GroupNode;
@@ -264,6 +265,12 @@ public class PushLimitOffsetIntoTableScan implements PlanOptimizer {
     @Override
     public PlanNode visitDeviceTableScan(DeviceTableScanNode node, Context context) {
       context.tableScanNode = node;
+      return node;
+    }
+
+    @Override
+    public PlanNode visitEventScan(EventScanNode node, Context context) {
+      context.enablePushDown = false;
       return node;
     }
 

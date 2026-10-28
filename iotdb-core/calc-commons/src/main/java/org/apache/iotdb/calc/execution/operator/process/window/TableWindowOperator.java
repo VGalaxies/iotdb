@@ -122,9 +122,33 @@ public class TableWindowOperator implements ProcessOperator {
     this.memoryReservationManager = operatorContext.getMemoryReservationContext();
   }
 
+  protected TableWindowOperator(TableWindowOperator windowOperator, Operator inputOperator) {
+    this.operatorContext = windowOperator.operatorContext;
+    this.inputOperator = inputOperator;
+    this.inputDataTypes = windowOperator.inputDataTypes;
+    this.outputChannels = windowOperator.outputChannels;
+    this.tsBlockBuilder = windowOperator.tsBlockBuilder;
+    this.windowFunctions = windowOperator.windowFunctions;
+    this.frameInfoList = windowOperator.frameInfoList;
+    this.partitionRecognizer = windowOperator.partitionRecognizer;
+    this.partitionCache = windowOperator.partitionCache;
+    this.sortChannels = windowOperator.sortChannels;
+    this.cachedPartitionExecutors = windowOperator.cachedPartitionExecutors;
+    this.totalMemorySize = windowOperator.totalMemorySize;
+    this.maxUsedMemory = windowOperator.maxUsedMemory;
+    this.maxRuntime = windowOperator.maxRuntime;
+    this.noMoreDataSignaled = windowOperator.noMoreDataSignaled;
+    this.memoryReservationManager = windowOperator.memoryReservationManager;
+    resetForReuse();
+  }
+
   @Override
   public CommonOperatorContext getOperatorContext() {
     return operatorContext;
+  }
+
+  public Operator getInputOperator() {
+    return inputOperator;
   }
 
   @Override
@@ -259,8 +283,24 @@ public class TableWindowOperator implements ProcessOperator {
   public void close() throws Exception {
     inputOperator.close();
     partitionCache.close();
+    releaseReservedMemory();
+  }
+
+  protected void resetForReuse() {
+    tsBlockBuilder.reset();
+    partitionRecognizer.reset();
+    partitionCache.clear();
+    cachedPartitionExecutors.clear();
+    noMoreDataSignaled = false;
+    totalMemorySize = 0;
+    maxUsedMemory = 0;
+    operatorContext.recordSpecifiedInfo(MAX_RESERVED_MEMORY, Long.toString(maxUsedMemory));
+  }
+
+  protected void releaseReservedMemory() {
     if (totalMemorySize != 0) {
       memoryReservationManager.releaseMemoryCumulatively(totalMemorySize);
+      totalMemorySize = 0;
     }
   }
 

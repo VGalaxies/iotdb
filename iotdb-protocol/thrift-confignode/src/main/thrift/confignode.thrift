@@ -646,6 +646,7 @@ struct TShowClusterResp {
   // The reason why the node is in its current status, independent of nodeStatus.
   // Absent when the ConfigNode is an old version.
   7: optional map<i32, string> nodeStatusReason
+  8: required list<common.TStreamNodeLocation> streamNodeList
 }
 
 struct TGetClusterIdResp {
@@ -1270,6 +1271,84 @@ struct TAINodeRemoveReq{
 }
 
 // ====================================================
+// StreamNode
+// ====================================================
+
+struct TStreamNodeRegisterReq {
+  1: required string clusterName
+  2: required common.TStreamNodeConfiguration streamNodeConfiguration
+  3: optional TNodeVersionInfo versionInfo
+  4: optional bool preCheck
+}
+
+struct TStreamNodeRegisterResp {
+  1: required common.TSStatus status
+  2: required list<common.TConfigNodeLocation> configNodeList
+  3: optional i32 streamNodeId
+  4: optional TRuntimeConfiguration runtimeConfiguration
+}
+
+struct TStreamNodeRestartReq {
+  1: required string clusterName
+  2: required common.TStreamNodeConfiguration streamNodeConfiguration
+  3: optional TNodeVersionInfo versionInfo
+  4: optional string clusterId
+}
+
+struct TStreamNodeRestartResp {
+  1: required common.TSStatus status
+  2: required list<common.TConfigNodeLocation> configNodeList
+  3: optional TRuntimeConfiguration runtimeConfiguration
+}
+
+struct TStreamNodeRemoveReq {
+  1: required common.TStreamNodeLocation streamNodeLocation
+}
+
+struct TStreamNodeInfo {
+  1: required i32 streamNodeId
+  2: required string status
+  3: required string internalAddress
+  4: required i32 internalPort
+  // The reason why the StreamNode is in its current status, independent of status.
+  // Absent when the ConfigNode is an old version.
+  5: optional string statusReason
+}
+
+struct TShowStreamNodesResp {
+  1: required common.TSStatus status
+  2: optional list<TStreamNodeInfo> streamNodesInfoList
+}
+
+// ====================================================
+// Stream Task Management (DN -> CN)
+// ====================================================
+
+struct TCreateStreamReq {
+  1: required string streamName
+  2: required string creator
+  3: optional binary streamSource
+  4: required binary eventWindow
+  5: required string calcSql
+  6: required binary calcPlan
+  7: required binary streamSink
+  8: optional binary typeProvider
+  9: optional binary streamProperties
+}
+
+struct TDropStreamReq {
+  1: required string streamName
+}
+
+struct TStartStreamReq {
+  1: required string streamName
+}
+
+struct TStopStreamReq {
+  1: required string streamName
+}
+
+// ====================================================
 // Test only
 // ====================================================
 enum TTestOperation {
@@ -1445,6 +1524,32 @@ service IConfigNodeRPCService {
    * Return a reachable AINode location.
    */
   TGetAINodeLocationResp getAINodeLocation()
+
+  /**
+   * StreamNode management
+   */
+  TStreamNodeRegisterResp registerStreamNode(TStreamNodeRegisterReq req)
+
+  TStreamNodeRestartResp restartStreamNode(TStreamNodeRestartReq req)
+
+  common.TSStatus removeStreamNode(TStreamNodeRemoveReq req)
+
+  TShowStreamNodesResp showStreamNodes()
+
+  common.TSStatus reportStreamNodeShutdown(common.TStreamNodeLocation streamNodeLocation)
+
+  /**
+   * Stream task management
+   */
+  common.TSStatus createStream(TCreateStreamReq req)
+
+  common.TSStatus dropStream(TDropStreamReq req)
+
+  common.TSStatus startStream(TStartStreamReq req)
+
+  common.TSStatus stopStream(TStopStreamReq req)
+
+  common.TShowStreamResp showStreams()
 
   /**
    * Get system configurations. i.e. configurations that is not associated with the DataNodeId

@@ -30,6 +30,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.AssignU
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.CollectNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.CorrelatedJoinNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.EnforceSingleRowNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.EventScanNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.ExceptNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.FillNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.FilterNode;
@@ -49,6 +50,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.Previou
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.ProjectNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.RowNumberNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.SemiJoinNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.SessionScanNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.SortNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.StreamSortNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.TableFunctionNode;
@@ -92,6 +94,14 @@ public interface ICoreQueryPlanVisitor<R, C> extends IPlanVisitor<R, C> {
 
   // =============================== Used for Table Model ====================================
   default R visitTableScan(TableScanNode node, C context) {
+    return visitPlan(node, context);
+  }
+
+  default R visitEventScan(EventScanNode node, C context) {
+    return visitTableScan(node, context);
+  }
+
+  default R visitSessionScan(SessionScanNode node, C context) {
     return visitPlan(node, context);
   }
 

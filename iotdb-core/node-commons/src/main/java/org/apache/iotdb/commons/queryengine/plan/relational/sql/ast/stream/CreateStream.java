@@ -1,0 +1,235 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream;
+
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.AstMemoryEstimationHelper;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.CommonQueryAstVisitor;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.IAstVisitor;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Identifier;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.NodeLocation;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Query;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Statement;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Table;
+
+import com.google.common.collect.ImmutableList;
+import org.apache.tsfile.utils.RamUsageEstimator;
+
+import javax.annotation.Nullable;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+public class CreateStream extends Statement {
+
+  private static final long INSTANCE_SIZE =
+      RamUsageEstimator.shallowSizeOfInstance(CreateStream.class);
+
+  private final Identifier streamName;
+  private final boolean ifNotExistsCondition;
+  @Nullable private final Table sourceTable;
+  @Nullable private final Expression preFilter;
+  // StreamSourceClauseContext always supplies a list, empty when no PARTITION BY given
+  private final List<Expression> partitionBy;
+  private final Table sinkTable;
+  @Nullable private final List<Identifier> columns;
+  private final EventWindow eventWindow;
+  private final Query query;
+  @Nullable private final Map<String, Expression> properties;
+  @Nullable private final Expression subscriptionConsensusWalRetentionSizeInBytes;
+  @Nullable private final Expression subscriptionConsensusWalRetentionTimeMs;
+
+  public CreateStream(
+      @Nullable NodeLocation location,
+      Identifier streamName,
+      boolean ifNotExistsCondition,
+      @Nullable Table sourceTable,
+      @Nullable Expression preFilter,
+      List<Expression> partitionBy,
+      EventWindow eventWindow,
+      Query query,
+      Table sinkTable,
+      @Nullable List<Identifier> columns,
+      @Nullable Map<String, Expression> properties,
+      @Nullable Expression subscriptionConsensusWalRetentionSizeInBytes,
+      @Nullable Expression subscriptionConsensusWalRetentionTimeMs) {
+    super(location);
+    this.streamName = streamName;
+    this.ifNotExistsCondition = ifNotExistsCondition;
+    this.sourceTable = sourceTable;
+    this.preFilter = preFilter;
+    this.partitionBy = partitionBy;
+    this.eventWindow = eventWindow;
+    this.query = query;
+    this.sinkTable = sinkTable;
+    this.columns = columns;
+    this.properties = properties;
+    this.subscriptionConsensusWalRetentionSizeInBytes =
+        subscriptionConsensusWalRetentionSizeInBytes;
+    this.subscriptionConsensusWalRetentionTimeMs = subscriptionConsensusWalRetentionTimeMs;
+  }
+
+  public Identifier getStreamName() {
+    return streamName;
+  }
+
+  public boolean hasIfNotExistsCondition() {
+    return ifNotExistsCondition;
+  }
+
+  @Nullable
+  public Table getSourceTable() {
+    return sourceTable;
+  }
+
+  @Nullable
+  public Expression getPreFilter() {
+    return preFilter;
+  }
+
+  public List<Expression> getPartitionBy() {
+    return partitionBy;
+  }
+
+  public EventWindow getEventWindow() {
+    return eventWindow;
+  }
+
+  public Query getQuery() {
+    return query;
+  }
+
+  public Table getSinkTable() {
+    return sinkTable;
+  }
+
+  @Nullable
+  public List<Identifier> getColumns() {
+    return columns;
+  }
+
+  @Nullable
+  public Expression getSubscriptionConsensusWalRetentionSizeInBytes() {
+    return subscriptionConsensusWalRetentionSizeInBytes;
+  }
+
+  @Nullable
+  public Expression getSubscriptionConsensusWalRetentionTimeMs() {
+    return subscriptionConsensusWalRetentionTimeMs;
+  }
+
+  @Nullable
+  public Map<String, Expression> getProperties() {
+    return properties;
+  }
+
+  @Override
+  public <R, C> R accept(IAstVisitor<R, C> visitor, C context) {
+    return ((CommonQueryAstVisitor<R, C>) visitor).visitCreateStream(this, context);
+  }
+
+  @Override
+  public List<? extends Node> getChildren() {
+    return ImmutableList.of();
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(
+        streamName,
+        ifNotExistsCondition,
+        sourceTable,
+        preFilter,
+        partitionBy,
+        eventWindow,
+        query,
+        sinkTable,
+        columns,
+        properties,
+        subscriptionConsensusWalRetentionSizeInBytes,
+        subscriptionConsensusWalRetentionTimeMs);
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj) {
+      return true;
+    }
+    if (obj == null || getClass() != obj.getClass()) {
+      return false;
+    }
+    CreateStream that = (CreateStream) obj;
+    return ifNotExistsCondition == that.ifNotExistsCondition
+        && Objects.equals(streamName, that.streamName)
+        && Objects.equals(sourceTable, that.sourceTable)
+        && Objects.equals(preFilter, that.preFilter)
+        && Objects.equals(partitionBy, that.partitionBy)
+        && Objects.equals(eventWindow, that.eventWindow)
+        && Objects.equals(query, that.query)
+        && Objects.equals(sinkTable, that.sinkTable)
+        && Objects.equals(columns, that.columns)
+        && Objects.equals(properties, that.properties)
+        && Objects.equals(
+            subscriptionConsensusWalRetentionSizeInBytes,
+            that.subscriptionConsensusWalRetentionSizeInBytes)
+        && Objects.equals(
+            subscriptionConsensusWalRetentionTimeMs, that.subscriptionConsensusWalRetentionTimeMs);
+  }
+
+  @Override
+  public String toString() {
+    return "CreateStream{streamName="
+        + streamName
+        + ", ifNotExistsCondition="
+        + ifNotExistsCondition
+        + ", sourceTable="
+        + sourceTable
+        + ", eventWindow="
+        + eventWindow
+        + ", properties="
+        + properties
+        + ", subscriptionConsensusWalRetentionSizeInBytes="
+        + subscriptionConsensusWalRetentionSizeInBytes
+        + ", subscriptionConsensusWalRetentionTimeMs="
+        + subscriptionConsensusWalRetentionTimeMs
+        + "}";
+  }
+
+  @Override
+  public long ramBytesUsed() {
+    return INSTANCE_SIZE
+        + AstMemoryEstimationHelper.getEstimatedSizeOfNodeLocation(getLocationInternal())
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(streamName)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(sourceTable)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(preFilter)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfNodeList(partitionBy)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(eventWindow)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(query)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(sinkTable)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfNodeList(columns)
+        + RamUsageEstimator.sizeOfMap(properties)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(
+            subscriptionConsensusWalRetentionSizeInBytes)
+        + AstMemoryEstimationHelper.getEstimatedSizeOfAccountableObject(
+            subscriptionConsensusWalRetentionTimeMs);
+  }
+}

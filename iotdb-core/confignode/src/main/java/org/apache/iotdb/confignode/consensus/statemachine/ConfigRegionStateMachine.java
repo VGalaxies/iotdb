@@ -422,6 +422,8 @@ public class ConfigRegionStateMachine implements IStateMachine, IStateMachine.Ev
         new LeaderServiceStartup(
             "CQScheduler", () -> configManager.getCQManager().startCQScheduler()),
         new LeaderServiceStartup(
+            "StreamMonitor", () -> configManager.getStreamManager().startStreamMonitor()),
+        new LeaderServiceStartup(
             "PipeMetaSync",
             () -> configManager.getPipeManager().getPipeRuntimeCoordinator().startPipeMetaSync()),
         new LeaderServiceStartup(
@@ -459,6 +461,7 @@ public class ConfigRegionStateMachine implements IStateMachine, IStateMachine.Ev
     configManager.getRetryFailedTasksThread().stopRetryFailedTasksService();
     configManager.getPartitionManager().stopRegionCleaner();
     configManager.getCQManager().stopCQScheduler();
+    configManager.getStreamManager().stopStreamMonitor();
     configManager.getClusterSchemaManager().clearSchemaQuotaCache();
     // Remove Metric after leader change
     configManager.removeMetrics();

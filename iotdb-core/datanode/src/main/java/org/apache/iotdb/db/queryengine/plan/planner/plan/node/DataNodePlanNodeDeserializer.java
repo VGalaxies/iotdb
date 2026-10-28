@@ -21,6 +21,8 @@ package org.apache.iotdb.db.queryengine.plan.planner.plan.node;
 
 import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.CommonPlanNodeDeserializer;
 import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.PlanNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.EventScanNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.SessionScanNode;
 import org.apache.iotdb.db.i18n.DataNodeQueryMessages;
 import org.apache.iotdb.db.queryengine.plan.analyze.TypeProvider;
 import org.apache.iotdb.db.queryengine.plan.planner.plan.node.load.LoadTsFileConsensusNode;
@@ -479,6 +481,10 @@ public class DataNodePlanNodeDeserializer extends CommonPlanNodeDeserializer {
         return AlignedAggregationTreeDeviceViewScanNode.deserialize(buffer);
       case 1042:
         return NonAlignedAggregationTreeDeviceViewScanNode.deserialize(buffer);
+      case 1044:
+        return SessionScanNode.deserialize(buffer);
+      case 1045:
+        return EventScanNode.deserialize(buffer);
       case 2000:
         return RelationalInsertTabletNode.deserialize(buffer);
       case 2001:

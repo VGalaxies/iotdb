@@ -84,15 +84,15 @@ public class DataNodeMemoryConfigTest {
   }
 
   @Test
-  public void testSubscriptionDoesNotReserveQueryMemoryWhenConfiguredEnabled()
+  public void testSubscriptionReservesQueryMemoryWhenConfiguredEnabled()
       throws ReflectiveOperationException {
     final TrimProperties properties = new TrimProperties();
     properties.setProperty("chunk_timeseriesmeta_free_memory_proportion", "0:0:0:0:1:0:0:0:1");
     properties.setProperty("subscription_enabled", Boolean.TRUE.toString());
     final DataNodeMemoryConfig memoryConfig = initializeQueryEngineMemory(properties);
 
-    assertEquals(0, memoryConfig.getSubscriptionMemoryManager().getTotalMemorySizeInBytes());
-    assertEquals(1_000_000L, memoryConfig.getOperatorsMemoryManager().getTotalMemorySizeInBytes());
+    assertEquals(500_000L, memoryConfig.getSubscriptionMemoryManager().getTotalMemorySizeInBytes());
+    assertEquals(500_000L, memoryConfig.getOperatorsMemoryManager().getTotalMemorySizeInBytes());
   }
 
   @Test

@@ -1,0 +1,78 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.apache.iotdb.streamnode.engine.computation.planner.memory;
+
+import org.apache.tsfile.utils.Pair;
+
+import javax.annotation.concurrent.ThreadSafe;
+
+@ThreadSafe
+public class ThreadSafeStreamNodeMemoryReservationManager
+    extends NotThreadSafeStreamNodeMemoryReservationManager {
+  public ThreadSafeStreamNodeMemoryReservationManager(final String contextHolder) {
+    super(contextHolder);
+  }
+
+  @Override
+  public synchronized void reserveMemoryCumulatively(final long size) {
+    super.reserveMemoryCumulatively(size);
+  }
+
+  @Override
+  public synchronized void reserveMemoryImmediately() {
+    super.reserveMemoryImmediately();
+  }
+
+  @Override
+  public synchronized void reserveMemoryImmediately(final long size) {
+    super.reserveMemoryImmediately(size);
+  }
+
+  @Override
+  public synchronized void releaseMemoryCumulatively(final long size) {
+    super.releaseMemoryCumulatively(size);
+  }
+
+  @Override
+  public synchronized void releaseMemoryImmediately(final long size) {
+    super.releaseMemoryImmediately(size);
+  }
+
+  @Override
+  public synchronized void releaseAllReservedMemory() {
+    super.releaseAllReservedMemory();
+  }
+
+  @Override
+  public synchronized Pair<Long, Long> releaseMemoryVirtually(final long size) {
+    return super.releaseMemoryVirtually(size);
+  }
+
+  @Override
+  public synchronized void reserveMemoryVirtually(
+      final long bytesToBeReserved, final long bytesAlreadyReserved) {
+    super.reserveMemoryVirtually(bytesToBeReserved, bytesAlreadyReserved);
+  }
+
+  @Override
+  public synchronized void setHighestPriority(boolean isHighestPriority) {
+    super.setHighestPriority(isHighestPriority);
+  }
+}

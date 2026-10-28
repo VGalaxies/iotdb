@@ -615,7 +615,7 @@ public abstract class AbstractNodeWrapper implements BaseNodeWrapper {
     return getNodePath() + File.separator + dirName + File.separator + fileName;
   }
 
-  protected String getLogPath() {
+  public String getLogPath() {
     return getLogDirPath() + File.separator + getId() + ".log";
   }
 

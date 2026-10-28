@@ -115,6 +115,14 @@ import org.apache.iotdb.confignode.consensus.request.write.quota.SetThrottleQuot
 import org.apache.iotdb.confignode.consensus.request.write.region.CreateRegionGroupsPlan;
 import org.apache.iotdb.confignode.consensus.request.write.region.OfferRegionMaintainTasksPlan;
 import org.apache.iotdb.confignode.consensus.request.write.region.PollSpecificRegionMaintainTaskPlan;
+import org.apache.iotdb.confignode.consensus.request.write.stream.CreateStreamPlan;
+import org.apache.iotdb.confignode.consensus.request.write.stream.DropStreamPlan;
+import org.apache.iotdb.confignode.consensus.request.write.stream.StartStreamPlan;
+import org.apache.iotdb.confignode.consensus.request.write.stream.StopStreamPlan;
+import org.apache.iotdb.confignode.consensus.request.write.stream.UpdateStreamEpochPlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RegisterStreamNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RemoveStreamNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.UpdateStreamNodePlan;
 import org.apache.iotdb.confignode.consensus.request.write.subscription.consumer.AlterConsumerGroupPlan;
 import org.apache.iotdb.confignode.consensus.request.write.subscription.consumer.runtime.CommitProgressHandleMetaChangePlan;
 import org.apache.iotdb.confignode.consensus.request.write.subscription.consumer.runtime.ConsumerGroupHandleMetaChangePlan;
@@ -173,6 +181,7 @@ import org.apache.iotdb.confignode.persistence.partition.PartitionInfo;
 import org.apache.iotdb.confignode.persistence.pipe.PipeInfo;
 import org.apache.iotdb.confignode.persistence.quota.QuotaInfo;
 import org.apache.iotdb.confignode.persistence.schema.ClusterSchemaInfo;
+import org.apache.iotdb.confignode.persistence.stream.StreamInfo;
 import org.apache.iotdb.confignode.persistence.subscription.SubscriptionInfo;
 import org.apache.iotdb.confignode.rpc.thrift.TDatabaseSchema;
 import org.apache.iotdb.confignode.rpc.thrift.TShowRegionReq;
@@ -231,6 +240,8 @@ public class ConfigPlanExecutor {
 
   private final TTLInfo ttlInfo;
 
+  private final StreamInfo streamInfo;
+
   public ConfigPlanExecutor(final ConfigManager.ConfigManagerContext context) {
 
     this.snapshotProcessorList = new ArrayList<>();
@@ -278,6 +289,9 @@ public class ConfigPlanExecutor {
     this.snapshotProcessorList.add(context.ttlInfo);
 
     this.snapshotProcessorList.addAll(context.getAdditionalInfoList());
+
+    this.streamInfo = context.streamInfo;
+    this.snapshotProcessorList.add(streamInfo);
 
     this.snapshotProcessorList.add(PipeConfigNodeAgent.runtime().listener());
   }
@@ -390,6 +404,8 @@ public class ConfigPlanExecutor {
         return nodeInfo.registerDataNode((RegisterDataNodePlan) physicalPlan);
       case RemoveDataNode:
         return nodeInfo.removeDataNode((RemoveDataNodePlan) physicalPlan);
+      case RemoveStreamNode:
+        return nodeInfo.removeStreamNode((RemoveStreamNodePlan) physicalPlan);
       case UpdateDataNodeConfiguration:
         status = nodeInfo.updateDataNode((UpdateDataNodePlan) physicalPlan);
         if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
@@ -402,6 +418,10 @@ public class ConfigPlanExecutor {
         return nodeInfo.updateAINode((UpdateAINodePlan) physicalPlan);
       case RemoveAINode:
         return nodeInfo.removeAINode((RemoveAINodePlan) physicalPlan);
+      case RegisterStreamNode:
+        return nodeInfo.registerStreamNode((RegisterStreamNodePlan) physicalPlan);
+      case UpdateStreamNodeConfiguration:
+        return nodeInfo.updateStreamNode((UpdateStreamNodePlan) physicalPlan);
       case CreateDatabase:
         status = clusterSchemaInfo.createDatabase((DatabaseSchemaPlan) physicalPlan);
         if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
@@ -673,6 +693,16 @@ public class ConfigPlanExecutor {
         return externalServiceInfo.stopService((StopExternalServicePlan) physicalPlan);
       case DropExternalService:
         return externalServiceInfo.dropService((DropExternalServicePlan) physicalPlan);
+      case CreateStream:
+        return streamInfo.applyCreateStream((CreateStreamPlan) physicalPlan);
+      case DropStream:
+        return streamInfo.applyDropStream((DropStreamPlan) physicalPlan);
+      case StartStream:
+        return streamInfo.applyStartStream((StartStreamPlan) physicalPlan);
+      case StopStream:
+        return streamInfo.applyStopStream((StopStreamPlan) physicalPlan);
+      case UpdateStreamEpoch:
+        return streamInfo.applyUpdateStreamEpoch((UpdateStreamEpochPlan) physicalPlan);
       case CreatePipePlugin:
         return pipeInfo.getPipePluginInfo().createPipePlugin((CreatePipePluginPlan) physicalPlan);
       case DropPipePlugin:

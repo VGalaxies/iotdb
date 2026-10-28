@@ -380,6 +380,17 @@ public final class ProcedureMessages {
       "Failed to alter topic (%s -> %s) on data nodes, because %s";
   public static final String FAILED_TO_CHANGE_DATANODE_STATUS_DATANODEID_NODESTATUS =
       "{}, Failed to change DataNode status, dataNodeId={}, nodeStatus={}";
+  public static final String BEGIN_TO_CHANGE_STREAMNODE_STATUS_NODESTATUS =
+      "{}, Begin to change StreamNode status, streamNodeId={}, nodeStatus={}";
+  public static final String BEGIN_TO_STOP_STREAM_NODES_AND_KILL_THE_STREAMNODE_PROCESS =
+      "{}, Begin to stop StreamNodes and kill the StreamNode process: {}";
+  public static final String STOP_STREAM_NODE_MEETS_ERROR_ERROR_STREAMNODE =
+      "{}, Stop StreamNode meets error, error streamNode: {}";
+  public static final String STOP_STREAM_NODE_SUCCESS = "{}, Stop StreamNode {} success.";
+  public static final String BEGIN_TO_DROP_RUNTIME_STREAM_TASKS_ON_STREAMNODE =
+      "{}, Begin to drop StreamTasks running on StreamNode {}";
+  public static final String FAILED_TO_DROP_RUNTIME_STREAM_TASK_ON_STREAMNODE =
+      "{}, Failed to drop StreamTask {} on StreamNode {}";
   public static final String FAILED_TO_COMMIT_SET_TEMPLATE_ON_PATH_DUE_TO =
       "Failed to commit set template {} on path {} due to {}";
   public static final String FAILED_TO_CREATE_CONSENSUS_PIPE =
@@ -498,6 +509,9 @@ public final class ProcedureMessages {
       "Failed to rollback pre set template {} on path {} due to {}";
   public static final String FAILED_TO_ROLLBACK_PRE_UNSET_TEMPLATE_OPERATION_OF_TEMPLATE_SET =
       "Failed to rollback pre unset template operation of template {} set on {}";
+  public static final String
+      LOG_FAILED_TO_ROLL_BACK_RUNTIME_FOR_STREAMTASK_ARG_STATUS_ARG_DC57901A =
+          "Failed to roll back runtime for StreamTask {}, status: {}";
   public static final String FAILED_TO_ROLLBACK_START_PIPE_DETAILS_METADATA_WILL_BE_SYNCHRONIZED =
       "Failed to rollback start pipe {}, details: {}, metadata will be synchronized later.";
   public static final String FAILED_TO_ROLLBACK_STOP_PIPE_DETAILS_METADATA_WILL_BE_SYNCHRONIZED =
@@ -557,6 +571,8 @@ public final class ProcedureMessages {
       "Fail to drop trigger [%s] on Data Nodes";
   public static final String FAIL_TO_REMOVE_AINODE_AT_STATE =
       "Fail to remove AINode [%s] at STATE [%s], %s";
+  public static final String FAIL_TO_REMOVE_STREAMNODE_AT_STATE =
+      "Fail to remove StreamNode [%s] at STATE [%s], %s";
   public static final String FAIL_TO_REMOVE_AINODE_ON_CONFIG_NODES =
       "Fail to remove [%s] AINode on Config Nodes [%s]";
   public static final String FAIL_WHEN_EXECUTE = "Fail when execute {} ";
@@ -873,6 +889,8 @@ public final class ProcedureMessages {
       "Retrievable error trying to drop pipe plugin [{}], state: {}";
   public static final String RETRIEVABLE_ERROR_TRYING_TO_REMOVE_AINODE_STATE =
       "Retrievable error trying to remove AINode [{}], state [{}]";
+  public static final String RETRIEVABLE_ERROR_TRYING_TO_REMOVE_STREAMNODE_STATE =
+      "Retrievable error trying to remove StreamNode [{}], state [{}]";
   public static final String ROLLBACK_CREATETABLE_COSTS_MS = "Rollback CreateTable-{} costs {}ms.";
   public static final String ROLLBACK_CREATE_TABLE_FAILED = "Rollback create table failed";
   public static final String ROLLBACK_DROPTABLE_COSTS_MS = "Rollback DropTable-{} costs {}ms.";
@@ -1007,6 +1025,10 @@ public final class ProcedureMessages {
       "TopicMetaSyncProcedure: rollbackFromValidate";
   public static final String UNEXPECTED_FAIL_TSSTATUS_IS = "Unexpected fail, tsStatus is ";
   public static final String UNEXPECTED_STATE = "Unexpected state";
+  public static final String EXCEPTION_UNEXPECTED_STARTSTREAMPROCEDURE_STATE_ARG_D5F3448B =
+      "Unexpected StartStreamProcedure state: %s";
+  public static final String EXCEPTION_UNEXPECTED_STOPSTREAMPROCEDURE_STATE_ARG_FE20B787 =
+      "Unexpected StopStreamProcedure state: %s";
   public static final String UNKNOWN_CREATECQSTATE = "Unknown CreateCQState: ";
   public static final String UNKNOWN_CREATETRIGGERSTATE = "Unknown CreateTriggerState: ";
   public static final String UNKNOWN_DROPTRIGGERSTATE = "Unknown DropTriggerState: ";
@@ -1022,6 +1044,8 @@ public final class ProcedureMessages {
       "Unknown state during executing operateSubscriptionProcedure, %s";
   public static final String UNKNOWN_STATE_DURING_EXECUTING_REMOVEAINODEPROCEDURE =
       "Unknown state during executing removeAINodeProcedure, %s";
+  public static final String UNKNOWN_STATE_DURING_EXECUTING_REMOVESTREAMNODEPROCEDURE =
+      "Unknown state during executing removeStreamNodeProcedure, %s";
   public static final String UNKNOWN_STATE_DURING_ROLLBACK_OPERATESUBSCRIPTIONPROCEDURE =
       "Unknown state during rollback operateSubscriptionProcedure, %s";
   public static final String UNKNOWN_STATE_FOR_ROLLBACK = "Unknown state for rollback: ";
@@ -1438,7 +1462,27 @@ public final class ProcedureMessages {
       "rolling back after an earlier failure.";
   public static final String
       MESSAGE_SOME_OTHER_TASK_IS_SETTING_OR_UNSETTING_A_TEMPLATE_ON_TARGET_PATH_ARG_D4FEE38F =
-          "Some other task is setting or unsetting a template on target path %s.";
+      "Some other task is setting or unsetting a template on target path %s.";
+  public static final String MESSAGE_THERE_EXIST_STREAM_NODE_IN_REQUEST_BUT_NOT_IN_CLUSTER_73F04636 =
+      "There exist StreamNode in request but not in cluster";
+  public static final String
+      MESSAGE_FAILED_TO_REMOVE_STREAM_NODE_BECAUSE_STREAM_TASK_EXISTS_ON_IT_8582D7D6 =
+          "Failed to remove StreamNode [%s] because there are StreamTasks on it and it is the only StreamNode in the cluster; please drop the StreamTasks first";
+  public static final String
+      MESSAGE_SUBMIT_REMOVESTREAMNODEPROCEDURE_FAILED_ANOTHER_PROCEDURE_IN_PROCESSING_D3BAA67B =
+          "Submit RemoveStreamNodeProcedure failed, because another RemoveStreamNodeProcedure %s is already in processing. IoTDB is able to have at most 1 RemoveStreamNodeProcedure at the same time. For further information, please search [pid%d] in log.";
+  public static final String
+      MESSAGE_SUBMIT_REMOVESTREAMNODEPROCEDURE_FAILED_BECAUSE_ANOTHER_STREAM_OPERATION_PROCEDURE_IS_ALREADY_IN_PROCESSING_FOR_FURTHER_INFORMATION_PLEASE_SEARCH_PIDARG_IN_LOG_3D754BBF =
+          "Submit RemoveStreamNodeProcedure failed, because another Stream operation procedure is already in processing. For further information, please search [pid%d] in log.";
+  public static final String
+      MESSAGE_SUBMIT_REMOVESTREAMNODEPROCEDURE_FAILED_NO_OTHER_RUNNING_STREAMNODE_D93B2930 =
+          "Submit RemoveStreamNodeProcedure failed, because there is no other Running StreamNode in the cluster besides the removed one. Please ensure at least one StreamNode remains Running.";
+  public static final String
+      MESSAGE_STREAM_OPERATION_ARG_CONFLICTS_WITH_IN_PROGRESS_OPERATION_ARG_FOR_STREAM_ARG_DE215B81 =
+          "Stream operation %s conflicts with in-progress operation %s for stream %s.";
+  public static final String
+      MESSAGE_STREAM_OPERATION_ARG_CANNOT_BE_SUBMITTED_WHILE_REMOVESTREAMNODEPROCEDURE_PIDARG_IS_IN_PROGRESS_687C153D =
+          "Stream operation %s cannot be submitted while RemoveStreamNodeProcedure [pid%d] is in progress.";
   public static final String EXCEPTION_DATANODE_SETSYSTEMSTATUS_RPC_FAILED_ARG_ARG_ARG_7E8E5F9F =
       "DataNode setSystemStatus RPC failed: %s: %s: %s; ";
   public static final String EXCEPTION_CONFIGNODE_TRYSETNODESTATUS_FAILED_ARG_ARG_ARG_C9BA78F4 =

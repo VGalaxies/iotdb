@@ -313,10 +313,14 @@ public final class ManagerMessages {
       "传输事件 %s 时出现网络错误，原因：%s。";
   public static final String NODEMANAGER_START_TO_REMOVE_DATANODE =
       "NodeManager 开始移除 DataNode {}";
+  public static final String NODEMANAGER_START_TO_REMOVE_STREAMNODE =
+      "NodeManager 开始移除 StreamNode {}";
   public static final String NODEMANAGER_SUBMIT_REMOVEAINODEPLAN_FINISHED =
       "NodeManager 提交 RemoveAINodePlan 完成，{}";
   public static final String NODEMANAGER_SUBMIT_REMOVEDATANODEPLAN_FINISHED_REMOVEDATANODEPLAN =
       "NodeManager 提交 RemoveDataNodePlan 完成，removeDataNodePlan：{}";
+  public static final String NODEMANAGER_SUBMIT_REMOVESTREAMNODEPLAN_FINISHED =
+      "NodeManager 提交 removeStreamNodePlan 完成，{}";
   public static final String NODESTATISTICS = "[NodeStatistics]\t {}: {} -> {}";
   public static final String NODESTATISTICS_NODESTATISTICSMAP =
       "[NodeStatistics] NodeStatisticsMap: ";
@@ -456,6 +460,48 @@ public final class ManagerMessages {
   public static final String STOP_SUBMITTING_CQ_BECAUSE = "停止提交 CQ {}，原因：{}";
   public static final String STOP_SUBMITTING_CQ_BECAUSE_CURRENT_NODE_IS_NOT_LEADER_OR =
       "停止提交 CQ {}，原因：当前节点不是 leader 或当前调度线程池已关闭。";
+  public static final String STREAM_IS_BEING_DROPPED = "Stream 正在删除：%s";
+  public static final String
+      EXCEPTION_INVALID_EXPECTED_STATUS_ORDINAL_IN_STREAMINFO_SNAPSHOT_ARG_43EC6A81 =
+          "StreamInfo 快照中的期望状态序号无效：%d";
+  public static final String EXCEPTION_INVALID_STREAMINFO_SNAPSHOT_MAGIC_ARG_6431D13A =
+      "StreamInfo 快照魔数无效：%d";
+  public static final String EXCEPTION_UNSUPPORTED_STREAMINFO_SNAPSHOT_VERSION_ARG_F766EDEE =
+      "不支持的 StreamInfo 快照版本：%d";
+  public static final String STREAM_IS_BEING_MIGRATED_8E91E470 = "Stream 正在迁移：%s";
+  public static final String MESSAGE_CANNOT_START_STREAM_ARG_OWNER_EPOCH_EXCEEDS_THE_SUPPORTED_TASK_EPOCH_RANGE_06BF0D1D =
+      "无法启动 Stream %s：owner epoch 超出支持的 task epoch 范围。";
+  public static final String MESSAGE_CANNOT_ADVANCE_STREAM_ARG_TASK_EPOCH_HAS_REACHED_THE_MAXIMUM_SUPPORTED_VALUE_ED9FA887 =
+      "无法推进 Stream %s：task epoch 已达到支持的最大值。";
+  public static final String STREAM_MANAGER_FAILED_TO_FETCH_STREAMNODE_HEARTBEAT =
+      "从 {} 获取 StreamNode 心跳失败：{}";
+  public static final String STREAM_MANAGER_FAILED_TO_RESTART_TASK = "重启任务 {} 失败：{}";
+  public static final String STREAM_MANAGER_HEARTBEAT_LOST = "心跳丢失";
+  public static final String STREAM_MANAGER_INVALID_STREAMNODE_ENDPOINT =
+      "Stream %s 的 StreamNode 端点无效：%s";
+  public static final String
+      MESSAGE_CANNOT_DROP_STREAM_ARG_BECAUSE_ITS_STREAMNODE_ARG_IS_ARG_CB6283F1 =
+          "无法删除 Stream %s，因为其 StreamNode %s 状态为 %s。";
+  public static final String STREAM_MANAGER_MANUALLY_STOPPED = "手动停止";
+  public static final String MESSAGE_START_ROLLBACK_B6601816 = "启动回滚";
+  public static final String MESSAGE_STATE_RECONCILIATION_4D36E98B = "状态校正";
+  public static final String MESSAGE_STREAMNODE_SHUTDOWN_C83EA302 = "StreamNode 关停";
+  public static final String STREAM_MANAGER_MARKED_TASK_UNKNOWN =
+      "任务 {} 心跳丢失，已将其标记为 UNKNOWN";
+  public static final String STREAM_MANAGER_NO_AVAILABLE_STREAMNODE =
+      "没有可用于运行 Stream 任务 %s 的 StreamNode";
+  public static final String STREAM_MANAGER_RECEIVED_UNKNOWN_TASK_HEARTBEAT =
+      "收到未知任务的心跳：{}";
+  public static final String STREAM_MANAGER_RESTARTING_UNKNOWN_TASK =
+      "正在重启 UNKNOWN 任务：{}";
+  public static final String STREAM_MANAGER_STALE_HEARTBEAT =
+      "任务 %s 的心跳已过期：期望 epoch=%d、leaderTerm=%d，实际 epoch=%d、leaderTerm=%d";
+  public static final String STREAM_MANAGER_STARTING_STREAM = "正在启动 Stream：{}";
+  public static final String STREAM_MANAGER_STOPPING_STREAM = "正在停止 Stream：{}";
+  public static final String STREAM_MANAGER_TASK_NOT_FOUND = "未找到 Stream 任务：%s";
+  public static final String STREAM_MANAGER_UNEXPECTED_STREAMNODE_HEARTBEAT_RESPONSE =
+      "来自 {} 的 StreamNode 心跳响应不符合预期：{}";
+  public static final String STREAM_NOT_FOUND = "Stream 不存在：%s";
   public static final String SUBMITTED_ASYNC_CONSENSUS_PIPE_CREATION =
       "已异步提交 consensus pipe 创建：{}";
   public static final String SUBMITTED_ASYNC_CONSENSUS_PIPE_DROP =
@@ -478,6 +524,10 @@ public final class ManagerMessages {
       "成功传输 config region 快照 {}。";
   public static final String THERE_IS_NO_RUNNING_DATANODE_TO_EXECUTE_CQ =
       "没有处于 RUNNING 状态的 DataNode 可用于执行 CQ {}";
+  public static final String THE_CONFIGNODE_WILL_BE_SHUTDOWN_SOON_MARK_IT_AS_UNKNOWN =
+      "ConfigNode-{} 即将关闭，将其标记为 Unknown";
+  public static final String THE_STREAMNODE_WILL_BE_SHUTDOWN_SOON_MARK_IT_AS_UNKNOWN =
+      "StreamNode-{} 即将关闭，将其标记为 Unknown";
   public static final String LOG_NODE_ARG_REPORTED_SHUTDOWN_CURRENT_STATUS_IS_ARG_A375D665 =
       "节点 {} 已报告停止；当前状态为 {}。";
   public static final String THE_CONFIG_REGION_AIR_GAP_CONNECTOR_DOES_NOT_SUPPORT_TRANSFERRING =
@@ -494,6 +544,8 @@ public final class ManagerMessages {
       "PartiteGraphPlacementRegionGroupAllocator 的 removeNodeReplicaSelect 方法尚未实现。";
   public static final String THE_REMOVE_DATANODE_REQUEST_CHECK_FAILED_REQ_CHECK_RESULT =
       "移除 DataNode 请求检查失败。请求：{}，检查结果：{}";
+  public static final String THE_REMOVE_STREAM_NODE_REQUEST_CHECK_FAILED_REQ_CHECK_RESULT =
+      "移除 StreamNode 请求检查失败。请求：{}，检查结果：{}";
   public static final String TOPOLOGY_ASYMMETRIC_NETWORK_PARTITION_FROM_TO =
       "[Topology] 从 {} 到 {} 出现非对称网络分区";
   public static final String TOPOLOGY_CLUSTER_TOPOLOGY_CHANGED_LATEST =
@@ -554,6 +606,7 @@ public final class ManagerMessages {
   public static final String SERVER_ACCEPTED_THE_REQUEST = "服务器已接受请求";
   public static final String SERVER_REJECTED_THE_REQUEST_MAYBE_REQUESTS_ARE_TOO_MANY = "服务器拒绝了请求，可能请求过多";
   public static final String THERE_IS_ALREADY_ONE_AINODE_IN_THE_CLUSTER = "集群中已存在一个 AINode。";
+  public static final String THERE_IS_ALREADY_ONE_STREAMNODE_IN_THE_CLUSTER_BC13ED81 = "集群中已存在一个 StreamNode";
   public static final String REMOVE_AINODE_FAILED_BECAUSE_THERE_IS_NO_AINODE_IN_THE = "移除 AINode 失败，集群中没有 AINode。";
   public static final String REMOVE_CONFIGNODE_FAILED_DUE_TO_THREAD_INTERRUPTION = "移除 ConfigNode 失败，线程被中断。";
   public static final String REMOVE_CONFIGNODE_FAILED_BECAUSE_THE_CONFIGNODE_NOT_IN_CURRENT_CLUSTER = "移除 ConfigNode 失败，该 ConfigNode 不在当前集群中。";
@@ -621,6 +674,11 @@ public final class ManagerMessages {
 
   public static final String MESSAGE_CURRENT_CONFIGNODE_NOT_LEADER_PLEASE_REDIRECT_NEW_CONFIGNODE_F9AF262D = "当前 ConfigNode 不是 leader，请重定向到新的 ConfigNode。";
   public static final String LOG_FAILED_SYNC_COMMIT_PROGRESS_RESULT_STATUS_ARG_A9E46E80 = "同步提交进度失败。结果状态：{}。";
+  public static final String LOG_FAILED_TO_DROP_RUNTIME_OF_STREAMTASK_ARG_ON_STREAMNODE_ARG_E5D5C253 = "删除 StreamNode {} 上 StreamTask {} 的运行实例失败";
+  public static final String LOG_FAILED_TO_MIGRATE_STREAMTASK_ARG_TO_ANOTHER_STREAMNODE_REASON_ARG_0307D370 = "将 StreamTask {} 迁移到其他 StreamNode 失败，原因：{}";
+  public static final String LOG_FAILED_TO_STOP_RUNTIME_OF_STREAMTASK_ON_STREAMNODE_B5E07753 = "停止 StreamNode {} 上 StreamTask {} 的运行实例失败";
+  public static final String LOG_FAILED_TO_RECONCILE_STOPPED_STREAM_ARG_REASON_ARG_4324F28F = "协调已停止的流 {} 失败，原因：{}";
+  public static final String LOG_FAILED_TO_RESTART_STREAMTASK_ON_STREAMNODE_DURING_ROLLBACK_D4EADD44 = "回滚期间在 StreamNode {} 上重启 StreamTask {} 失败";
   public static final String MESSAGE_FAILED_ALTER_DATABASE_DATABASE_2734674F = "修改数据库失败。数据库 ";
   public static final String MESSAGE_DOESN_T_EXIST_EED8C92E = " 不存在。";
   public static final String MESSAGE_FAILED_ALTER_DATABASE_SCHEMAREGIONGROUPNUM_COULD_ONLY_INCREASED_B98229D3 = "修改数据库失败。SchemaRegionGroupNum 只能增加。";
@@ -696,6 +754,8 @@ public final class ManagerMessages {
   public static final String
       MESSAGE_ARG_PLEASE_MANUALLY_CHECK_LATER_WHETHER_THE_PROCEDURE_IS_EXECUTED_SUCCESSFULLY_A82B739D =
           "%s 请稍后手动检查该 Procedure 是否执行成功。";
+  public static final String MESSAGE_NO_RUNNING_STREAMNODE_FOUND_F21CB52B =
+      "未找到处于 Running 状态的 StreamNode";
 
   public static final String MESSAGE_CONFIGNODE_LEADER_IS_WAITING_FOR_NODE_STATUS_PERSISTENCE_8CA96809 =
       "ConfigNode leader 正在等待节点状态持久化。";

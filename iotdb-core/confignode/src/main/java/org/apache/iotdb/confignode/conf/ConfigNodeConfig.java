@@ -406,6 +406,9 @@ public class ConfigNodeConfig {
 
   private long forceWalPeriodForConfigNodeSimpleInMs = 100;
 
+  /** Stream heartbeat lost threshold in milliseconds. */
+  private long streamHeartbeatLostThresholdMS = 15000;
+
   // The DataNode self-fences its ConfigNode-pushed metadata caches (table/tree schema, template,
   // TTL, permission, ...) if it has not received a ConfigNode heartbeat within this duration. Kept
   // aligned with the failure detector threshold so a partitioned DataNode stops trusting stale
@@ -576,6 +579,10 @@ public class ConfigNodeConfig {
 
   public void setConsensusDir(String consensusDir) {
     this.consensusDir = consensusDir;
+  }
+
+  public String getStreamsDir() {
+    return systemDir + File.separator + "streams";
   }
 
   public String getConfigNodeConsensusProtocolClass() {
@@ -1485,5 +1492,13 @@ public class ConfigNodeConfig {
 
   public void setTopologyProbingTimeoutRatio(double topologyProbingTimeoutRatio) {
     this.topologyProbingTimeoutRatio = topologyProbingTimeoutRatio;
+  }
+
+  public long getStreamHeartbeatLostThresholdMS() {
+    return streamHeartbeatLostThresholdMS;
+  }
+
+  public void setStreamHeartbeatLostThresholdMS(long streamHeartbeatLostThresholdMS) {
+    this.streamHeartbeatLostThresholdMS = streamHeartbeatLostThresholdMS;
   }
 }

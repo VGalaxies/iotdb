@@ -24,6 +24,8 @@ import org.apache.iotdb.common.rpc.thrift.TAINodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TConfigNodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TDataNodeConfiguration;
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeConfiguration;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.commons.cluster.NodeStatus;
 import org.apache.iotdb.commons.conf.CommonDescriptor;
 import org.apache.iotdb.commons.snapshot.SnapshotProcessor;
@@ -41,6 +43,9 @@ import org.apache.iotdb.confignode.consensus.request.write.confignode.UpdateVers
 import org.apache.iotdb.confignode.consensus.request.write.datanode.RegisterDataNodePlan;
 import org.apache.iotdb.confignode.consensus.request.write.datanode.RemoveDataNodePlan;
 import org.apache.iotdb.confignode.consensus.request.write.datanode.UpdateDataNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RegisterStreamNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RemoveStreamNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.UpdateStreamNodePlan;
 import org.apache.iotdb.confignode.consensus.response.ainode.AINodeConfigurationResp;
 import org.apache.iotdb.confignode.consensus.response.datanode.DataNodeConfigurationResp;
 import org.apache.iotdb.confignode.i18n.ConfigNodeMessages;
@@ -77,6 +82,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static org.apache.iotdb.confignode.conf.ConfigNodeConstant.REMOVE_AINODE_PROCESS;
 import static org.apache.iotdb.confignode.conf.ConfigNodeConstant.REMOVE_DATANODE_PROCESS;
+import static org.apache.iotdb.confignode.conf.ConfigNodeConstant.REMOVE_STREAMNODE_PROCESS;
 
 /**
  * The {@link NodeInfo} stores cluster node information.
@@ -108,6 +114,9 @@ public class NodeInfo implements SnapshotProcessor {
   private final Map<Integer, TAINodeConfiguration> registeredAINodes;
   private final ReentrantReadWriteLock aiNodeInfoReadWriteLock;
 
+  private final Map<Integer, TStreamNodeConfiguration> registeredStreamNodes;
+  private final ReentrantReadWriteLock streamNodeInfoReadWriteLock;
+
   private final Map<Integer, TNodeVersionInfo> nodeVersionInfo;
   private final ReentrantReadWriteLock versionInfoReadWriteLock;
 
@@ -126,6 +135,9 @@ public class NodeInfo implements SnapshotProcessor {
 
     this.aiNodeInfoReadWriteLock = new ReentrantReadWriteLock();
     this.registeredAINodes = new ConcurrentHashMap<>();
+
+    this.streamNodeInfoReadWriteLock = new ReentrantReadWriteLock();
+    this.registeredStreamNodes = new ConcurrentHashMap<>();
 
     this.nodeVersionInfo = new ConcurrentHashMap<>();
     this.versionInfoReadWriteLock = new ReentrantReadWriteLock();
@@ -523,7 +535,118 @@ public class NodeInfo implements SnapshotProcessor {
   }
 
   /**
-   * Update the specified AINode‘s location.
+   * Persist StreamNode info.
+   *
+   * @param registerStreamNodePlan RegisterStreamNodePlan
+   * @return {@link TSStatusCode#SUCCESS_STATUS}
+   */
+  public TSStatus registerStreamNode(RegisterStreamNodePlan registerStreamNodePlan) {
+    TSStatus result;
+    TStreamNodeConfiguration info = registerStreamNodePlan.getStreamNodeConfiguration();
+    streamNodeInfoReadWriteLock.writeLock().lock();
+    try {
+      synchronized (nextNodeId) {
+        if (nextNodeId.get() < info.getLocation().getStreamNodeId()) {
+          nextNodeId.set(info.getLocation().getStreamNodeId());
+        }
+      }
+      registeredStreamNodes.put(info.getLocation().getStreamNodeId(), info);
+      result = new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
+    } finally {
+      streamNodeInfoReadWriteLock.writeLock().unlock();
+    }
+    return result;
+  }
+
+  /**
+   * Update the specified StreamNode‘s location.
+   *
+   * @param updateStreamNodePlan UpdateStreamNodePlan
+   * @return {@link TSStatusCode#SUCCESS_STATUS} if update StreamNode info successfully.
+   */
+  public TSStatus updateStreamNode(UpdateStreamNodePlan updateStreamNodePlan) {
+    streamNodeInfoReadWriteLock.writeLock().lock();
+    try {
+      TStreamNodeConfiguration newConfiguration = updateStreamNodePlan.getStreamNodeConfiguration();
+      registeredStreamNodes.replace(
+          newConfiguration.getLocation().getStreamNodeId(), newConfiguration);
+    } finally {
+      streamNodeInfoReadWriteLock.writeLock().unlock();
+    }
+    return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
+  }
+
+  /**
+   * Persist Information about remove StreamNode.
+   *
+   * @param removeStreamNodePlan RemoveStreamNodePlan
+   * @return {@link TSStatusCode#SUCCESS_STATUS}
+   */
+  public TSStatus removeStreamNode(RemoveStreamNodePlan removeStreamNodePlan) {
+    LOGGER.info(
+        ConfigNodeMessages.THERE_ARE_STREAM_NODE_IN_CLUSTER_BEFORE_EXECUTED_REMOVESTREAMNODEPLAN,
+        removeStreamNodePlan,
+        registeredStreamNodes.size());
+
+    streamNodeInfoReadWriteLock.writeLock().lock();
+    versionInfoReadWriteLock.writeLock().lock();
+    try {
+      TStreamNodeLocation removedStreamNode = removeStreamNodePlan.getStreamNodeLocation();
+      registeredStreamNodes.remove(removedStreamNode.getStreamNodeId());
+      nodeVersionInfo.remove(removedStreamNode.getStreamNodeId());
+      LOGGER.info(ConfigNodeMessages.REMOVED_THE_STREAMNODE_FROM_CLUSTER, removedStreamNode);
+    } finally {
+      versionInfoReadWriteLock.writeLock().unlock();
+      streamNodeInfoReadWriteLock.writeLock().unlock();
+    }
+    LOGGER.info(
+        ConfigNodeMessages.THERE_ARE_STREAM_NODE_IN_CLUSTER_AFTER_EXECUTED_REMOVESTREAMNODEPLAN,
+        REMOVE_STREAMNODE_PROCESS,
+        registeredStreamNodes.size());
+    return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
+  }
+
+  /** Get all registered StreamNodes. */
+  public List<TStreamNodeConfiguration> getRegisteredStreamNodes() {
+    streamNodeInfoReadWriteLock.readLock().lock();
+    try {
+      return new ArrayList<>(registeredStreamNodes.values());
+    } finally {
+      streamNodeInfoReadWriteLock.readLock().unlock();
+    }
+  }
+
+  /**
+   * @return The specified registered StreamNodes.
+   */
+  public List<TStreamNodeConfiguration> getRegisteredStreamNodes(List<Integer> streamNodeIds) {
+    List<TStreamNodeConfiguration> result = new ArrayList<>();
+    streamNodeInfoReadWriteLock.readLock().lock();
+    try {
+      streamNodeIds.forEach(
+          streamNodeId -> {
+            if (registeredStreamNodes.containsKey(streamNodeId)) {
+              result.add(registeredStreamNodes.get(streamNodeId).deepCopy());
+            }
+          });
+    } finally {
+      streamNodeInfoReadWriteLock.readLock().unlock();
+    }
+    return result;
+  }
+
+  /** Get the specified registered StreamNode. */
+  public TStreamNodeConfiguration getRegisteredStreamNode(int streamNodeId) {
+    streamNodeInfoReadWriteLock.readLock().lock();
+    try {
+      return registeredStreamNodes.getOrDefault(streamNodeId, new TStreamNodeConfiguration());
+    } finally {
+      streamNodeInfoReadWriteLock.readLock().unlock();
+    }
+  }
+
+  /**
+   * Update the specified AINode’s location.
    *
    * @param updateAINodePlan UpdateAINodePlan
    * @return {@link TSStatusCode#SUCCESS_STATUS} if update AINode info successfully.
@@ -726,6 +849,8 @@ public class NodeInfo implements SnapshotProcessor {
 
       serializeRegisteredAINode(fileOutputStream, protocol);
 
+      serializeRegisteredStreamNode(fileOutputStream, protocol);
+
       serializeVersionInfo(fileOutputStream);
 
       serializePersistedNodeStatuses(fileOutputStream);
@@ -783,6 +908,15 @@ public class NodeInfo implements SnapshotProcessor {
     }
   }
 
+  private void serializeRegisteredStreamNode(OutputStream outputStream, TProtocol protocol)
+      throws IOException, TException {
+    ReadWriteIOUtils.write(registeredStreamNodes.size(), outputStream);
+    for (Entry<Integer, TStreamNodeConfiguration> entry : registeredStreamNodes.entrySet()) {
+      ReadWriteIOUtils.write(entry.getKey(), outputStream);
+      entry.getValue().write(protocol);
+    }
+  }
+
   private void serializeVersionInfo(OutputStream outputStream) throws IOException {
     ReadWriteIOUtils.write(nodeVersionInfo.size(), outputStream);
     for (Entry<Integer, TNodeVersionInfo> entry : nodeVersionInfo.entrySet()) {
@@ -835,6 +969,8 @@ public class NodeInfo implements SnapshotProcessor {
       // in IoTDB 2.2 / 1.5
       tryDeserializeRegisteredAINode(inputStream, protocol);
 
+      tryDeserializeRegisteredStreamNode(inputStream, protocol);
+
       deserializeBuildInfo(inputStream);
 
       deserializePersistedNodeStatuses(inputStream);
@@ -883,6 +1019,16 @@ public class NodeInfo implements SnapshotProcessor {
     }
   }
 
+  private void tryDeserializeRegisteredStreamNode(
+      ByteArrayInputStream inputStream, TProtocol protocol) throws IOException {
+    try {
+      deserializeRegisteredStreamNode(inputStream, protocol);
+    } catch (IOException | TException ignore) {
+      // Exception happens here means that the data is upgraded from the old version
+      inputStream.reset();
+    }
+  }
+
   private void deserializeRegisteredAINode(InputStream inputStream, TProtocol protocol)
       throws IOException, TException {
     int size = ReadWriteIOUtils.readInt(inputStream);
@@ -891,6 +1037,18 @@ public class NodeInfo implements SnapshotProcessor {
       TAINodeConfiguration aiNodeInfo = new TAINodeConfiguration();
       aiNodeInfo.read(protocol);
       registeredAINodes.put(aiNodeId, aiNodeInfo);
+      size--;
+    }
+  }
+
+  private void deserializeRegisteredStreamNode(InputStream inputStream, TProtocol protocol)
+      throws IOException, TException {
+    int size = ReadWriteIOUtils.readInt(inputStream);
+    while (size > 0) {
+      int streamNodeId = ReadWriteIOUtils.readInt(inputStream);
+      TStreamNodeConfiguration streamNodeInfo = new TStreamNodeConfiguration();
+      streamNodeInfo.read(protocol);
+      registeredStreamNodes.put(streamNodeId, streamNodeInfo);
       size--;
     }
   }
@@ -933,6 +1091,7 @@ public class NodeInfo implements SnapshotProcessor {
     registeredDataNodes.clear();
     registeredConfigNodes.clear();
     registeredAINodes.clear();
+    registeredStreamNodes.clear();
     nodeVersionInfo.clear();
 
     persistedNodeStatusReadWriteLock.writeLock().lock();

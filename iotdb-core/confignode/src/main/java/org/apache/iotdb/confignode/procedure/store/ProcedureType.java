@@ -95,6 +95,9 @@ public enum ProcedureType {
   DROP_MODEL_PROCEDURE((short) 801),
   REMOVE_AI_NODE_PROCEDURE((short) 802),
 
+  /** StreamNode */
+  REMOVE_STREAM_NODE_PROCEDURE((short) 803),
+
   // ProcedureId 800-899 is used by IoTDB-Ml
 
   /** Pipe Plugin */
@@ -180,7 +183,13 @@ public enum ProcedureType {
   ADD_NEVER_FINISH_SUB_PROCEDURE_PROCEDURE((short) 30001),
 
   /** Data Partition Table Integrity Check */
-  DATA_PARTITION_TABLE_INTEGRITY_CHECK_PROCEDURE((short) 1600);
+  DATA_PARTITION_TABLE_INTEGRITY_CHECK_PROCEDURE((short) 1600),
+
+  /** Stream */
+  CREATE_STREAM_PROCEDURE((short) 1700),
+  DROP_STREAM_PROCEDURE((short) 1701),
+  START_STREAM_PROCEDURE((short) 1702),
+  STOP_STREAM_PROCEDURE((short) 1703);
 
   private final short typeCode;
 

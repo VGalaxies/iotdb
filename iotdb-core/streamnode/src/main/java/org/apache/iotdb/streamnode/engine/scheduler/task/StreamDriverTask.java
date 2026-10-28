@@ -1,0 +1,242 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iotdb.streamnode.engine.scheduler.task;
+
+import org.apache.iotdb.calc.execution.schedule.queue.ID;
+import org.apache.iotdb.calc.execution.schedule.queue.IDIndexedAccessible;
+import org.apache.iotdb.commons.stream.ListPartitionKey;
+import org.apache.iotdb.streamnode.engine.scheduler.DriverTaskHandle;
+import org.apache.iotdb.streamnode.engine.scheduler.queue.Priority;
+import org.apache.iotdb.streamnode.engine.task.StreamSubTask.DataSlice;
+
+import com.google.common.util.concurrent.ListenableFuture;
+import io.airlift.units.Duration;
+
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
+import static org.apache.iotdb.calc.execution.operator.Operator.NOT_BLOCKED;
+
+public class StreamDriverTask implements IDIndexedAccessible {
+
+  private final IStreamDriver streamDriver;
+
+  private final long timeoutMs;
+
+  private final AtomicReference<Priority> priority;
+  private Throwable abortCause;
+
+  private DriverTaskStatus status;
+
+  private final Lock lock = new ReentrantLock();
+
+  private long lastEnterReadyQueueTime;
+
+  // Total scheduled time
+  private long totalScheduledNanos;
+
+  // Last scheduled time
+  private long quantaScheduledNanos;
+
+  private final DriverTaskHandle driverTaskHandle;
+
+  // Total ready queued time
+  private long readyQueuedTime;
+
+  private boolean reservedInReadyQueue;
+
+  private double weight = 1.0;
+
+  public DriverTaskStatus getStatus() {
+    return status;
+  }
+
+  public void setStatus(DriverTaskStatus status) {
+    this.status = status;
+  }
+
+  /** Initialize a dummy instance for queryHolder. */
+  public StreamDriverTask() {
+    this(new StubFragmentInstance(), 0, null);
+  }
+
+  public StreamDriverTask(
+      IStreamDriver streamDriver, long timeoutMs, DriverTaskHandle driverTaskHandle) {
+    this.streamDriver = streamDriver;
+    this.timeoutMs = timeoutMs;
+    this.driverTaskHandle = driverTaskHandle;
+    this.status = DriverTaskStatus.READY;
+    priority = new AtomicReference<>(new Priority(System.nanoTime()));
+  }
+
+  public double getWeight() {
+    return weight;
+  }
+
+  public void setWeight(double weight) {
+    this.weight = weight;
+  }
+
+  public void lock() {
+    lock.lock();
+  }
+
+  public Priority getPriority() {
+    return priority.get();
+  }
+
+  public IStreamDriver getDriver() {
+    return streamDriver;
+  }
+
+  public void setQuantaScheduledNanos(long quantaScheduledNanos) {
+    this.quantaScheduledNanos = quantaScheduledNanos;
+    totalScheduledNanos += quantaScheduledNanos;
+  }
+
+  public long getQuantaScheduledNanos() {
+    return quantaScheduledNanos;
+  }
+
+  public long getTotalScheduledNanos() {
+    return totalScheduledNanos;
+  }
+
+  @Override
+  public DriverTaskId getDriverTaskId() {
+    return getDriver().getDriverTaskId();
+  }
+
+  public void setAbortCause(Throwable abortCause) {
+    this.abortCause = abortCause;
+  }
+
+  @Override
+  public void setId(ID id) {
+    this.streamDriver.setDriverTaskId((DriverTaskId) id);
+  }
+
+  public void unlock() {
+    lock.unlock();
+  }
+
+  public long getLastEnterReadyQueueTime() {
+    return lastEnterReadyQueueTime;
+  }
+
+  public void setLastEnterReadyQueueTime(long lastEnterReadyQueueTime) {
+    this.lastEnterReadyQueueTime = lastEnterReadyQueueTime;
+  }
+
+  public void markReservedInReadyQueue() {
+    reservedInReadyQueue = true;
+  }
+
+  public boolean releaseReservedInReadyQueue() {
+    if (!reservedInReadyQueue) {
+      return false;
+    }
+    reservedInReadyQueue = false;
+    return true;
+  }
+
+  public void addReadyQueuedTime(long time) {
+    readyQueuedTime += time;
+  }
+
+  public long getReadyQueuedTime() {
+    return readyQueuedTime;
+  }
+
+  public void updateSchedulePriority() {
+    Priority newPriority = driverTaskHandle.updateScheduledTimeInNanos(quantaScheduledNanos);
+    this.priority.set(newPriority);
+  }
+
+  public boolean isEndState() {
+    return status == DriverTaskStatus.ABORTED || status == DriverTaskStatus.STOPPED;
+  }
+
+  public Optional<Throwable> getAbortCause() {
+    return Optional.ofNullable(abortCause);
+  }
+
+  public static class SchedulePriorityComparator implements Comparator<StreamDriverTask> {
+
+    @Override
+    public int compare(StreamDriverTask o1, StreamDriverTask o2) {
+      if (o1.getDriverTaskId().equals(o2.getDriverTaskId())) {
+        return 0;
+      }
+      int result =
+          Long.compare(
+              o1.priority.get().getLastScheduledTime(), o2.priority.get().getLastScheduledTime());
+      if (result != 0) {
+        return result;
+      }
+      return o1.getDriverTaskId().compareTo(o2.getDriverTaskId());
+    }
+  }
+
+  private static class StubFragmentInstance implements IStreamDriver {
+
+    private DriverTaskId driverTaskId =
+        new DriverTaskId("stub-stream", new ListPartitionKey(Collections.emptyList()));
+
+    @Override
+    public boolean isFinished() {
+      return false;
+    }
+
+    @Override
+    public ListenableFuture<?> processFor(Duration duration) {
+      return NOT_BLOCKED;
+    }
+
+    @Override
+    public ListenableFuture<?> push(List<DataSlice> dataSlices) {
+      return NOT_BLOCKED;
+    }
+
+    @Override
+    public void close() {
+      // do nothing
+    }
+
+    @Override
+    public void failed(Throwable t) {
+      // do nothing
+    }
+
+    @Override
+    public DriverTaskId getDriverTaskId() {
+      return driverTaskId;
+    }
+
+    @Override
+    public void setDriverTaskId(DriverTaskId id) {
+      this.driverTaskId = id;
+    }
+  }
+}

@@ -90,6 +90,14 @@ import org.apache.iotdb.confignode.consensus.request.write.region.CreateRegionGr
 import org.apache.iotdb.confignode.consensus.request.write.region.OfferRegionMaintainTasksPlan;
 import org.apache.iotdb.confignode.consensus.request.write.region.PollRegionMaintainTaskPlan;
 import org.apache.iotdb.confignode.consensus.request.write.region.PollSpecificRegionMaintainTaskPlan;
+import org.apache.iotdb.confignode.consensus.request.write.stream.CreateStreamPlan;
+import org.apache.iotdb.confignode.consensus.request.write.stream.DropStreamPlan;
+import org.apache.iotdb.confignode.consensus.request.write.stream.StartStreamPlan;
+import org.apache.iotdb.confignode.consensus.request.write.stream.StopStreamPlan;
+import org.apache.iotdb.confignode.consensus.request.write.stream.UpdateStreamEpochPlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RegisterStreamNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RemoveStreamNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.UpdateStreamNodePlan;
 import org.apache.iotdb.confignode.consensus.request.write.subscription.consumer.AlterConsumerGroupPlan;
 import org.apache.iotdb.confignode.consensus.request.write.subscription.consumer.runtime.CommitProgressHandleMetaChangePlan;
 import org.apache.iotdb.confignode.consensus.request.write.subscription.consumer.runtime.ConsumerGroupHandleMetaChangePlan;
@@ -222,6 +230,15 @@ public abstract class ConfigPhysicalPlan implements IConsensusRequest {
           break;
         case UpdateAINodeConfiguration:
           plan = new UpdateAINodePlan();
+          break;
+        case RegisterStreamNode:
+          plan = new RegisterStreamNodePlan();
+          break;
+        case UpdateStreamNodeConfiguration:
+          plan = new UpdateStreamNodePlan();
+          break;
+        case RemoveStreamNode:
+          plan = new RemoveStreamNodePlan();
           break;
         case CreateDatabase:
           plan = new DatabaseSchemaPlan(configPhysicalPlanType);
@@ -635,6 +652,21 @@ public abstract class ConfigPhysicalPlan implements IConsensusRequest {
           break;
         case DropExternalService:
           plan = new DropExternalServicePlan();
+          break;
+        case CreateStream:
+          plan = new CreateStreamPlan();
+          break;
+        case DropStream:
+          plan = new DropStreamPlan();
+          break;
+        case StartStream:
+          plan = new StartStreamPlan();
+          break;
+        case StopStream:
+          plan = new StopStreamPlan();
+          break;
+        case UpdateStreamEpoch:
+          plan = new UpdateStreamEpochPlan();
           break;
         default:
           throw new IOException(

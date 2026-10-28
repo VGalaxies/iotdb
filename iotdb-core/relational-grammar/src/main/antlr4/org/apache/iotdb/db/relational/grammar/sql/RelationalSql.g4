@@ -110,6 +110,13 @@ statement
     | dropPipePluginStatement
     | showPipePluginsStatement
 
+    // Stream Statement
+    | createStreamStatement
+    | dropStreamStatement
+    | startStreamStatement
+    | stopStreamStatement
+    | showStreamsStatement
+
     // Subscription Statement
     | createTopicStatement
     | alterTopicStatement
@@ -130,6 +137,7 @@ statement
     | showAvailableUrlsStatement
     | showConfigNodesStatement
     | showAINodesStatement
+    | showStreamNodesStatement
     | showClusterIdStatement
     | showRegionIdStatement
     | showTimeSlotListStatement
@@ -140,6 +148,7 @@ statement
     | extendRegionStatement
     | removeRegionStatement
     | removeDataNodeStatement
+    | removeStreamNodeStatement
     | removeConfigNodeStatement
     | removeAINodeStatement
 
@@ -553,6 +562,41 @@ showPipePluginsStatement
     : SHOW PIPEPLUGINS
     ;
 
+// -------------------------------------------- Stream Statement ---------------------------------------------------------
+createStreamStatement
+    : CREATE STREAM (IF NOT EXISTS)? streamName=identifier
+        source=streamSourceClause
+        eventWindow=tableFunctionCall
+        sink=streamSinkClause
+        calcPlan=query
+        (WITH properties)?
+    ;
+
+streamSourceClause
+    : (FROM table=qualifiedName)?
+      (WHERE preFilter=booleanExpression)?
+      (PARTITION BY partition+=expression (',' partition+=expression)*)?
+    ;
+
+streamSinkClause
+    : INTO table=qualifiedName columnAliases?
+    ;
+
+showStreamsStatement
+    : SHOW ((STREAM streamName=identifier) | STREAMS)
+    ;
+
+dropStreamStatement
+    : DROP STREAM (IF EXISTS)? streamName=identifier
+    ;
+
+startStreamStatement
+    : START STREAM streamName=identifier
+    ;
+
+stopStreamStatement
+    : STOP STREAM streamName=identifier
+    ;
 
 // -------------------------------------------- Subscription Statement ---------------------------------------------------------
 createTopicStatement
@@ -633,6 +677,10 @@ showAINodesStatement
     : SHOW AINODES
     ;
 
+showStreamNodesStatement
+    : SHOW STREAMNODES
+    ;
+
 showClusterIdStatement
     : SHOW (CLUSTERID | CLUSTER_ID)
     ;
@@ -671,6 +719,10 @@ removeRegionStatement
 
 removeDataNodeStatement
     : REMOVE DATANODE dataNodeId=INTEGER_VALUE
+    ;
+
+removeStreamNodeStatement
+    : REMOVE STREAMNODE streamNodeId=INTEGER_VALUE
     ;
 
 removeConfigNodeStatement
@@ -995,6 +1047,7 @@ property
 propertyValue
     : DEFAULT       #defaultPropertyValue
     | expression    #nonDefaultPropertyValue
+    | timeDuration  #timeDurationPropertyValue
     ;
 
 queryNoWith
@@ -1211,6 +1264,7 @@ columnAliases
 
 relationPrimary
     : qualifiedName                                                   #tableName
+    | '$' '{' ROWS '}'                                                #streamRowsRelation
     | '(' query ')'                                                   #subqueryRelation
     | '(' relation ')'                                                #parenthesizedRelation
     | TABLE '(' tableFunctionCall ')'                                 #tableFunctionInvocationWithTableKeyWord
@@ -1346,8 +1400,15 @@ literalExpression
     | booleanValue                                                                        #booleanLiteral
     | string                                                                              #stringLiteral
     | datetime                                                                            #datetimeLiteral
+    | streamPlaceholder                                                                   #streamLiteral
     | BINARY_LITERAL                                                                      #binaryLiteral
     | QUESTION_MARK                                                                       #parameter
+    ;
+
+streamPlaceholder
+    : '$' '{'
+      (PREV_VALUE | CURRENT_VALUE | PREV_TIME | NEXT_TIME | START_TIME | END_TIME | ROW_NUM | INTEGER_VALUE)
+      '}'
     ;
 
 processingMode
@@ -1523,7 +1584,7 @@ nonReserved
     | BEGIN | BERNOULLI | BOTH
     | CACHE | CALL | CALLED | CASCADE | CATALOG | CATALOGS | CHAR | CHARACTER | CHARSET | CLEAR | CLUSTER | CLUSTERID | COLUMN | COLUMNS | COMMENT | COMMIT | COMMITTED | CONDITION | CONDITIONAL | CONFIGNODES | CONFIGNODE | CONFIGURATION | CONNECTOR | CONSTANT | COPARTITION | COPY | COUNT | CURRENT
     | DATA | DATABASE | DATABASES | DATANODE | DATANODES | DATASET | DATE | DAY | DEBUG | DECLARE | DEFAULT | DEFINE | DEFINER | DENY | DESC | DESCRIPTOR | DETAILS| DETERMINISTIC | DEVICES | DISTRIBUTED | DO | DOUBLE
-    | ELSEIF | EMPTY | ENCODING | ERROR | EXCLUDING | EXPLAIN | EXTRACTOR
+    | ELSEIF | EMPTY | ENCODING | END_TIME | ERROR | EVENT_TYPE | EXCLUDING | EXPLAIN | EXTRACTOR
     | FETCH | FIELD | FILTER | FINAL | FIRST | FLUSH | FOLLOWING | FORCEDLY | FORMAT | FUNCTION | FUNCTIONS
     | GRACE | GRANT | GRANTED | GRANTS | GRAPHVIZ | GROUPS
     | HOUR | HYPERPARAMETERS
@@ -1532,17 +1593,17 @@ nonReserved
     | KEEP | KEY | KEYS | KILL
     | LANGUAGE | LAST | LATERAL | LEADING | LEAVE | LEVEL | LIMIT | LINEAR | LOAD | LOCAL | LOGICAL | LOOP
     | MANAGE_ROLE | MANAGE_USER | MAP | MATCH | MATCHED | MATCHES | MATCH_RECOGNIZE | MATERIALIZED | MEASURES | MEMORY | MEMORY_THRESHOLD | METHOD | MERGE | MICROSECOND | MIGRATE | MILLISECOND | MINUTE | MODEL | MODELS | MODIFY | MONTH
-    | NANOSECOND | NESTED | NEXT | NFC | NFD | NFKC | NFKD | NO | NODEID | NONE | NULLIF | NULLS
+    | NANOSECOND | NESTED | NEXT | NEXT_TIME | CURRENT_VALUE | NFC | NFD | NFKC | NFKD | NO | NODEID | NONE | NULLIF | NULLS
     | OBJECT | OF | OFFSET | OMIT | ONE | ONLY | OPTION | ORDINALITY | OUTPUT | OVER | OVERFLOW
-    | PARTITION | PARTITIONS | PASSING | PAST | PATH | PATTERN | PER | PERIOD | PERMUTE | PIPE | PIPEPLUGIN | PIPEPLUGINS | PIPES | PLAN | POSITION | PRECEDING | PRECISION | PRIVILEGES | PREVIOUS | PROCESSLIST | PROCESSOR | PROPERTIES | PRUNE
+    | PARTITION | PARTITIONS | PASSING | PAST | PATH | PATTERN | PER | PERIOD | PERMUTE | PIPE | PIPEPLUGIN | PIPEPLUGINS | PIPES | PLAN | POSITION | PRECEDING | PRECISION | PRIVILEGES | PREVIOUS | PREV_TIME | PREV_VALUE | PROCESSLIST | PROCESSOR | PROPERTIES | PRUNE
     | QUERIES | QUERY | QUOTES
-    | RANGE | READ | READONLY | RECEIVERS | RECONSTRUCT | REFRESH | REGION | REGIONID | REGIONS | REMOVE | RENAME | REPAIR | REPEAT | REPEATABLE | REPLACE | RESET | RESPECT | RESTRICT | RETURN | RETURNING | RETURNS | REVOKE | ROLE | ROLES | ROLLBACK | ROOT | ROW | ROWS | RPR_FIRST | RPR_LAST | RUNNING
+    | RANGE | READ | READONLY | RECEIVERS | RECONSTRUCT | REFRESH | REGION | REGIONID | REGIONS | REMOVE | RENAME | REPAIR | REPEAT | REPEATABLE | REPLACE | RESET | RESPECT | RESTRICT | RETURN | RETURNING | RETURNS | REVOKE | ROLE | ROLES | ROLLBACK | ROOT | ROW | ROWS | ROW_NUM | RPR_FIRST | RPR_LAST | RUNNING
     | SERIESSLOTID | SERVICE | SERVICES | SCALAR | SCHEMA | SCHEMAS | SECOND | SECURITY | SEEK | SERIALIZABLE | SESSION | SET | SETS
-    | SECURITY | SHOW | SINK | SOME | SOURCE | START | STATS | STOP | STREAMS | SUBSCRIPTION | SUBSCRIPTIONS | SUBSET | SUBSTRING | SYSTEM
+    | SECURITY | SHOW | SINK | SOME | SOURCE | START | START_TIME | STATS | STOP | STREAMNODE | STREAMS | SUBSCRIPTION | SUBSCRIPTIONS | SUBSET | SUBSTRING | SYSTEM
     | TABLES | TABLESAMPLE | TAG | TAGS | TEXT | TEXT_STRING | TIES | TIME | TIMEPARTITION | TIMER | TIMER_XL | TIMESERIES | TIMESLOTID | TIMESTAMP | TO | TOPIC | TOPICS | TRAILING | TRANSACTION | TRUNCATE | TRY_CAST | TYPE
     | UNBOUNDED | UNCOMMITTED | UNCONDITIONAL | UNIQUE | UNKNOWN | UNMATCHED | UNTIL | UPDATE | URI | URLS | USE | USED | USER | UTF16 | UTF32 | UTF8
     | VALIDATE | VALUE | VARIABLES | VARIATION | VERBOSE | VERSION | VIEW
-    | WEEK | WHILE | WINDOW | WITHIN | WITHOUT | WORK | WRAPPER | WRITE
+    | WEEK | WHILE | WINDOW | WINDOW_OPEN | WINDOW_CLOSE | WITHIN | WITHOUT | WORK | WRAPPER | WRITE
     | YEAR
     | ZONE
     ;
@@ -1654,8 +1715,10 @@ EMPTY: 'EMPTY';
 ELSEIF: 'ELSEIF';
 ENCODING: 'ENCODING';
 END: 'END';
+END_TIME: 'END_TIME';
 ERROR: 'ERROR';
 ESCAPE: 'ESCAPE';
+EVENT_TYPE: 'EVENT_TYPE';
 EXCEPT: 'EXCEPT';
 EXCLUDING: 'EXCLUDING';
 EXECUTE: 'EXECUTE';
@@ -1768,6 +1831,8 @@ NANOSECOND: 'NS';
 NATURAL: 'NATURAL';
 NESTED: 'NESTED';
 NEXT: 'NEXT';
+NEXT_TIME: 'NEXT_TIME';
+CURRENT_VALUE: 'CURRENT_VALUE';
 NFC : 'NFC';
 NFD : 'NFD';
 NFKC : 'NFKC';
@@ -1817,6 +1882,8 @@ PRECISION: 'PRECISION';
 PREPARE: 'PREPARE';
 PRIVILEGES: 'PRIVILEGES';
 PREVIOUS: 'PREVIOUS';
+PREV_TIME: 'PREV_TIME';
+PREV_VALUE: 'PREV_VALUE';
 PROCESSLIST: 'PROCESSLIST';
 PROCESSOR: 'PROCESSOR';
 PROPERTIES: 'PROPERTIES';
@@ -1855,6 +1922,7 @@ ROLLUP: 'ROLLUP';
 ROOT: 'ROOT';
 ROW: 'ROW';
 ROWS: 'ROWS';
+ROW_NUM: 'ROW_NUM';
 RPR_FIRST: 'RPR_FIRST';
 RPR_LAST: 'RPR_LAST';
 RUNNING: 'RUNNING';
@@ -1879,10 +1947,13 @@ SOME: 'SOME';
 SOURCE: 'SOURCE';
 SQL_DIALECT: 'SQL_DIALECT';
 START: 'START';
+START_TIME: 'START_TIME';
 STATS: 'STATS';
 STOP: 'STOP';
 STREAM: 'STREAM';
 STREAMS: 'STREAMS';
+STREAMNODE: 'STREAMNODE';
+STREAMNODES: 'STREAMNODES';
 SUBSCRIPTION: 'SUBSCRIPTION';
 SUBSCRIPTIONS: 'SUBSCRIPTIONS';
 SUBSET: 'SUBSET';
@@ -1952,6 +2023,8 @@ WHEN: 'WHEN';
 WHERE: 'WHERE';
 WHILE: 'WHILE';
 WINDOW: 'WINDOW';
+WINDOW_OPEN: 'WINDOW_OPEN';
+WINDOW_CLOSE: 'WINDOW_CLOSE';
 WITH: 'WITH';
 WITHIN: 'WITHIN';
 WITHOUT: 'WITHOUT';

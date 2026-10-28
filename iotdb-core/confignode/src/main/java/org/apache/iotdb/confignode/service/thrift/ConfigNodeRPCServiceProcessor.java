@@ -35,7 +35,9 @@ import org.apache.iotdb.common.rpc.thrift.TSetTTLReq;
 import org.apache.iotdb.common.rpc.thrift.TSetThrottleQuotaReq;
 import org.apache.iotdb.common.rpc.thrift.TShowAppliedConfigurationsResp;
 import org.apache.iotdb.common.rpc.thrift.TShowConfigurationResp;
+import org.apache.iotdb.common.rpc.thrift.TShowStreamResp;
 import org.apache.iotdb.common.rpc.thrift.TShowTTLReq;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TTestConnectionResp;
 import org.apache.iotdb.commons.auth.entity.PrivilegeModelType;
 import org.apache.iotdb.commons.auth.entity.PrivilegeType;
@@ -47,6 +49,7 @@ import org.apache.iotdb.commons.path.PartialPath;
 import org.apache.iotdb.commons.path.PathPatternTree;
 import org.apache.iotdb.commons.schema.SchemaConstant;
 import org.apache.iotdb.commons.schema.table.TableNodeStatus;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.commons.utils.AuthUtils;
 import org.apache.iotdb.commons.utils.StatusUtils;
 import org.apache.iotdb.commons.utils.TestOnly;
@@ -73,6 +76,7 @@ import org.apache.iotdb.confignode.consensus.request.write.database.SetSchemaRep
 import org.apache.iotdb.confignode.consensus.request.write.database.SetTTLPlan;
 import org.apache.iotdb.confignode.consensus.request.write.database.SetTimePartitionIntervalPlan;
 import org.apache.iotdb.confignode.consensus.request.write.datanode.RemoveDataNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RemoveStreamNodePlan;
 import org.apache.iotdb.confignode.consensus.response.ainode.AINodeConfigurationResp;
 import org.apache.iotdb.confignode.consensus.response.ainode.AINodeRegisterResp;
 import org.apache.iotdb.confignode.consensus.response.auth.PermissionInfoResp;
@@ -83,6 +87,7 @@ import org.apache.iotdb.confignode.consensus.response.datanode.DataNodeConfigura
 import org.apache.iotdb.confignode.consensus.response.datanode.DataNodeRegisterResp;
 import org.apache.iotdb.confignode.consensus.response.datanode.DataNodeToStatusResp;
 import org.apache.iotdb.confignode.consensus.response.partition.RegionInfoListResp;
+import org.apache.iotdb.confignode.consensus.response.streamnode.StreamNodeRegisterResp;
 import org.apache.iotdb.confignode.consensus.response.ttl.ShowTTLResp;
 import org.apache.iotdb.confignode.i18n.ConfigNodeMessages;
 import org.apache.iotdb.confignode.manager.ConfigManager;
@@ -126,6 +131,7 @@ import org.apache.iotdb.confignode.rpc.thrift.TCreateFunctionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreatePipePluginReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreatePipeReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateSchemaTemplateReq;
+import org.apache.iotdb.confignode.rpc.thrift.TCreateStreamReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateTableViewReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateTopicReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateTriggerReq;
@@ -154,6 +160,7 @@ import org.apache.iotdb.confignode.rpc.thrift.TDropCQReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDropFunctionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDropPipePluginReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDropPipeReq;
+import org.apache.iotdb.confignode.rpc.thrift.TDropStreamReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDropSubscriptionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDropTopicReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDropTriggerReq;
@@ -219,6 +226,7 @@ import org.apache.iotdb.confignode.rpc.thrift.TShowPipeResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowRegionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowRegionResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowRepairDataPartitionTableProgressResp;
+import org.apache.iotdb.confignode.rpc.thrift.TShowStreamNodesResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowSubscriptionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowSubscriptionResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowTTLResp;
@@ -230,7 +238,14 @@ import org.apache.iotdb.confignode.rpc.thrift.TShowTopicResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowVariablesResp;
 import org.apache.iotdb.confignode.rpc.thrift.TSpaceQuotaResp;
 import org.apache.iotdb.confignode.rpc.thrift.TStartPipeReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStartStreamReq;
 import org.apache.iotdb.confignode.rpc.thrift.TStopPipeReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStopStreamReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRegisterReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRegisterResp;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRemoveReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRestartReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRestartResp;
 import org.apache.iotdb.confignode.rpc.thrift.TSubscribeReq;
 import org.apache.iotdb.confignode.rpc.thrift.TSystemConfigurationResp;
 import org.apache.iotdb.confignode.rpc.thrift.TTestOperation;
@@ -1541,5 +1556,90 @@ public class ConfigNodeRPCServiceProcessor implements IConfigNodeRPCService.Ifac
   @Override
   public TSStatus pushHeartbeat(final int dataNodeId, final TPipeHeartbeatResp resp) {
     return configManager.pushHeartbeat(dataNodeId, resp);
+  }
+
+  // ================================================= STREAM
+  // =================================================
+
+  @Override
+  public TStreamNodeRegisterResp registerStreamNode(TStreamNodeRegisterReq req) throws TException {
+    TStreamNodeRegisterResp resp =
+        ((StreamNodeRegisterResp) configManager.registerStreamNode(req))
+            .convertToStreamNodeRegisterResp();
+
+    LOGGER.info("Execute RegisterStreamNodeRequest {} with result {}", req, resp);
+
+    return resp;
+  }
+
+  @Override
+  public TStreamNodeRestartResp restartStreamNode(TStreamNodeRestartReq req) throws TException {
+    TStreamNodeRestartResp resp = configManager.restartStreamNode(req);
+
+    // Print log to record the ConfigNode that performs the RestartStreamNodeRequest
+    LOGGER.info("Execute RestartStreamNodeRequest {} with result {}", req, resp);
+    return resp;
+  }
+
+  @Override
+  public TSStatus removeStreamNode(TStreamNodeRemoveReq req) throws TException {
+    LOGGER.info("ConfigNode RPC Service start to remove StreamNode, req: {}", req);
+    RemoveStreamNodePlan removeStreamNodePlan =
+        new RemoveStreamNodePlan(req.getStreamNodeLocation());
+    TSStatus status = configManager.removeStreamNode(removeStreamNodePlan);
+    LOGGER.info("ConfigNode RPC Service finished to remove StreamNode, status: {}", status);
+    return status;
+  }
+
+  @Override
+  public TShowStreamNodesResp showStreamNodes() throws TException {
+    return configManager.showStreamNodes();
+  }
+
+  @Override
+  public TSStatus reportStreamNodeShutdown(TStreamNodeLocation streamNodeLocation)
+      throws TException {
+    return configManager.reportStreamNodeShutdown(streamNodeLocation);
+  }
+
+  @Override
+  public TSStatus createStream(TCreateStreamReq req) throws TException {
+    try {
+      StreamTask task =
+          StreamTask.readFromDistributedCreate(
+              req.getStreamName(),
+              req.getCreator(),
+              req.isSetStreamSource() ? req.bufferForStreamSource() : null,
+              req.bufferForEventWindow(),
+              req.getCalcSql(),
+              req.bufferForCalcPlan(),
+              req.bufferForStreamSink(),
+              req.isSetTypeProvider() ? req.bufferForTypeProvider() : null,
+              req.isSetStreamProperties() ? req.bufferForStreamProperties() : null);
+      return configManager.createStream(task);
+    } catch (IOException e) {
+      LOGGER.warn("Failed to decode create stream RPC payload.", e);
+      return RpcUtils.getStatus(TSStatusCode.EXECUTE_STATEMENT_ERROR, e.getMessage());
+    }
+  }
+
+  @Override
+  public TSStatus dropStream(TDropStreamReq req) throws TException {
+    return configManager.dropStream(req.getStreamName());
+  }
+
+  @Override
+  public TSStatus startStream(TStartStreamReq req) throws TException {
+    return configManager.startStream(req.getStreamName());
+  }
+
+  @Override
+  public TSStatus stopStream(TStopStreamReq req) throws TException {
+    return configManager.stopStream(req.getStreamName());
+  }
+
+  @Override
+  public TShowStreamResp showStreams() throws TException {
+    return configManager.showStreams();
   }
 }

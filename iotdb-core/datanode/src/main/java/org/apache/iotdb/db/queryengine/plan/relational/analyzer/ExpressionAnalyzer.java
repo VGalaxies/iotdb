@@ -85,6 +85,10 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.SymbolRefere
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Trim;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WhenClause;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WindowFrame;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.EventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PeriodEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StreamLiteral;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.VariationEventWindow;
 import org.apache.iotdb.commons.queryengine.plan.relational.type.TypeNotFoundException;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnCategory;
 import org.apache.iotdb.db.i18n.DataNodeQueryMessages;
@@ -355,6 +359,12 @@ public class ExpressionAnalyzer {
     return unmodifiableMap(expressionTypes);
   }
 
+  public Type setPlaceholderType(StreamLiteral placeHolderLiteral, Type type) {
+    placeHolderLiteral.setDataType(type);
+    setExpressionType(placeHolderLiteral, type);
+    return type;
+  }
+
   public Type setExpressionType(Expression expression, Type type) {
     requireNonNull(expression, DataNodeQueryMessages.EXCEPTION_EXPRESSION_CANNOT_BE_NULL_EFF1A99C);
     requireNonNull(type, DataNodeQueryMessages.EXCEPTION_TYPE_CANNOT_BE_NULL_97A0A8D3);
@@ -399,12 +409,17 @@ public class ExpressionAnalyzer {
             Context.notInLambda(scope, CorrelationSupport.ALLOWED)));
   }
 
-  public Type analyze(Expression expression, Scope scope, CorrelationSupport correlationSupport) {
+  public Type analyze(
+      Expression expression,
+      Scope scope,
+      CorrelationSupport correlationSupport,
+      Analysis analysis) {
     Visitor visitor = new Visitor(scope, warningCollector);
     return visitor.process(
         expression,
         new StackableAstVisitor.StackableAstVisitorContext<>(
-            Context.notInLambda(scope, correlationSupport)));
+                Context.notInLambda(scope, correlationSupport))
+            .withAnalysis(analysis));
   }
 
   private Type analyze(Expression expression, Scope scope, Set<String> labels) {
@@ -2250,6 +2265,104 @@ public class ExpressionAnalyzer {
     }
 
     @Override
+    public Type visitStreamLiteral(
+        StreamLiteral node, StackableAstVisitorContext<Context> context) {
+      Analysis analysis = context.getAnalysis();
+
+      // Check if this is a stream query (streamEventWindow should not be null)
+      if (analysis.getStreamEventWindow() == null) {
+        throw new SemanticException(
+            String.format(
+                DataNodeQueryMessages.STREAM_LITERAL_ONLY_ALLOWED_IN_STREAM_QUERY,
+                node.getType().getName()));
+      }
+
+      // Record the placeholder used in the calc plan for downstream stream consumers
+      analysis.addLiteralPlaceholder(node.getType());
+      switch (node.getType()) {
+        case PREV_TIME:
+        case NEXT_TIME:
+        case START_TIME:
+        case END_TIME:
+          return setPlaceholderType(node, TIMESTAMP);
+        case ROW_NUM:
+          Analysis rowNumAnalysis = context.getAnalysis();
+          validatePeriodEventWindow(node, rowNumAnalysis);
+          return setPlaceholderType(node, INT64);
+        case PREV_VALUE:
+        case CURRENT_VALUE:
+          Analysis valueAnalysis = context.getAnalysis();
+          validatePeriodEventWindow(node, valueAnalysis);
+          validateVariationEventWindow(node, valueAnalysis);
+          return setPlaceholderType(
+              node,
+              resolveVariationColumnType(
+                  valueAnalysis, (VariationEventWindow) valueAnalysis.getStreamEventWindow()));
+        case N:
+          validatePeriodEventWindow(node, analysis);
+          List<Expression> partitionByExpressions = analysis.getStreamPartitionBy();
+          validateNIndex(node, partitionByExpressions);
+          Type columnType = analysis.getType(partitionByExpressions.get(node.getValue() - 1));
+          return setPlaceholderType(node, columnType);
+        default:
+          throw new SemanticException("Unknown Type");
+      }
+    }
+
+    private void validateVariationEventWindow(StreamLiteral node, Analysis analysis) {
+      EventWindow eventWindow = analysis.getStreamEventWindow();
+      if (!(eventWindow instanceof VariationEventWindow)) {
+        throw new SemanticException(
+            String.format(
+                "Placeholder ${%s} can only be used with variation event window",
+                node.getType().getName()));
+      }
+    }
+
+    private void validatePeriodEventWindow(StreamLiteral node, Analysis analysis) {
+      EventWindow eventWindow = analysis.getStreamEventWindow();
+      if (eventWindow instanceof PeriodEventWindow) {
+        throw new SemanticException(
+            String.format(
+                "Placeholder ${%s} cannot be used with period event window",
+                node.getType().getName()));
+      }
+    }
+
+    private void validateNIndex(StreamLiteral node, List<Expression> partitionByExpressions) {
+      if (partitionByExpressions == null) {
+        throw new IllegalStateException("partitionByExpressions should not be null");
+      }
+
+      int n = node.getValue();
+      if (n < 1 || n > partitionByExpressions.size()) {
+        throw new SemanticException(
+            String.format(
+                "N must be between 1 and partition by size %d (inclusive), but got %d",
+                partitionByExpressions.size(), n));
+      }
+    }
+
+    private Type resolveVariationColumnType(
+        Analysis analysis, VariationEventWindow variationEventWindow) {
+      RelationType relationType = analysis.getStreamSourceRelationType();
+      if (relationType == null) {
+        throw new IllegalStateException("streamSourceRelationType should not be null");
+      }
+
+      String columnName = variationEventWindow.getColumn().getValue();
+      for (Field field : relationType.getVisibleFields()) {
+        if (field.getOriginColumnName().map(name -> name.equalsIgnoreCase(columnName)).orElse(false)
+            || field.getName().map(name -> name.equalsIgnoreCase(columnName)).orElse(false)) {
+          return field.getType();
+        }
+      }
+      throw new SemanticException(
+          String.format(
+              "Variation event window column '%s' is not found in source table", columnName));
+    }
+
+    @Override
     public Type visitNode(Node node, StackableAstVisitorContext<Context> context) {
       throw new SemanticException(
           String.format(DataNodeQueryMessages.NOT_YET_IMPLEMENTED_S, node.getClass().getName()));
@@ -2695,7 +2808,7 @@ public class ExpressionAnalyzer {
             session,
             TypeProvider.empty(),
             warningCollector);
-    analyzer.analyze(expression, scope, correlationSupport);
+    analyzer.analyze(expression, scope, correlationSupport, analysis);
 
     updateAnalysis(analysis, analyzer, session, accessControl);
     analysis.addExpressionFields(expression, analyzer.getSourceFields());
@@ -2735,7 +2848,7 @@ public class ExpressionAnalyzer {
             warningCollector,
             analysis::getType,
             analysis::getWindow);
-    analyzer.analyze(expression, scope, correlationSupport);
+    analyzer.analyze(expression, scope, correlationSupport, analysis);
 
     updateAnalysis(analysis, analyzer, session, accessControl);
     analysis.addExpressionFields(expression, analyzer.getSourceFields());

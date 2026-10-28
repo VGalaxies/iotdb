@@ -23,6 +23,9 @@ public final class CalcMessages {
 
   private CalcMessages() {}
 
+  public static final String EXCEPTION_UNEXPECTED_END_OF_STREAM_PROPERTIES_922EBC18 =
+      "unexpected end of stream properties";
+
   public static final String AND_OPERATOR_ONLY_ACCEPTS_BOOLEAN_OPERANDS =
       "AND operator only accepts Boolean operands";
   public static final String ARRAYS_NOT_SAME_LENGTH = "Arrays not same length";

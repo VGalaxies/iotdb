@@ -24,7 +24,8 @@ import org.apache.iotdb.commons.i18n.CommonMessages;
 public enum NodeType {
   ConfigNode("ConfigNode"),
   DataNode("DataNode"),
-  AINode("AINode");
+  AINode("AINode"),
+  StreamNode("StreamNode");
 
   private final String nodeType;
 

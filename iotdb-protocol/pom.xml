@@ -35,5 +35,6 @@
         <module>thrift-confignode</module>
         <module>thrift-consensus</module>
         <module>thrift-ainode</module>
+        <module>thrift-streamnode</module>
     </modules>
 </project>

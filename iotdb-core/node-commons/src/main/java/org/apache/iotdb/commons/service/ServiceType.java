@@ -78,6 +78,8 @@ public enum ServiceType {
   PIPE_PLUGIN_CLASSLOADER_MANAGER_SERVICE(
       "Pipe Plugin Classloader Manager Service", "PipePluginClassLoader"),
   AINode_RPC_SERVICE("Rpc Service for AINode", "AINodeRPCService"),
+  STREAM_NODE_RPC_SERVICE("Stream Node RPC Service", "StreamNodeRPCService"),
+  STREAM_NODE_SESSION_SCAN_SERVICE("Stream Node Session Scan Service", "StreamNodeSessionScan"),
   MEMORY_RUNTIME_AGENT("Memory Runtime Agent", "MemoryRuntimeAgent"),
   PIPE_RUNTIME_DATA_NODE_AGENT("Pipe Runtime Data Node Agent", "PipeRuntimeDataNodeAgent"),
   PIPE_RUNTIME_CONFIG_NODE_AGENT("Pipe Runtime Config Node Agent", "PipeRuntimeConfigNodeAgent"),
@@ -87,7 +89,9 @@ public enum ServiceType {
 
   SESSION_MANAGER("Session Manager", "RpcSession"),
   CONFIG_NODE("Config Node", "ConfigNode"),
-  DATA_NODE("Data Node", "DataNode");
+  DATA_NODE("Data Node", "DataNode"),
+  STREAM_TASK_MANAGER("Stream Task Manager", "StreamTaskManager"),
+  STREAM_NODE("Stream Node", "StreamNode");
   private final String name;
   private final String jmxName;
 

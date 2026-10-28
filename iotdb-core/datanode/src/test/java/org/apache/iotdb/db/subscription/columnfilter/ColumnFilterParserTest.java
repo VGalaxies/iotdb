@@ -20,11 +20,16 @@
 package org.apache.iotdb.db.subscription.columnfilter;
 
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
+import org.apache.iotdb.commons.stream.IoTDBSubscriptionSource;
 import org.apache.iotdb.commons.subscription.columnfilter.ColumnMetadata;
+import org.apache.iotdb.rpc.subscription.config.TopicConstant;
 import org.apache.iotdb.rpc.subscription.exception.SubscriptionException;
 
+import org.apache.tsfile.common.constant.TsFileConstant;
 import org.junit.Assert;
 import org.junit.Test;
+
+import java.util.List;
 
 public class ColumnFilterParserTest {
 
@@ -33,6 +38,41 @@ public class ColumnFilterParserTest {
       new ColumnMetadata("db1", "weather", "temperature", "DOUBLE", "FIELD");
   private static final ColumnMetadata TAG =
       new ColumnMetadata("db1", "weather", "city", "STRING", "TAG");
+
+  /**
+   * With no partitioning or TAG references, a Stream topic must still match every TAG for row
+   * identity. Its generated filter must also retain time and requested fields (including a quoted
+   * name), while excluding unrequested fields and attributes.
+   */
+  @Test
+  public void testStreamTopicFilterIncludesAllTagsAndRequestedColumns() throws Exception {
+    final IoTDBSubscriptionSource source =
+        new IoTDBSubscriptionSource(
+            "db1", "weather", null, List.of(), "127.0.0.1", 6667, "root", "root");
+    source.setSubscribeColumns(
+        List.of(TsFileConstant.TIME_COLUMN_ID, "temperature", "reading\"raw"));
+    final Expression filter =
+        PARSER.parseAndValidate(
+            source.getTopicProperties(null).getProperty(TopicConstant.COLUMN_FILTER_KEY));
+
+    Assert.assertTrue(ColumnFilterEvaluator.evaluate(filter, TAG));
+    Assert.assertTrue(
+        ColumnFilterEvaluator.evaluate(
+            filter, new ColumnMetadata("db1", "weather", "sensor", "STRING", "TAG")));
+    Assert.assertTrue(ColumnFilterEvaluator.evaluate(filter, TEMPERATURE));
+    Assert.assertTrue(
+        ColumnFilterEvaluator.evaluate(
+            filter, new ColumnMetadata("db1", "weather", "time", "TIMESTAMP", "TIME")));
+    Assert.assertTrue(
+        ColumnFilterEvaluator.evaluate(
+            filter, new ColumnMetadata("db1", "weather", "reading\"raw", "DOUBLE", "FIELD")));
+    Assert.assertFalse(
+        ColumnFilterEvaluator.evaluate(
+            filter, new ColumnMetadata("db1", "weather", "humidity", "DOUBLE", "FIELD")));
+    Assert.assertFalse(
+        ColumnFilterEvaluator.evaluate(
+            filter, new ColumnMetadata("db1", "weather", "site", "STRING", "ATTRIBUTE")));
+  }
 
   @Test
   public void testBooleanLiteral() throws Exception {

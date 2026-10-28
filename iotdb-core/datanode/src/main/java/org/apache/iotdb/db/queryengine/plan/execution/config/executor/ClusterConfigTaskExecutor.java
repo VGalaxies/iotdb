@@ -43,8 +43,11 @@ import org.apache.iotdb.common.rpc.thrift.TSetSpaceQuotaReq;
 import org.apache.iotdb.common.rpc.thrift.TSetTTLReq;
 import org.apache.iotdb.common.rpc.thrift.TSetThrottleQuotaReq;
 import org.apache.iotdb.common.rpc.thrift.TShowAppliedConfigurationsResp;
+import org.apache.iotdb.common.rpc.thrift.TShowStreamResp;
 import org.apache.iotdb.common.rpc.thrift.TShowTTLReq;
 import org.apache.iotdb.common.rpc.thrift.TSpaceQuota;
+import org.apache.iotdb.common.rpc.thrift.TStreamInfo;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TTestConnectionResp;
 import org.apache.iotdb.common.rpc.thrift.TThrottleQuota;
 import org.apache.iotdb.commons.client.IClientManager;
@@ -94,6 +97,7 @@ import org.apache.iotdb.commons.schema.template.Template;
 import org.apache.iotdb.commons.schema.tree.AlterTimeSeriesOperationType;
 import org.apache.iotdb.commons.schema.view.LogicalViewSchema;
 import org.apache.iotdb.commons.schema.view.viewExpression.ViewExpression;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.commons.subscription.config.SubscriptionConfig;
 import org.apache.iotdb.commons.subscription.meta.topic.TopicMeta;
 import org.apache.iotdb.commons.trigger.service.TriggerExecutableManager;
@@ -119,6 +123,7 @@ import org.apache.iotdb.confignode.rpc.thrift.TCreateCQReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateFunctionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreatePipePluginReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreatePipeReq;
+import org.apache.iotdb.confignode.rpc.thrift.TCreateStreamReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateTableViewReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateTopicReq;
 import org.apache.iotdb.confignode.rpc.thrift.TCreateTriggerReq;
@@ -137,6 +142,7 @@ import org.apache.iotdb.confignode.rpc.thrift.TDropCQReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDropFunctionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDropPipePluginReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDropPipeReq;
+import org.apache.iotdb.confignode.rpc.thrift.TDropStreamReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDropSubscriptionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDropTopicReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDropTriggerReq;
@@ -174,6 +180,7 @@ import org.apache.iotdb.confignode.rpc.thrift.TShowPipeResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowRegionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowRegionResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowRepairDataPartitionTableProgressResp;
+import org.apache.iotdb.confignode.rpc.thrift.TShowStreamNodesResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowSubscriptionReq;
 import org.apache.iotdb.confignode.rpc.thrift.TShowSubscriptionResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowTTLResp;
@@ -184,7 +191,10 @@ import org.apache.iotdb.confignode.rpc.thrift.TShowTopicResp;
 import org.apache.iotdb.confignode.rpc.thrift.TShowVariablesResp;
 import org.apache.iotdb.confignode.rpc.thrift.TSpaceQuotaResp;
 import org.apache.iotdb.confignode.rpc.thrift.TStartPipeReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStartStreamReq;
 import org.apache.iotdb.confignode.rpc.thrift.TStopPipeReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStopStreamReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRemoveReq;
 import org.apache.iotdb.confignode.rpc.thrift.TThrottleQuotaResp;
 import org.apache.iotdb.confignode.rpc.thrift.TUnsetSchemaTemplateReq;
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
@@ -231,6 +241,8 @@ import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.ShowDataNo
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.ShowFunctionsTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.ShowPipePluginsTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.ShowRegionTask;
+import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.ShowStreamNodesTask;
+import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.ShowStreamsTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.ShowTTLTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.ShowTriggersTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.ShowVariablesTask;
@@ -293,6 +305,7 @@ import org.apache.iotdb.db.queryengine.plan.statement.metadata.GetTimeSlotListSt
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.RemoveAINodeStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.RemoveConfigNodeStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.RemoveDataNodeStatement;
+import org.apache.iotdb.db.queryengine.plan.statement.metadata.RemoveStreamNodeStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.SetTTLStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowClusterStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowDatabaseStatement;
@@ -376,6 +389,7 @@ import org.apache.tsfile.external.commons.codec.digest.DigestUtils;
 import org.apache.tsfile.read.common.block.TsBlockBuilder;
 import org.apache.tsfile.read.common.block.column.TimeColumnBuilder;
 import org.apache.tsfile.utils.Pair;
+import org.apache.tsfile.utils.PublicBAOS;
 import org.apache.tsfile.utils.ReadWriteIOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -414,6 +428,7 @@ import static org.apache.iotdb.commons.conf.IoTDBConstant.MULTI_LEVEL_PATH_WILDC
 import static org.apache.iotdb.commons.schema.SchemaConstant.ALL_MATCH_SCOPE;
 import static org.apache.iotdb.commons.schema.SchemaConstant.ALL_RESULT_NODES;
 import static org.apache.iotdb.db.protocol.client.ConfigNodeClient.MSG_RECONNECTION_FAIL;
+import static org.apache.iotdb.db.queryengine.common.header.DatasetHeader.EMPTY_HEADER;
 import static org.apache.iotdb.db.queryengine.common.header.DatasetHeaderFactory.getShowExternalServiceHeader;
 import static org.apache.iotdb.db.queryengine.plan.execution.config.metadata.externalservice.ShowExternalServiceTask.appendServiceEntry;
 import static org.apache.iotdb.udf.api.type.Type.OBJECT;
@@ -4016,6 +4031,54 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
   }
 
   @Override
+  public SettableFuture<ConfigTaskResult> removeStreamNode(
+      final RemoveStreamNodeStatement removeStreamNodeStatement) {
+    final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
+
+    int removeStreamNodeId = removeStreamNodeStatement.getNodeId();
+    LOGGER.info(
+        DataNodeQueryMessages.STARTING_TO_REMOVE_STREAMNODE_WITH_NODE_ID, removeStreamNodeId);
+    try (ConfigNodeClient configNodeClient =
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+      TShowClusterResp showClusterResp = configNodeClient.showCluster();
+      List<TStreamNodeLocation> removeStreamNodeLocations =
+          showClusterResp.getStreamNodeList() == null
+              ? Collections.emptyList()
+              : showClusterResp.getStreamNodeList().stream()
+                  .filter(node -> node.getStreamNodeId() == removeStreamNodeId)
+                  .toList();
+
+      if (removeStreamNodeLocations.size() != 1) {
+        LOGGER.error(
+            DataNodeQueryMessages
+                .THE_STREAMNODE_TO_BE_REMOVED_IS_NOT_IN_THE_CLUSTER_OR_THE_INPUT_FORMAT_IS_INCORRECT);
+        future.setException(
+            new IOException(
+                DataNodeQueryMessages
+                    .THE_STREAMNODE_TO_BE_REMOVED_IS_NOT_IN_THE_CLUSTER_OR_THE_INPUT_FORMAT_IS_INCORRECT));
+        return future;
+      }
+
+      TSStatus status =
+          configNodeClient.removeStreamNode(
+              new TStreamNodeRemoveReq(removeStreamNodeLocations.get(0)));
+      if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+        future.setException(
+            new IOException(DataNodeQueryMessages.REMOVE_STREAMNODE_FAILED + status.getMessage()));
+        return future;
+      } else {
+        LOGGER.info(DataNodeQueryMessages.STREAMNODE_IS_REMOVED, removeStreamNodeId);
+        future.set(new ConfigTaskResult(TSStatusCode.SUCCESS_STATUS));
+      }
+    } catch (Exception e) {
+      future.setException(e);
+      return future;
+    }
+
+    return future;
+  }
+
+  @Override
   public SettableFuture<ConfigTaskResult> removeConfigNode(
       final RemoveConfigNodeStatement removeConfigNodeStatement) {
     final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
@@ -5622,6 +5685,173 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
               new TSStatus(TSStatusCode.EXECUTE_STATEMENT_ERROR.getStatusCode())
                   .setMessage(e.getMessage())));
     }
+    return future;
+  }
+
+  // ===================================== STREAM =============================
+  @Override
+  public SettableFuture<ConfigTaskResult> createStream(StreamTask streamTask, boolean ifNotExists) {
+    SettableFuture<ConfigTaskResult> future = SettableFuture.create();
+    TSStatus tsStatus;
+    try {
+      TCreateStreamReq req = new TCreateStreamReq();
+      req.setStreamName(streamTask.getTaskName());
+      req.setCreator(streamTask.getCreator() != null ? streamTask.getCreator() : "");
+      try (PublicBAOS baos = new PublicBAOS();
+          DataOutputStream dos = new DataOutputStream(baos)) {
+        if (streamTask.getSource() != null) {
+          baos.reset();
+          streamTask.getSource().serialize(dos);
+          dos.flush();
+          req.setStreamSource(ByteBuffer.wrap(baos.toByteArray()));
+        }
+
+        baos.reset();
+        streamTask.getWindow().serialize(dos);
+        dos.flush();
+        req.setEventWindow(ByteBuffer.wrap(baos.toByteArray()));
+
+        if (streamTask.getTypeProvider() != null) {
+          baos.reset();
+          streamTask.getTypeProvider().serialize(dos);
+          dos.flush();
+          req.setTypeProvider(ByteBuffer.wrap(baos.toByteArray()));
+        }
+
+        if (streamTask.getProperties() != null) {
+          baos.reset();
+          streamTask.getProperties().serialize(dos);
+          dos.flush();
+          req.setStreamProperties(ByteBuffer.wrap(baos.toByteArray()));
+        }
+
+        baos.reset();
+        streamTask.getTarget().serialize(dos);
+        dos.flush();
+        req.setStreamSink(ByteBuffer.wrap(baos.toByteArray()));
+      }
+      req.setCalcSql(streamTask.getSubQuery() != null ? streamTask.getSubQuery() : "");
+      req.setCalcPlan(streamTask.getCalcPlan().duplicate());
+      try (ConfigNodeClient client =
+          CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+        tsStatus = client.createStream(req);
+      }
+    } catch (ClientManagerException | IOException | TException e) {
+      future.setException(e);
+      return future;
+    }
+    if (tsStatus.getCode() == TSStatusCode.SUCCESS_STATUS.getStatusCode()
+        || (tsStatus.getCode() == TSStatusCode.STREAM_ALREADY_EXISTS.getStatusCode()
+            && ifNotExists)) {
+      future.set(
+          new ConfigTaskResult(
+              TSStatusCode.SUCCESS_STATUS,
+              new TsBlockBuilder(Collections.emptyList()).build(),
+              EMPTY_HEADER));
+    } else {
+      future.setException(new IoTDBException(tsStatus));
+    }
+    return future;
+  }
+
+  @Override
+  public SettableFuture<ConfigTaskResult> dropStream(
+      String database, String streamName, boolean ifExists) {
+    SettableFuture<ConfigTaskResult> future = SettableFuture.create();
+    try (ConfigNodeClient client =
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+      TSStatus tsStatus = client.dropStream(new TDropStreamReq(streamName));
+      if (TSStatusCode.SUCCESS_STATUS.getStatusCode() != tsStatus.getCode()
+          && !(TSStatusCode.STREAM_NOT_EXIST.getStatusCode() == tsStatus.getCode() && ifExists)) {
+        LOGGER.warn("Failed to drop stream {} in config node, status is {}.", streamName, tsStatus);
+        future.setException(new IoTDBException(tsStatus));
+      } else {
+        future.set(new ConfigTaskResult(TSStatusCode.SUCCESS_STATUS));
+      }
+    } catch (Exception e) {
+      LOGGER.warn("Failed to drop stream {} in config node.", streamName, e);
+      future.setException(e);
+    }
+    return future;
+  }
+
+  @Override
+  public SettableFuture<ConfigTaskResult> startStream(String database, String streamName) {
+    SettableFuture<ConfigTaskResult> future = SettableFuture.create();
+    try (ConfigNodeClient client =
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+      TSStatus tsStatus = client.startStream(new TStartStreamReq(streamName));
+      if (TSStatusCode.SUCCESS_STATUS.getStatusCode() != tsStatus.getCode()) {
+        LOGGER.warn(
+            "Failed to start stream {} in config node, status is {}.", streamName, tsStatus);
+        future.setException(new IoTDBException(tsStatus));
+      } else {
+        future.set(new ConfigTaskResult(TSStatusCode.SUCCESS_STATUS));
+      }
+    } catch (ClientManagerException | TException e) {
+      future.setException(e);
+    }
+    return future;
+  }
+
+  @Override
+  public SettableFuture<ConfigTaskResult> stopStream(String database, String streamName) {
+    SettableFuture<ConfigTaskResult> future = SettableFuture.create();
+    try (ConfigNodeClient client =
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+      TSStatus tsStatus = client.stopStream(new TStopStreamReq(streamName));
+      if (TSStatusCode.SUCCESS_STATUS.getStatusCode() != tsStatus.getCode()) {
+        LOGGER.warn("Failed to stop stream {} in config node, status is {}.", streamName, tsStatus);
+        future.setException(new IoTDBException(tsStatus));
+      } else {
+        future.set(new ConfigTaskResult(TSStatusCode.SUCCESS_STATUS));
+      }
+    } catch (Exception e) {
+      LOGGER.warn("Failed to stop stream {} in config node.", streamName, e);
+      future.setException(e);
+    }
+    return future;
+  }
+
+  @Override
+  public SettableFuture<ConfigTaskResult> showStreams(final String streamName) {
+    final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
+    try (ConfigNodeClient client =
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+      // No filter: every caller reaching a DataNode already holds the SYSTEM privilege.
+      final TShowStreamResp resp = client.showStreams();
+      if (resp.getStatus().getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+        future.setException(new IoTDBException(resp.getStatus()));
+        return future;
+      }
+      final List<TStreamInfo> streamInfoList =
+          streamName == null
+              ? resp.getStreamInfoList()
+              : resp.getStreamInfoList().stream()
+                  .filter(streamInfo -> streamName.equals(streamInfo.getStreamName()))
+                  .collect(Collectors.toList());
+      ShowStreamsTask.buildTsBlock(streamInfoList, future);
+    } catch (ClientManagerException | TException e) {
+      future.setException(e);
+    }
+    return future;
+  }
+
+  @Override
+  public SettableFuture<ConfigTaskResult> showStreamNodes() {
+    final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
+    TShowStreamNodesResp resp = new TShowStreamNodesResp();
+    try (ConfigNodeClient client =
+        CONFIG_NODE_CLIENT_MANAGER.borrowClient(ConfigNodeInfo.CONFIG_REGION_ID)) {
+      resp = client.showStreamNodes();
+      if (resp.getStatus().getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+        future.setException(new IoTDBException(resp.getStatus()));
+        return future;
+      }
+    } catch (final ClientManagerException | TException e) {
+      future.setException(e);
+    }
+    ShowStreamNodesTask.buildTsBlock(resp, future);
     return future;
   }
 }

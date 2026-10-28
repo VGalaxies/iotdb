@@ -59,6 +59,8 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Table;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TableFunctionInvocation;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WindowFrame;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.With;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.EventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StreamLiteral;
 import org.apache.iotdb.commons.queryengine.plan.statement.component.FillPolicy;
 import org.apache.iotdb.commons.schema.table.InformationSchema;
 import org.apache.iotdb.db.i18n.DataNodeQueryMessages;
@@ -237,6 +239,14 @@ public class Analysis implements IAnalysis {
       new LinkedHashMap<>();
 
   private Insert insert;
+
+  // Stream Analysis
+  @Nullable private EventWindow streamEventWindow;
+  @Nullable private RelationType streamSourceRelationType;
+  @Nullable private RelationType streamSinkRelationType;
+  @Nullable private List<Expression> streamPartitionBy;
+  private boolean containsRowsPlaceholder;
+  private final Set<StreamLiteral.Type> literalPlaceholders = new HashSet<>();
 
   private DataPartition dataPartition;
 
@@ -1655,6 +1665,58 @@ public class Analysis implements IAnalysis {
 
   public Insert getInsert() {
     return insert;
+  }
+
+  public void setStreamEventWindow(@Nullable EventWindow streamEventWindow) {
+    this.streamEventWindow = streamEventWindow;
+  }
+
+  @Nullable
+  public EventWindow getStreamEventWindow() {
+    return streamEventWindow;
+  }
+
+  public void setContainsRowsPlaceholder(boolean containsRowsPlaceholder) {
+    this.containsRowsPlaceholder = containsRowsPlaceholder;
+  }
+
+  public boolean containsRowsPlaceholder() {
+    return containsRowsPlaceholder;
+  }
+
+  public void addLiteralPlaceholder(StreamLiteral.Type type) {
+    literalPlaceholders.add(type);
+  }
+
+  public Set<StreamLiteral.Type> getLiteralPlaceholders() {
+    return literalPlaceholders;
+  }
+
+  public void setStreamSourceRelationType(@Nullable RelationType streamSourceRelationType) {
+    this.streamSourceRelationType = streamSourceRelationType;
+  }
+
+  @Nullable
+  public RelationType getStreamSourceRelationType() {
+    return streamSourceRelationType;
+  }
+
+  public void setStreamSinkRelationType(@Nullable RelationType streamSinkRelationType) {
+    this.streamSinkRelationType = streamSinkRelationType;
+  }
+
+  @Nullable
+  public RelationType getStreamSinkRelationType() {
+    return streamSinkRelationType;
+  }
+
+  public void setStreamPartitionBy(List<Expression> streamPartitionBy) {
+    this.streamPartitionBy = streamPartitionBy;
+  }
+
+  @Nullable
+  public List<Expression> getStreamPartitionBy() {
+    return streamPartitionBy;
   }
 
   public static final class Insert {

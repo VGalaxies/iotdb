@@ -26,6 +26,8 @@ import org.apache.iotdb.common.rpc.thrift.TDataNodeConfiguration;
 import org.apache.iotdb.common.rpc.thrift.TDataNodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TEndPoint;
 import org.apache.iotdb.common.rpc.thrift.TNodeResource;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeConfiguration;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.commons.cluster.NodeStatus;
 import org.apache.iotdb.commons.exception.StartupException;
 import org.apache.iotdb.confignode.consensus.request.write.ainode.RegisterAINodePlan;
@@ -36,6 +38,7 @@ import org.apache.iotdb.confignode.consensus.request.write.confignode.UpdateNode
 import org.apache.iotdb.confignode.consensus.request.write.confignode.UpdateVersionInfoPlan;
 import org.apache.iotdb.confignode.consensus.request.write.datanode.RegisterDataNodePlan;
 import org.apache.iotdb.confignode.consensus.request.write.datanode.RemoveDataNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RegisterStreamNodePlan;
 import org.apache.iotdb.confignode.persistence.node.NodeInfo;
 import org.apache.iotdb.confignode.rpc.thrift.TNodeVersionInfo;
 import org.apache.iotdb.rpc.TSStatusCode;
@@ -81,16 +84,20 @@ public class NodeInfoTest {
   public void testSnapshot() throws TException, IOException {
     registerConfigNodes();
     registerDataNodes();
+    registerStreamNodes();
     nodeInfo.registerAINode(new RegisterAINodePlan(generateTAINodeConfiguration()));
     nodeInfo.applyNodeStatusPlan(new UpdateNodeStatusPlan(10001, NodeStatus.Stopped));
     nodeInfo.applyNodeStatusPlan(new UpdateNodeStatusPlan(10003, NodeStatus.Removing));
     nodeInfo.applyNodeStatusPlan(new UpdateNodeStatusPlan(10004, NodeStatus.Stopped));
     nodeInfo.applyNodeStatusPlan(new UpdateNodeStatusPlan(10006, NodeStatus.Removing));
+
     Assert.assertTrue(nodeInfo.processTakeSnapshot(snapshotDir));
 
     NodeInfo nodeInfo1 = new NodeInfo();
     nodeInfo1.processLoadSnapshot(snapshotDir);
     Assert.assertEquals(nodeInfo, nodeInfo1);
+    Assert.assertEquals(nodeInfo.getRegisteredStreamNodes(), nodeInfo1.getRegisteredStreamNodes());
+
     Assert.assertEquals(
         new Pair<>(NodeStatus.Stopped, null), nodeInfo1.getPersistedNodeStatus(10001));
     Assert.assertEquals(
@@ -402,6 +409,16 @@ public class NodeInfoTest {
       RegisterDataNodePlan registerDataNodePlan =
           new RegisterDataNodePlan(generateTDataNodeConfiguration(i));
       nodeInfo.registerDataNode(registerDataNodePlan);
+    }
+  }
+
+  private void registerStreamNodes() {
+    for (int i = 6; i < 8; i++) {
+      nodeInfo.registerStreamNode(
+          new RegisterStreamNodePlan(
+              new TStreamNodeConfiguration(
+                  new TStreamNodeLocation(10000 + i, new TEndPoint("127.0.0.1", 10800 + i)),
+                  new TNodeResource(1, 1024L))));
     }
   }
 

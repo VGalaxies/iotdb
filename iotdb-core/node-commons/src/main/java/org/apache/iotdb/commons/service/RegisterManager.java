@@ -21,6 +21,7 @@ package org.apache.iotdb.commons.service;
 import org.apache.iotdb.commons.exception.ShutdownException;
 import org.apache.iotdb.commons.exception.StartupException;
 import org.apache.iotdb.commons.i18n.ServiceMessages;
+import org.apache.iotdb.commons.service.metric.MetricService;
 import org.apache.iotdb.commons.utils.TestOnly;
 
 import org.slf4j.Logger;
@@ -63,6 +64,9 @@ public class RegisterManager {
     // we stop JMXServer at last
     Collections.reverse(iServices);
     for (IService service : iServices) {
+      if (service instanceof MetricService) {
+        continue;
+      }
       try {
         service.waitAndStop(deregisterTimeOut);
         logger.debug(ServiceMessages.SERVICE_DEREGISTERED, service.getID());

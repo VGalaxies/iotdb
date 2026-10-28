@@ -38,6 +38,8 @@ import org.apache.tsfile.utils.TimeDuration;
 
 import java.time.ZoneId;
 import java.util.Calendar;
+import java.util.Locale;
+import java.util.Set;
 
 public class DataNodeDateTimeUtils {
   public static Long parseDateTimeExpressionToLong(String dateExpression, ZoneId zoneId) {
@@ -283,5 +285,35 @@ public class DataNodeDateTimeUtils {
       throw new SemanticException(
           DataNodeQueryMessages.EXCEPTION_TIME_DURATION_IS_OUT_OF_RANGE_A56B1A29);
     }
+  }
+
+  /**
+   * Check whether a duration string only uses units contained in allowedUnits. The string is
+   * scanned exactly the way {@link #constructTimeDuration(String)} scans it: each maximal letter
+   * sequence following a digit sequence is one unit. The duration text is produced by the parser's
+   * timeDuration rule (a sequence of INTEGER_VALUE and unit keyword tokens), so it only contains
+   * digit and letter characters, and constructTimeDuration would treat every unit this method
+   * extracts as a unit.
+   *
+   * @param duration the duration string to check, e.g. "1d2h"
+   * @param allowedUnits the lowercase units that are accepted, e.g. ["ms", "s"]
+   * @return true if every unit of the duration is allowed, otherwise false
+   */
+  public static boolean validateDurationUnits(String duration, Set<String> allowedUnits) {
+    duration = duration.toLowerCase(Locale.ENGLISH);
+    int index = 0;
+    while (index < duration.length()) {
+      while (index < duration.length() && Character.isDigit(duration.charAt(index))) {
+        index++;
+      }
+      final int unitStart = index;
+      while (index < duration.length() && Character.isLetter(duration.charAt(index))) {
+        index++;
+      }
+      if (index > unitStart && !allowedUnits.contains(duration.substring(unitStart, index))) {
+        return false;
+      }
+    }
+    return true;
   }
 }

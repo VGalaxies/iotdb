@@ -78,4 +78,10 @@ public abstract class UnaryColumnTransformer extends ColumnTransformer {
     super.close();
     childColumnTransformer.close();
   }
+
+  @Override
+  public void reset() {
+    super.reset();
+    childColumnTransformer.reset();
+  }
 }

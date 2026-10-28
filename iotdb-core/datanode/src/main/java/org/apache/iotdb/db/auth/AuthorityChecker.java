@@ -102,7 +102,7 @@ public class AuthorityChecker {
   private static final String NO_GRANT_OPT_PERMISSION_PROMOTION =
       "No permissions for this operation, please add grant option to privilege ";
 
-  private static final MemoizedSupplier<IAuthorityFetcher> authorityFetcher =
+  private static volatile MemoizedSupplier<IAuthorityFetcher> authorityFetcher =
       MemoizedSupplier.valueOf(() -> new ClusterAuthorityFetcher(new BasicAuthorityCache()));
 
   private static final PerformanceOverviewMetrics PERFORMANCE_OVERVIEW_METRICS =
@@ -142,6 +142,11 @@ public class AuthorityChecker {
 
   public static IAuthorityFetcher getAuthorityFetcher() {
     return authorityFetcher.get();
+  }
+
+  @TestOnly
+  public static void setAuthorityFetcher(IAuthorityFetcher fetcher) {
+    authorityFetcher = MemoizedSupplier.valueOf(() -> fetcher);
   }
 
   public static boolean invalidateCache(String username, String roleName) {

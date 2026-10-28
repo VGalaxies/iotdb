@@ -286,6 +286,12 @@ public class ConfigNodeDescriptor {
     conf.setHeartbeatIntervalInMs(loadHeartbeatIntervalInMs(properties));
     conf.setFailureDetectorHeartbeatIntervalInMs(conf.getHeartbeatIntervalInMs());
 
+    conf.setStreamHeartbeatLostThresholdMS(
+        Long.parseLong(
+            properties.getProperty(
+                "stream_heartbeat_lost_threshold_ms",
+                String.valueOf(conf.getStreamHeartbeatLostThresholdMS()))));
+
     String failureDetector = properties.getProperty("failure_detector", conf.getFailureDetector());
     if (IFailureDetector.FIXED_DETECTOR.equals(failureDetector)
         || IFailureDetector.PHI_ACCRUAL_DETECTOR.equals(failureDetector)) {

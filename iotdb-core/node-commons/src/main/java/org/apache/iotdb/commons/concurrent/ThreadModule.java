@@ -41,6 +41,7 @@ public enum ThreadModule {
   REGION_MANAGEMENT,
   RECOVER,
   PROCEDURE,
+  STREAM,
   OTHER,
   UNKNOWN
 }

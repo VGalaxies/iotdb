@@ -41,6 +41,11 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Literal;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Parameter;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Query;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Table;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CreateStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.DropStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.ShowStreams;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StartStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StopStream;
 import org.apache.iotdb.commons.queryengine.plan.relational.type.InternalTypeManager;
 import org.apache.iotdb.commons.queryengine.plan.relational.type.TypeManager;
 import org.apache.iotdb.db.audit.DNAuditLogger;
@@ -115,6 +120,7 @@ import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RemoveAINode;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RemoveConfigNode;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RemoveDataNode;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RemoveRegion;
+import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RemoveStreamNode;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RenameColumn;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RenameTable;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.SetColumnComment;
@@ -142,6 +148,7 @@ import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowFunctions;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowLoadedModels;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowModels;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowRegions;
+import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowStreamNodes;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowTables;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowVariables;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowVersion;
@@ -743,7 +750,11 @@ public class Coordinator {
         || statement instanceof StartRepairData
         || statement instanceof StopRepairData
         || statement instanceof PipeStatement
+        || statement instanceof DropStream
+        || statement instanceof StartStream
+        || statement instanceof StopStream
         || statement instanceof RemoveDataNode
+        || statement instanceof RemoveStreamNode
         || statement instanceof RemoveConfigNode
         || statement instanceof RemoveAINode
         || statement instanceof SubscriptionStatement
@@ -777,7 +788,9 @@ public class Coordinator {
         || statement instanceof ShowLoadedModels
         || statement instanceof RemoveRegion
         || statement instanceof Prepare
-        || statement instanceof Deallocate) {
+        || statement instanceof Deallocate
+        || statement instanceof ShowStreamNodes
+        || statement instanceof ShowStreams) {
       return new ConfigExecution(
           queryContext,
           null,
@@ -787,6 +800,19 @@ public class Coordinator {
                   clientSession, metadata, AuthorityChecker.getAccessControl(), typeManager),
               queryContext));
     }
+
+    if (statement instanceof CreateStream) {
+      return new ConfigExecution(
+          queryContext,
+          null,
+          executor,
+          statement.accept(
+              new TableConfigTaskVisitor(
+                      clientSession, metadata, AuthorityChecker.getAccessControl(), typeManager)
+                  .withStreamQueryPlanner(getPlannerForStreamQuery(statement, sqlParser, metadata)),
+              queryContext));
+    }
+
     // Initialize variables for TableModelPlanner
     org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Statement statementToUse =
         statement;
@@ -878,6 +904,27 @@ public class Coordinator {
             parameterLookup,
             typeManager);
     return new QueryExecution(tableModelPlanner, queryContext, executor);
+  }
+
+  public TableModelPlanner getPlannerForStreamQuery(
+      org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Statement statement,
+      SqlParser sqlParser,
+      Metadata metadata) {
+    return new TableModelPlanner(
+        statement,
+        sqlParser,
+        metadata,
+        scheduledExecutor,
+        SYNC_INTERNAL_SERVICE_CLIENT_MANAGER,
+        ASYNC_INTERNAL_SERVICE_CLIENT_MANAGER,
+        statementRewrite,
+        logicalPlanOptimizers,
+        distributionPlanOptimizers,
+        AuthorityChecker.getAccessControl(),
+        dataNodeLocationSupplier,
+        Collections.emptyList(),
+        Collections.emptyMap(),
+        typeManager);
   }
 
   public IQueryExecution getQueryExecution(Long queryId) {

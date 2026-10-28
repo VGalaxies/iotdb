@@ -47,6 +47,9 @@ public enum ThreadName {
   MPP_COORDINATOR_EXECUTOR_POOL("MPP-Coordinator-Executor"),
   DATANODE_INTERNAL_RPC_SERVICE("DataNodeInternalRPC-Service"),
   DATANODE_INTERNAL_RPC_PROCESSOR("DataNodeInternalRPC-Processor"),
+  // -------------------------- StreamNode-RPC --------------------------
+  STREAM_NODE_RPC_SERVICE("StreamNodeRPC-Service"),
+  STREAM_NODE_RPC_PROCESSOR("StreamNodeRPC-Processor"),
   ASYNC_DATANODE_MPP_DATA_EXCHANGE_CLIENT_POOL("AsyncDataNodeMPPDataExchangeServiceClientPool"),
   // -------------------------- Compaction --------------------------
   COMPACTION_WORKER("Compaction-Worker"),
@@ -90,6 +93,7 @@ public enum ThreadName {
   CONFIG_NODE_TOPOLOGY_SERVICE("Topology-Service"),
   ASYNC_CONFIGNODE_HEARTBEAT_CLIENT_POOL("AsyncConfigNodeHeartbeatServiceClientPool"),
   ASYNC_DATANODE_HEARTBEAT_CLIENT_POOL("AsyncDataNodeHeartbeatServiceClientPool"),
+  ASYNC_STREAMNODE_CLIENT_POOL("AsyncStreamNodeInternalServiceClientPool"),
   // -------------------------- ConfigNode-LoadBalance --------------------------
   CONFIG_NODE_LOAD_STATISTIC("Cluster-LoadStatistics-Service"),
   CONFIG_NODE_EVENT_SERVICE("Cluster-Event-Service"),
@@ -105,6 +109,11 @@ public enum ThreadName {
   CONFIG_NODE_TIMEOUT_EXECUTOR("ProcedureTimeoutExecutor"),
   CONFIG_NODE_WORKER_THREAD_MONITOR("ProcedureWorkerThreadMonitor"),
   CONFIG_NODE_RETRY_FAILED_TASK("Cluster-RetryFailedTasks-Service"),
+  // -------------------------- ConfigNode-Stream --------------------------
+  STREAM_MONITOR("StreamMonitor"),
+  STREAM_TASK_RPC("StreamTask-RPC"),
+  STREAM_SUBSCRIPTION_POLL("StreamSubscriptionPoll"),
+
   RELOAD_TABLE_METADATA_CACHE("Reload-Table-Metadata-Cache"),
   CHECK_DN_LEASE_STATUS("Check-DN-Lease-Status"),
   // -------------------------- IoTConsensusV2 --------------------------
@@ -212,9 +221,13 @@ public enum ThreadName {
   TABLE_SIZE_INDEX_RECORD("TableSizeIndexRecord"),
   FIND_EARLIEST_TIME_SLOT_PARALLEL_POOL("FindEarliestTimeSlot-Parallel-Pool"),
   DATA_PARTITION_RECOVER_PARALLEL_POOL("DataPartitionRecover-Parallel-Pool"),
+  STREAMNODE_SHUTDOWN_HOOK("StreamNode-Shutdown-Hook"),
 
   // the unknown thread name is used for metrics
-  UNKNOWN("UNKNOWN");
+  UNKNOWN("UNKNOWN"),
+
+  // -------------------------- StreamNode --------------------------
+  STREAM_EXECUTOR_WORKER("Stream-Executor-Worker");
 
   private final String name;
   private static final Logger LOGGER = LoggerFactory.getLogger(ThreadName.class);
@@ -353,7 +366,10 @@ public enum ThreadName {
   private static final Set<ThreadName> configNodeRpcThreadNames =
       new HashSet<>(
           Arrays.asList(
-              CONFIGNODE_RPC_SERVICE, CONFIGNODE_RPC_PROCESSOR, ASYNC_CONFIGNODE_CLIENT_POOL));
+              CONFIGNODE_RPC_SERVICE,
+              CONFIGNODE_RPC_PROCESSOR,
+              ASYNC_CONFIGNODE_CLIENT_POOL,
+              ASYNC_STREAMNODE_CLIENT_POOL));
 
   private static final Set<ThreadName> configNodeQueryThreadNames =
       new HashSet<>(Arrays.asList(CQ_SCHEDULER));
@@ -387,6 +403,10 @@ public enum ThreadName {
               CONFIG_NODE_RETRY_FAILED_TASK,
               RELOAD_TABLE_METADATA_CACHE,
               CHECK_DN_LEASE_STATUS));
+  private static final Set<ThreadName> configNodeStreamThreadNames =
+      new HashSet<>(Arrays.asList(STREAM_MONITOR));
+  private static final Set<ThreadName> streamNodeRpcThreadNames =
+      new HashSet<>(Arrays.asList(STREAM_NODE_RPC_SERVICE, STREAM_NODE_RPC_PROCESSOR));
 
   private static final Set<ThreadName> metricsThreadNames =
       new HashSet<>(
@@ -436,6 +456,8 @@ public enum ThreadName {
         configNodeRegionManagementThreadNames,
         configNodeRecoverThreadNames,
         configNodeProcedureThreadNames,
+        configNodeStreamThreadNames,
+        streamNodeRpcThreadNames,
         otherThreadNames
       };
 
@@ -461,6 +483,8 @@ public enum ThreadName {
         ThreadModule.REGION_MANAGEMENT,
         ThreadModule.RECOVER,
         ThreadModule.PROCEDURE,
+        ThreadModule.STREAM,
+        ThreadModule.RPC,
         ThreadModule.OTHER
       };
 

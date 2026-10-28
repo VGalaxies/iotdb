@@ -26,6 +26,8 @@ import org.apache.iotdb.common.rpc.thrift.TDataNodeConfiguration;
 import org.apache.iotdb.common.rpc.thrift.TDataNodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TEndPoint;
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeConfiguration;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.commons.cluster.NodeType;
 import org.apache.iotdb.commons.conf.CommonConfig;
 import org.apache.iotdb.commons.conf.CommonDescriptor;
@@ -36,6 +38,7 @@ import org.apache.iotdb.confignode.manager.ConfigManager;
 import org.apache.iotdb.confignode.rpc.thrift.TAINodeRegisterReq;
 import org.apache.iotdb.confignode.rpc.thrift.TConfigNodeRegisterReq;
 import org.apache.iotdb.confignode.rpc.thrift.TDataNodeRegisterReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRegisterReq;
 import org.apache.iotdb.rpc.TSStatusCode;
 
 import java.util.ArrayList;
@@ -104,6 +107,13 @@ public class ClusterNodeStartUtils {
             conflictEndPoints,
             nodeType.getNodeType(),
             CommonConfig.SYSTEM_CONFIG_NAME));
+    return status;
+  }
+
+  private static TSStatus rejectRegistrationBecauseStreamNodeAlreadyExists() {
+    TSStatus status = new TSStatus();
+    status.setCode(TSStatusCode.REGISTER_STREAM_NODE_ERROR.getStatusCode());
+    status.setMessage(ManagerMessages.THERE_IS_ALREADY_ONE_STREAMNODE_IN_THE_CLUSTER_BC13ED81);
     return status;
   }
 
@@ -218,6 +228,58 @@ public class ClusterNodeStartUtils {
     return new ArrayList<>(conflictEndPointSet);
   }
 
+  public static TSStatus confirmStreamNodeRegistration(
+      TStreamNodeRegisterReq req, ConfigManager configManager) {
+    // Confirm cluster name
+    TSStatus status = confirmClusterName(NodeType.StreamNode, req.getClusterName());
+    if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+      return status;
+    }
+    // Confirm end point conflicts
+    List<TEndPoint> conflictEndPoints =
+        checkConflictTEndPointForNewStreamNode(
+            req.getStreamNodeConfiguration().getLocation(),
+            configManager.getNodeManager().getRegisteredStreamNodes());
+    if (!conflictEndPoints.isEmpty()) {
+      return rejectRegistrationBecauseConflictEndPoints(NodeType.StreamNode, conflictEndPoints);
+    }
+    // Confirm whether cluster id has been generated
+    status = confirmClusterId(configManager);
+    if (status.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+      return status;
+    }
+    // Only one StreamNode is supported in the cluster currently
+    if (!configManager.getNodeManager().getRegisteredStreamNodes().isEmpty()) {
+      return rejectRegistrationBecauseStreamNodeAlreadyExists();
+    }
+
+    // Success
+    return ACCEPT_NODE_REGISTRATION;
+  }
+
+  /**
+   * Check if there exist conflict TEndPoints on the DataNode to be registered.
+   *
+   * @param newStreamNodeLocation The TDataNodeLocation of the DataNode to be registered
+   * @param registeredStreamNodes All registered DataNodes
+   * @return The conflict TEndPoints if exist
+   */
+  public static List<TEndPoint> checkConflictTEndPointForNewStreamNode(
+      TStreamNodeLocation newStreamNodeLocation,
+      List<TStreamNodeConfiguration> registeredStreamNodes) {
+    Set<TEndPoint> conflictEndPointSet = new HashSet<>();
+    for (TStreamNodeConfiguration registeredStreamNode : registeredStreamNodes) {
+      TStreamNodeLocation registeredLocation = registeredStreamNode.getLocation();
+      if (registeredLocation
+          .getInternalEndPoint()
+          .equals(newStreamNodeLocation.getInternalEndPoint())) {
+        conflictEndPointSet.add(newStreamNodeLocation.getInternalEndPoint());
+      }
+    }
+
+    return new ArrayList<>(conflictEndPointSet);
+  }
+
   public static TSStatus confirmNodeRestart(
       NodeType nodeType,
       String clusterName,
@@ -282,6 +344,14 @@ public class ClusterNodeStartUtils {
                   configManager.getNodeManager().getRegisteredAINodes());
         }
         break;
+      case StreamNode:
+        if (nodeLocation instanceof TStreamNodeLocation) {
+          matchedNodeLocation =
+              matchRegisteredStreamNode(
+                  (TStreamNodeLocation) nodeLocation,
+                  configManager.getNodeManager().getRegisteredStreamNodes());
+        }
+        break;
       case DataNode:
       default:
         if (nodeLocation instanceof TDataNodeLocation) {
@@ -319,6 +389,17 @@ public class ClusterNodeStartUtils {
           updatedTEndPoints =
               checkUpdatedTEndPointOfConfigNode(
                   (TConfigNodeLocation) nodeLocation, (TConfigNodeLocation) matchedNodeLocation);
+          if (!updatedTEndPoints.isEmpty()) {
+            // TODO: Accept internal TEndPoints
+            acceptRestart = false;
+          }
+        }
+        break;
+      case StreamNode:
+        if (nodeLocation instanceof TStreamNodeLocation) {
+          updatedTEndPoints =
+              checkUpdatedTEndPointOfStreamNode(
+                  (TStreamNodeLocation) nodeLocation, (TStreamNodeLocation) matchedNodeLocation);
           if (!updatedTEndPoints.isEmpty()) {
             // TODO: Accept internal TEndPoints
             acceptRestart = false;
@@ -480,6 +561,26 @@ public class ClusterNodeStartUtils {
   }
 
   /**
+   * Check if there exists a registered StreamNode who has the same index of the given one.
+   *
+   * @param streamNodeLocation The given StreamNode
+   * @param registeredStreamNodes Registered StreamNodes
+   * @return The AINodeLocation who has the same index of the given one, null otherwise.
+   */
+  public static TStreamNodeLocation matchRegisteredStreamNode(
+      TStreamNodeLocation streamNodeLocation,
+      List<TStreamNodeConfiguration> registeredStreamNodes) {
+    for (TStreamNodeConfiguration registeredStreamNode : registeredStreamNodes) {
+      if (registeredStreamNode.getLocation().getStreamNodeId()
+          == streamNodeLocation.getStreamNodeId()) {
+        return registeredStreamNode.getLocation();
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Check if there exists a registered DataNode who has the same index of the given one.
    *
    * @param dataNodeLocation The given DataNode
@@ -546,6 +647,22 @@ public class ClusterNodeStartUtils {
         .getDataRegionConsensusEndPoint()
         .equals(restartLocation.getDataRegionConsensusEndPoint())) {
       updatedTEndPoints.add(4);
+    }
+    return updatedTEndPoints;
+  }
+
+  /**
+   * Check if some TEndPoints of the specified StreamNode have updated.
+   *
+   * @param restartLocation The location of restart StreamNode
+   * @param recordLocation The record StreamNode location
+   * @return The set of TEndPoints that have modified.
+   */
+  public static Set<Integer> checkUpdatedTEndPointOfStreamNode(
+      TStreamNodeLocation restartLocation, TStreamNodeLocation recordLocation) {
+    Set<Integer> updatedTEndPoints = new HashSet<>();
+    if (!recordLocation.getInternalEndPoint().equals(restartLocation.getInternalEndPoint())) {
+      updatedTEndPoints.add(0);
     }
     return updatedTEndPoints;
   }

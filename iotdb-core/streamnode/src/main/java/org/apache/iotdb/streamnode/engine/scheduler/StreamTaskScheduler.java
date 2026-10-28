@@ -1,0 +1,323 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iotdb.streamnode.engine.scheduler;
+
+import org.apache.iotdb.calc.execution.schedule.queue.IndexedBlockingQueue;
+import org.apache.iotdb.commons.utils.TestOnly;
+import org.apache.iotdb.streamnode.common.constant.ThreadName;
+import org.apache.iotdb.streamnode.conf.StreamNodeConfig;
+import org.apache.iotdb.streamnode.conf.StreamNodeDescriptor;
+import org.apache.iotdb.streamnode.engine.scheduler.queue.FairRoundRobinQueue;
+import org.apache.iotdb.streamnode.engine.scheduler.task.DriverTaskId;
+import org.apache.iotdb.streamnode.engine.scheduler.task.DriverTaskStatus;
+import org.apache.iotdb.streamnode.engine.scheduler.task.IStreamDriver;
+import org.apache.iotdb.streamnode.engine.scheduler.task.StreamDriverTask;
+import org.apache.iotdb.streamnode.metrics.StreamSchedulerMetrics;
+import org.apache.iotdb.streamnode.utils.SetThreadName;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.OptionalInt;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+public class StreamTaskScheduler implements IStreamTaskScheduler {
+  private static final Logger logger = LoggerFactory.getLogger(StreamTaskScheduler.class);
+  private final FairRoundRobinQueue readyQueue;
+  private final StreamNodeConfig config = StreamNodeDescriptor.getInstance().getConfig();
+  private final int WORKER_THREAD_NUM = config.getExecutorThreadNum();
+  private final List<AbstractDriverThread> threads;
+  private final ThreadGroup workerGroups;
+  private final ITaskScheduler scheduler;
+  private final Set<DriverTaskId> blockedSet = ConcurrentHashMap.newKeySet();
+  private final Map<DriverTaskId, StreamDriverTask> registeredTaskMap = new ConcurrentHashMap<>();
+
+  public StreamTaskScheduler() {
+    int taskMaxCapacity = Integer.MAX_VALUE;
+    this.readyQueue = new FairRoundRobinQueue(taskMaxCapacity, new StreamDriverTask());
+    this.threads = new CopyOnWriteArrayList<>();
+    workerGroups = new ThreadGroup("ScheduleThreads");
+    scheduler = new Scheduler();
+  }
+
+  @Override
+  public void submitStreamDriver(IStreamDriver driver, long timeoutMs) {
+    DriverTaskHandle driverTaskHandle = new DriverTaskHandle(0, readyQueue, OptionalInt.of(1));
+    StreamDriverTask task = new StreamDriverTask(driver, timeoutMs, driverTaskHandle);
+    readyQueue.push(task);
+    task.setLastEnterReadyQueueTime(System.nanoTime());
+    registeredTaskMap.put(task.getDriverTaskId(), task);
+  }
+
+  public int getReadyQueueSize() {
+    return readyQueue.size();
+  }
+
+  public int getReadyQueueReservedSize() {
+    return readyQueue.getReservedSize();
+  }
+
+  @Override
+  public void cancelStreamTask(DriverTaskId id) {
+    StreamDriverTask removedTask = registeredTaskMap.get(id);
+    if (removedTask != null) {
+      scheduler.toStopped(removedTask);
+    }
+  }
+
+  @TestOnly
+  public boolean isStreamTaskExist(DriverTaskId id) {
+    StreamDriverTask streamDriverTask = registeredTaskMap.get(id);
+    return streamDriverTask != null;
+  }
+
+  @Override
+  public void cancelStreamTask(String streamName) {
+    List<DriverTaskId> tasksToRemove = new ArrayList<>();
+    registeredTaskMap
+        .keySet()
+        .forEach(
+            id -> {
+              if (id.getId().equals(streamName)) {
+                tasksToRemove.add(id);
+              }
+            });
+
+    for (DriverTaskId id : tasksToRemove) {
+      cancelStreamTask(id);
+    }
+  }
+
+  @Override
+  public void start() {
+    for (int i = 0; i < WORKER_THREAD_NUM; i++) {
+      int index = i;
+      String threadName = ThreadName.STREAM_EXECUTOR_WORKER + "-" + i;
+      ThreadProducer producer =
+          new ThreadProducer() {
+            @Override
+            public void produce(
+                String threadName,
+                ThreadGroup workerGroups,
+                IndexedBlockingQueue<StreamDriverTask> queue,
+                ThreadProducer producer) {
+              DriverTaskThread newThread =
+                  new DriverTaskThread(threadName, workerGroups, readyQueue, scheduler, this);
+              threads.set(index, newThread);
+              newThread.start();
+            }
+          };
+      AbstractDriverThread t =
+          new DriverTaskThread(threadName, workerGroups, readyQueue, scheduler, producer);
+      threads.add(t);
+      t.start();
+    }
+  }
+
+  @Override
+  public void stop() {
+    for (AbstractDriverThread thread : threads) {
+      try {
+        thread.close();
+        thread.interrupt();
+      } catch (Exception e) {
+        logger.warn("Failed to stop thread: {}", thread.getName(), e);
+      }
+    }
+    threads.clear();
+  }
+
+  @Override
+  public int getTaskCount() {
+    return registeredTaskMap.size();
+  }
+
+  @Override
+  public int getRunningTaskCount() {
+    return getTaskCount() - getBlockedTaskCount() - getReadyQueueSize();
+  }
+
+  @Override
+  public int getBlockedTaskCount() {
+    return blockedSet.size();
+  }
+
+  /** the default scheduler implementation. */
+  private class Scheduler implements ITaskScheduler {
+    @Override
+    public boolean readyToRunning(StreamDriverTask task) {
+      task.lock();
+      try {
+        if (task.getStatus() != DriverTaskStatus.READY) {
+          return false;
+        }
+
+        task.setStatus(DriverTaskStatus.RUNNING);
+        long readyQueuedTime = System.nanoTime() - task.getLastEnterReadyQueueTime();
+        task.addReadyQueuedTime(readyQueuedTime);
+      } finally {
+        task.unlock();
+      }
+      return true;
+    }
+
+    @Override
+    public void runningToReady(StreamDriverTask task) {
+      task.lock();
+      try {
+        if (task.getStatus() != DriverTaskStatus.RUNNING) {
+          return;
+        }
+        task.updateSchedulePriority();
+        task.setStatus(DriverTaskStatus.READY);
+        task.setLastEnterReadyQueueTime(System.nanoTime());
+        readyQueue.repush(task);
+      } finally {
+        task.unlock();
+      }
+    }
+
+    @Override
+    public void runningToBlocked(StreamDriverTask task) {
+      task.lock();
+      try {
+        if (task.getStatus() != DriverTaskStatus.RUNNING) {
+          return;
+        }
+        task.updateSchedulePriority();
+        task.setStatus(DriverTaskStatus.BLOCKED);
+        blockedSet.add(task.getDriverTaskId());
+      } finally {
+        task.unlock();
+      }
+    }
+
+    @Override
+    public void blockedToReady(StreamDriverTask task) {
+      task.lock();
+      try {
+        if (task.getStatus() != DriverTaskStatus.BLOCKED) {
+          return;
+        }
+        task.setStatus(DriverTaskStatus.READY);
+        readyQueue.repush(task);
+        blockedSet.remove(task.getDriverTaskId());
+      } finally {
+        task.unlock();
+      }
+    }
+
+    @Override
+    public void toAborted(StreamDriverTask task) {
+      try (SetThreadName driverTaskName =
+          new SetThreadName(task.getDriver().getDriverTaskId().getFullId())) {
+        task.lock();
+        try {
+          if (task.isEndState()) {
+            return;
+          }
+          logger.info("The task {} is aborted.", task.getDriverTaskId());
+        } finally {
+          task.unlock();
+        }
+        clearDriverTask(task, DriverTaskStatus.ABORTED);
+        if (task.getAbortCause().isPresent()) {
+          task.getDriver().failed(task.getAbortCause().get());
+        }
+      } catch (Exception e) {
+        logger.error("set the task {} abort failed.", task.getDriverTaskId(), e);
+      }
+    }
+
+    @Override
+    public void toStopped(StreamDriverTask task) {
+      try (SetThreadName driverTaskName =
+          new SetThreadName(task.getDriver().getDriverTaskId().getFullId())) {
+        task.lock();
+        try {
+          if (task.isEndState()) {
+            return;
+          }
+          logger.info("The task {} is stopped.", task.getDriverTaskId());
+        } finally {
+          task.unlock();
+        }
+        clearDriverTask(task, DriverTaskStatus.STOPPED);
+      }
+    }
+  }
+
+  private void clearDriverTask(StreamDriverTask task, DriverTaskStatus targetState) {
+    try (SetThreadName driverTaskName =
+        new SetThreadName(task.getDriver().getDriverTaskId().getFullId())) {
+      try {
+        task.lock();
+        DriverTaskStatus status = task.getStatus();
+        switch (status) {
+          case ABORTED:
+          case STOPPED:
+            return;
+          case READY:
+            task.setStatus(targetState);
+            if (readyQueue.remove(task.getDriverTaskId()) == null) {
+              readyQueue.decreaseReservedSize(task);
+            }
+            break;
+          case BLOCKED:
+            task.setStatus(targetState);
+            blockedSet.remove(task.getDriverTaskId());
+            readyQueue.decreaseReservedSize(task);
+            break;
+          case RUNNING:
+            task.setStatus(targetState);
+            readyQueue.decreaseReservedSize(task);
+            break;
+          default:
+            task.setStatus(targetState);
+            break;
+        }
+        // reaching here means a non-terminal task just transitioned to targetState
+        // under the lock, so an ABORTED transition is counted exactly once
+        if (targetState == DriverTaskStatus.ABORTED) {
+          StreamSchedulerMetrics.getInstance().incrementAbortedTotal();
+        }
+      } finally {
+        task.unlock();
+      }
+
+      try {
+        task.lock();
+        if (task.getStatus() == targetState) {
+          try {
+            registeredTaskMap.remove(task.getDriverTaskId());
+          } catch (Exception e) {
+            logger.error("Clear DriverTask failed", e);
+          }
+        }
+      } finally {
+        task.unlock();
+      }
+    }
+  }
+}

@@ -579,6 +579,12 @@ public final class DataNodeQueryMessages {
       "Start to remove datanode, removed DataNodes endpoint: {}";
   public static final String SUBMIT_REMOVE_DATANODES_RESULT =
       "Submit Remove DataNodes result {} ";
+  public static final String STARTING_TO_REMOVE_STREAMNODE_WITH_NODE_ID =
+      "Starting to remove StreamNode with node-id {}";
+  public static final String THE_STREAMNODE_TO_BE_REMOVED_IS_NOT_IN_THE_CLUSTER_OR_THE_INPUT_FORMAT_IS_INCORRECT =
+      "The StreamNode to be removed is not in the cluster, or the input format is incorrect.";
+  public static final String REMOVE_STREAMNODE_FAILED = "Remove StreamNode failed: ";
+  public static final String STREAMNODE_IS_REMOVED = "StreamNode: {} is removed.";
   public static final String STARTING_TO_REMOVE_CONFIGNODE_WITH_NODE_ID =
       "Starting to remove ConfigNode with node-id {}";
   public static final String CONFIGNODE_IS_REMOVED =
@@ -851,6 +857,10 @@ public final class DataNodeQueryMessages {
       "Unsupported frame type: ";
   public static final String COLUMNS_ONLY_SUPPORT_TO_BE_USED_IN_SELECT =
       "Columns only support to be used in SELECT and WHERE clause";
+  public static final String STREAM_LITERAL_ONLY_ALLOWED_IN_STREAM_QUERY =
+      "Stream placeholder ${%s} can only be used in stream queries with event window";
+  public static final String PARTITION_BY_COLUMN_MUST_BE_TAG_COLUMN =
+      "PARTITION BY column must be TAG column, but %s is %s column";
   public static final String TYPE_MISMATCH_FMT =
       "%s: %s vs %s";
   public static final String UNKNOWN_PATTERN_RECOGNITION_FUNCTION =
@@ -2215,11 +2225,11 @@ public final class DataNodeQueryMessages {
       "Update's attribute value must be STRING, TEXT or null.";
   public static final String MULTIPLE_COLUMNS_FOUND_WITH_TIME_CATEGORY_IN_TABLE_SCHEMA =
       "Multiple columns found with TIME category in table schema";
-  public static final String INSERT_COLUMN_NAME_DOES_NOT_EXIST_IN_TARGET_TABLE_S =
-      "Insert column name does not exist in target table: %s";
-  public static final String INSERT_COLUMN_NAME_IS_SPECIFIED_MORE_THAN_ONCE_S =
-      "Insert column name is specified more than once: %s";
-  public static final String INSERT_QUERY_HAS_MISMATCHED_COLUMN_TYPES_TABLE_S_QUERY_S =
+  public static final String INSERT_COLUMN_NAME_DOES_NOT_EXIST_IN_TARGET_TABLE =
+      "Insert column name '%s' does not exist in target table";
+  public static final String INSERT_CONTAINS_DUPLICATED_COLUMN_NAME =
+      "Insert contains duplicated column name '%s'";
+  public static final String INSERT_QUERY_HAS_MISMATCHED_COLUMN_TYPES_BETWEEN_TABLE_AND_QUERY =
       "Insert query has mismatched column types: Table: [%s], Query: [%s]";
   public static final String WITH_QUERY_NAME_S_SPECIFIED_MORE_THAN_ONCE =
       "WITH query name '%s' specified more than once";

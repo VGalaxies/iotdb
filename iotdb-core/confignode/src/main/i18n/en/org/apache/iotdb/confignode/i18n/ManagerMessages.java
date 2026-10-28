@@ -315,10 +315,14 @@ public final class ManagerMessages {
       "Network error when transfer event %s, because %s.";
   public static final String NODEMANAGER_START_TO_REMOVE_DATANODE =
       "NodeManager start to remove DataNode {}";
+  public static final String NODEMANAGER_START_TO_REMOVE_STREAMNODE =
+      "NodeManager start to remove StreamNode {}";
   public static final String NODEMANAGER_SUBMIT_REMOVEAINODEPLAN_FINISHED =
       "NodeManager submit RemoveAINodePlan finished, {}";
   public static final String NODEMANAGER_SUBMIT_REMOVEDATANODEPLAN_FINISHED_REMOVEDATANODEPLAN =
       "NodeManager submit RemoveDataNodePlan finished, removeDataNodePlan: {}";
+  public static final String NODEMANAGER_SUBMIT_REMOVESTREAMNODEPLAN_FINISHED =
+      "NodeManager submit removeStreamNodePlan finished, {}";
   public static final String NODESTATISTICS = "[NodeStatistics]\t {}: {} -> {}";
   public static final String NODESTATISTICS_NODESTATISTICSMAP =
       "[NodeStatistics] NodeStatisticsMap: ";
@@ -461,6 +465,49 @@ public final class ManagerMessages {
   public static final String STOP_SUBMITTING_CQ_BECAUSE = "Stop submitting CQ {} because {}";
   public static final String STOP_SUBMITTING_CQ_BECAUSE_CURRENT_NODE_IS_NOT_LEADER_OR =
       "Stop submitting CQ {} because current node is not leader or current scheduled thread pool is shut down.";
+  public static final String STREAM_IS_BEING_DROPPED = "Stream is being dropped: %s";
+  public static final String
+      EXCEPTION_INVALID_EXPECTED_STATUS_ORDINAL_IN_STREAMINFO_SNAPSHOT_ARG_43EC6A81 =
+          "Invalid expected status ordinal in StreamInfo snapshot: %d";
+  public static final String EXCEPTION_INVALID_STREAMINFO_SNAPSHOT_MAGIC_ARG_6431D13A =
+      "Invalid StreamInfo snapshot magic: %d";
+  public static final String EXCEPTION_UNSUPPORTED_STREAMINFO_SNAPSHOT_VERSION_ARG_F766EDEE =
+      "Unsupported StreamInfo snapshot version: %d";
+  public static final String MESSAGE_CANNOT_START_STREAM_ARG_OWNER_EPOCH_EXCEEDS_THE_SUPPORTED_TASK_EPOCH_RANGE_06BF0D1D =
+      "Cannot start stream %s: owner epoch exceeds the supported task epoch range.";
+  public static final String MESSAGE_CANNOT_ADVANCE_STREAM_ARG_TASK_EPOCH_HAS_REACHED_THE_MAXIMUM_SUPPORTED_VALUE_ED9FA887 =
+      "Cannot advance stream %s: task epoch has reached the maximum supported value.";
+  public static final String STREAM_IS_BEING_MIGRATED_8E91E470 = "Stream is being migrated: %s";
+  public static final String STREAM_MANAGER_FAILED_TO_FETCH_STREAMNODE_HEARTBEAT =
+      "Failed to fetch StreamNode heartbeat from {}: {}";
+  public static final String STREAM_MANAGER_FAILED_TO_RESTART_TASK =
+      "Failed to restart task {}: {}";
+  public static final String STREAM_MANAGER_HEARTBEAT_LOST = "Heartbeat Lost";
+  public static final String STREAM_MANAGER_INVALID_STREAMNODE_ENDPOINT =
+      "Invalid StreamNode endpoint for stream %s: %s";
+  public static final String
+      MESSAGE_CANNOT_DROP_STREAM_ARG_BECAUSE_ITS_STREAMNODE_ARG_IS_ARG_CB6283F1 =
+          "Cannot drop stream %s because its StreamNode %s is %s.";
+  public static final String STREAM_MANAGER_MANUALLY_STOPPED = "Manually Stopped";
+  public static final String MESSAGE_START_ROLLBACK_B6601816 = "Start Rollback";
+  public static final String MESSAGE_STATE_RECONCILIATION_4D36E98B = "State Reconciliation";
+  public static final String MESSAGE_STREAMNODE_SHUTDOWN_C83EA302 = "StreamNode Shutdown";
+  public static final String STREAM_MANAGER_MARKED_TASK_UNKNOWN =
+      "Marked task {} as UNKNOWN due to heartbeat loss";
+  public static final String STREAM_MANAGER_NO_AVAILABLE_STREAMNODE =
+      "No available StreamNode to run stream task %s";
+  public static final String STREAM_MANAGER_RECEIVED_UNKNOWN_TASK_HEARTBEAT =
+      "Received heartbeat for unknown task: {}";
+  public static final String STREAM_MANAGER_RESTARTING_UNKNOWN_TASK =
+      "Restarting UNKNOWN task: {}";
+  public static final String STREAM_MANAGER_STALE_HEARTBEAT =
+      "Stale heartbeat for task %s: expected epoch=%d leaderTerm=%d, got epoch=%d leaderTerm=%d";
+  public static final String STREAM_MANAGER_STARTING_STREAM = "Starting stream: {}";
+  public static final String STREAM_MANAGER_STOPPING_STREAM = "Stopping stream: {}";
+  public static final String STREAM_MANAGER_TASK_NOT_FOUND = "Stream task not found: %s";
+  public static final String STREAM_MANAGER_UNEXPECTED_STREAMNODE_HEARTBEAT_RESPONSE =
+      "Unexpected StreamNode heartbeat response from {}: {}";
+  public static final String STREAM_NOT_FOUND = "Stream not found: %s";
   public static final String SUBMITTED_ASYNC_CONSENSUS_PIPE_CREATION =
       "Submitted async consensus pipe creation: {}";
   public static final String SUBMITTED_ASYNC_CONSENSUS_PIPE_DROP =
@@ -483,6 +530,10 @@ public final class ManagerMessages {
       "Successfully transferred config region snapshot {}.";
   public static final String THERE_IS_NO_RUNNING_DATANODE_TO_EXECUTE_CQ =
       "There is no RUNNING DataNode to execute CQ {}";
+  public static final String THE_CONFIGNODE_WILL_BE_SHUTDOWN_SOON_MARK_IT_AS_UNKNOWN =
+      "The ConfigNode-{} will be shutdown soon, mark it as Unknown";
+  public static final String THE_STREAMNODE_WILL_BE_SHUTDOWN_SOON_MARK_IT_AS_UNKNOWN =
+      "The StreamNode-{} will be shutdown soon, mark it as Unknown";
   public static final String LOG_NODE_ARG_REPORTED_SHUTDOWN_CURRENT_STATUS_IS_ARG_A375D665 =
       "Node {} reported shutdown; current status is {}.";
   public static final String THE_CONFIG_REGION_AIR_GAP_CONNECTOR_DOES_NOT_SUPPORT_TRANSFERRING =
@@ -499,6 +550,8 @@ public final class ManagerMessages {
       "The removeNodeReplicaSelect method of PartiteGraphPlacementRegionGroupAllocator is yet to be implemented.";
   public static final String THE_REMOVE_DATANODE_REQUEST_CHECK_FAILED_REQ_CHECK_RESULT =
       "The remove DataNode request check failed. req: {}, check result: {}";
+  public static final String THE_REMOVE_STREAM_NODE_REQUEST_CHECK_FAILED_REQ_CHECK_RESULT =
+      "The remove StreamNode request check failed. req: {}, check result: {}";
   public static final String TOPOLOGY_ASYMMETRIC_NETWORK_PARTITION_FROM_TO =
       "[Topology] Asymmetric network partition from {} to {}";
   public static final String TOPOLOGY_CLUSTER_TOPOLOGY_CHANGED_LATEST =
@@ -559,6 +612,7 @@ public final class ManagerMessages {
   public static final String SERVER_ACCEPTED_THE_REQUEST = "Server accepted the request";
   public static final String SERVER_REJECTED_THE_REQUEST_MAYBE_REQUESTS_ARE_TOO_MANY = "Server rejected the request, maybe requests are too many";
   public static final String THERE_IS_ALREADY_ONE_AINODE_IN_THE_CLUSTER = "There is already one AINode in the cluster.";
+  public static final String THERE_IS_ALREADY_ONE_STREAMNODE_IN_THE_CLUSTER_BC13ED81 = "There is already one Stream Node in the cluster";
   public static final String REMOVE_AINODE_FAILED_BECAUSE_THERE_IS_NO_AINODE_IN_THE = "Remove AINode failed because there is no AINode in the cluster.";
   public static final String REMOVE_CONFIGNODE_FAILED_DUE_TO_THREAD_INTERRUPTION = "Remove ConfigNode failed due to thread interruption.";
   public static final String REMOVE_CONFIGNODE_FAILED_BECAUSE_THE_CONFIGNODE_NOT_IN_CURRENT_CLUSTER = "Remove ConfigNode failed because the ConfigNode not in current Cluster.";
@@ -629,6 +683,11 @@ public final class ManagerMessages {
 
   public static final String MESSAGE_CURRENT_CONFIGNODE_NOT_LEADER_PLEASE_REDIRECT_NEW_CONFIGNODE_F9AF262D = "The current ConfigNode is not leader, please redirect to a new ConfigNode.";
   public static final String LOG_FAILED_SYNC_COMMIT_PROGRESS_RESULT_STATUS_ARG_A9E46E80 = "Failed to sync commit progress. Result status: {}.";
+  public static final String LOG_FAILED_TO_DROP_RUNTIME_OF_STREAMTASK_ARG_ON_STREAMNODE_ARG_E5D5C253 = "Failed to drop runtime of StreamTask {} on StreamNode {}";
+  public static final String LOG_FAILED_TO_MIGRATE_STREAMTASK_ARG_TO_ANOTHER_STREAMNODE_REASON_ARG_0307D370 = "Failed to migrate StreamTask {} to another StreamNode, reason: {}";
+  public static final String LOG_FAILED_TO_STOP_RUNTIME_OF_STREAMTASK_ON_STREAMNODE_B5E07753 = "Failed to stop runtime of StreamTask {} on StreamNode {}";
+  public static final String LOG_FAILED_TO_RECONCILE_STOPPED_STREAM_ARG_REASON_ARG_4324F28F = "Failed to reconcile stopped stream {}, reason: {}";
+  public static final String LOG_FAILED_TO_RESTART_STREAMTASK_ON_STREAMNODE_DURING_ROLLBACK_D4EADD44 = "Failed to restart StreamTask {} on StreamNode {} during rollback";
   public static final String MESSAGE_FAILED_ALTER_DATABASE_DATABASE_2734674F = "Failed to alter database. The Database ";
   public static final String MESSAGE_DOESN_T_EXIST_EED8C92E = " doesn't exist.";
   public static final String MESSAGE_FAILED_ALTER_DATABASE_SCHEMAREGIONGROUPNUM_COULD_ONLY_INCREASED_B98229D3 = "Failed to alter database. The SchemaRegionGroupNum could only be increased. ";
@@ -717,6 +776,8 @@ public final class ManagerMessages {
   public static final String
       MESSAGE_ARG_PLEASE_MANUALLY_CHECK_LATER_WHETHER_THE_PROCEDURE_IS_EXECUTED_SUCCESSFULLY_A82B739D =
           "%s Please manually check later whether the procedure is executed successfully.";
+  public static final String MESSAGE_NO_RUNNING_STREAMNODE_FOUND_F21CB52B =
+      "No running StreamNode found";
 
   public static final String MESSAGE_CONFIGNODE_LEADER_IS_WAITING_FOR_NODE_STATUS_PERSISTENCE_8CA96809 =
       "ConfigNode leader is waiting for node status persistence.";

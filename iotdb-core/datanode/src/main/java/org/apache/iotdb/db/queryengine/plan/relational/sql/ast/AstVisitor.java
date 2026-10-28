@@ -139,6 +139,10 @@ public interface AstVisitor<R, C> extends CommonQueryAstVisitor<R, C> {
     return visitStatement(node, context);
   }
 
+  default R visitShowStreamNodes(ShowStreamNodes node, C context) {
+    return visitStatement(node, context);
+  }
+
   default R visitClearCache(ClearCache node, C context) {
     return visitStatement(node, context);
   }
@@ -148,6 +152,10 @@ public interface AstVisitor<R, C> extends CommonQueryAstVisitor<R, C> {
   }
 
   default R visitRemoveDataNode(RemoveDataNode node, C context) {
+    return visitStatement(node, context);
+  }
+
+  default R visitRemoveStreamNode(RemoveStreamNode node, C context) {
     return visitStatement(node, context);
   }
 

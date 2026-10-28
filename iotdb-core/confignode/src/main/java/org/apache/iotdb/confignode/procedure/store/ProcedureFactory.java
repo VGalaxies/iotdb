@@ -27,6 +27,7 @@ import org.apache.iotdb.confignode.procedure.impl.node.AddConfigNodeProcedure;
 import org.apache.iotdb.confignode.procedure.impl.node.RemoveAINodeProcedure;
 import org.apache.iotdb.confignode.procedure.impl.node.RemoveConfigNodeProcedure;
 import org.apache.iotdb.confignode.procedure.impl.node.RemoveDataNodesProcedure;
+import org.apache.iotdb.confignode.procedure.impl.node.RemoveStreamNodeProcedure;
 import org.apache.iotdb.confignode.procedure.impl.partition.DataPartitionTableIntegrityCheckProcedure;
 import org.apache.iotdb.confignode.procedure.impl.pipe.plugin.CreatePipePluginProcedure;
 import org.apache.iotdb.confignode.procedure.impl.pipe.plugin.DropPipePluginProcedure;
@@ -71,6 +72,10 @@ import org.apache.iotdb.confignode.procedure.impl.schema.table.view.DropViewProc
 import org.apache.iotdb.confignode.procedure.impl.schema.table.view.RenameViewColumnProcedure;
 import org.apache.iotdb.confignode.procedure.impl.schema.table.view.RenameViewProcedure;
 import org.apache.iotdb.confignode.procedure.impl.schema.table.view.SetViewPropertiesProcedure;
+import org.apache.iotdb.confignode.procedure.impl.stream.CreateStreamProcedure;
+import org.apache.iotdb.confignode.procedure.impl.stream.DropStreamProcedure;
+import org.apache.iotdb.confignode.procedure.impl.stream.StartStreamProcedure;
+import org.apache.iotdb.confignode.procedure.impl.stream.StopStreamProcedure;
 import org.apache.iotdb.confignode.procedure.impl.subscription.consumer.AlterConsumerGroupProcedure;
 import org.apache.iotdb.confignode.procedure.impl.subscription.consumer.CreateConsumerProcedure;
 import org.apache.iotdb.confignode.procedure.impl.subscription.consumer.DropConsumerProcedure;
@@ -370,6 +375,9 @@ public class ProcedureFactory implements IProcedureFactory {
       case REMOVE_AI_NODE_PROCEDURE:
         procedure = new RemoveAINodeProcedure();
         break;
+      case REMOVE_STREAM_NODE_PROCEDURE:
+        procedure = new RemoveStreamNodeProcedure();
+        break;
       case PIPE_ENRICHED_SET_TTL_PROCEDURE:
         procedure = new SetTTLProcedure(true);
         break;
@@ -427,6 +435,18 @@ public class ProcedureFactory implements IProcedureFactory {
       case DATA_PARTITION_TABLE_INTEGRITY_CHECK_PROCEDURE:
         procedure = new DataPartitionTableIntegrityCheckProcedure();
         break;
+      case CREATE_STREAM_PROCEDURE:
+        procedure = new CreateStreamProcedure();
+        break;
+      case DROP_STREAM_PROCEDURE:
+        procedure = new DropStreamProcedure();
+        break;
+      case START_STREAM_PROCEDURE:
+        procedure = new StartStreamProcedure();
+        break;
+      case STOP_STREAM_PROCEDURE:
+        procedure = new StopStreamProcedure();
+        break;
       default:
         LOGGER.error(ProcedureMessages.UNKNOWN_PROCEDURE_TYPE_2, typeCode);
         throw new IOException(ProcedureMessages.UNKNOWN_PROCEDURE_TYPE + typeCode);
@@ -453,6 +473,8 @@ public class ProcedureFactory implements IProcedureFactory {
       return ProcedureType.REMOVE_CONFIG_NODE_PROCEDURE;
     } else if (procedure instanceof RemoveDataNodesProcedure) {
       return ProcedureType.REMOVE_DATA_NODE_PROCEDURE;
+    } else if (procedure instanceof RemoveStreamNodeProcedure) {
+      return ProcedureType.REMOVE_STREAM_NODE_PROCEDURE;
     } else if (procedure instanceof RemoveAINodeProcedure) {
       return ProcedureType.REMOVE_AI_NODE_PROCEDURE;
     } else if (procedure instanceof RegionMigrateProcedure) {
@@ -589,6 +611,14 @@ public class ProcedureFactory implements IProcedureFactory {
       return ProcedureType.ADD_NEVER_FINISH_SUB_PROCEDURE_PROCEDURE;
     } else if (procedure instanceof DataPartitionTableIntegrityCheckProcedure) {
       return ProcedureType.DATA_PARTITION_TABLE_INTEGRITY_CHECK_PROCEDURE;
+    } else if (procedure instanceof CreateStreamProcedure) {
+      return ProcedureType.CREATE_STREAM_PROCEDURE;
+    } else if (procedure instanceof DropStreamProcedure) {
+      return ProcedureType.DROP_STREAM_PROCEDURE;
+    } else if (procedure instanceof StartStreamProcedure) {
+      return ProcedureType.START_STREAM_PROCEDURE;
+    } else if (procedure instanceof StopStreamProcedure) {
+      return ProcedureType.STOP_STREAM_PROCEDURE;
     }
     throw new UnsupportedOperationException(
         ProcedureMessages.PROCEDURE_TYPE

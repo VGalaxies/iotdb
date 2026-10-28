@@ -23,6 +23,7 @@ import org.apache.iotdb.common.rpc.thrift.TConfigNodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TDataNodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TEndPoint;
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.commons.cluster.NodeStatus;
 import org.apache.iotdb.commons.schema.column.ColumnHeader;
 import org.apache.iotdb.commons.schema.column.ColumnHeaderConstant;
@@ -33,7 +34,9 @@ import org.apache.iotdb.rpc.TSStatusCode;
 
 import com.google.common.util.concurrent.SettableFuture;
 import org.apache.tsfile.block.column.Column;
+import org.apache.tsfile.common.conf.TSFileConfig;
 import org.apache.tsfile.enums.TSDataType;
+import org.apache.tsfile.read.common.block.TsBlock;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -77,7 +80,8 @@ public class ShowClusterTaskTest {
             Collections.singletonList(dataNode),
             Collections.emptyList(),
             nodeStatus,
-            nodeVersionInfo);
+            nodeVersionInfo,
+            Collections.emptyList());
     // An old ConfigNode response leaves the optional nodeStatusReason field unset.
     if (statusReasonMap != null) {
       resp.setNodeStatusReason(statusReasonMap);
@@ -164,5 +168,70 @@ public class ShowClusterTaskTest {
     Assert.assertEquals(
         ColumnHeaderConstant.showClusterColumnHeaders.size(),
         result.getResultSet().getValueColumns().length);
+  }
+
+  @Test
+  public void testBuildTsBlockIncludesStreamNode() throws Exception {
+    final TShowClusterResp resp = new TShowClusterResp();
+    resp.setStatus(new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode()));
+    resp.setConfigNodeList(
+        Collections.singletonList(
+            new TConfigNodeLocation(
+                0, new TEndPoint("127.0.0.1", 10710), new TEndPoint("127.0.0.1", 10720))));
+    resp.setDataNodeList(
+        Collections.singletonList(
+            new TDataNodeLocation(
+                1,
+                new TEndPoint("127.0.0.1", 6667),
+                new TEndPoint("127.0.0.1", 6668),
+                new TEndPoint("127.0.0.1", 6669),
+                new TEndPoint("127.0.0.1", 6670),
+                new TEndPoint("127.0.0.1", 6671))));
+    resp.setAiNodeList(Collections.emptyList());
+    resp.setStreamNodeList(
+        Collections.singletonList(new TStreamNodeLocation(2, new TEndPoint("127.0.0.1", 10820))));
+    final Map<Integer, String> nodeStatus = new HashMap<>();
+    nodeStatus.put(0, "Running");
+    nodeStatus.put(1, "Running");
+    nodeStatus.put(2, "Running");
+    resp.setNodeStatus(nodeStatus);
+    final Map<Integer, TNodeVersionInfo> versionInfo = new HashMap<>();
+    versionInfo.put(0, new TNodeVersionInfo("1.0", "build"));
+    versionInfo.put(1, new TNodeVersionInfo("1.0", "build"));
+    versionInfo.put(2, new TNodeVersionInfo("1.0", "build"));
+    resp.setNodeVersionInfo(versionInfo);
+
+    final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
+    ShowClusterTask.buildTsBlock(resp, future);
+    final ConfigTaskResult result = future.get();
+    final TsBlock block = result.getResultSet();
+    Assert.assertEquals(3, block.getPositionCount());
+    boolean foundStreamNode = false;
+    for (int i = 0; i < block.getPositionCount(); i++) {
+      final String nodeType =
+          block.getColumn(1).getBinary(i).getStringValue(TSFileConfig.STRING_CHARSET);
+      if (ColumnHeaderConstant.NODE_TYPE_STREAM_NODE.equals(nodeType)) {
+        foundStreamNode = true;
+        Assert.assertEquals(2, block.getColumn(0).getInt(i));
+        Assert.assertEquals(10820, block.getColumn(4).getInt(i));
+      }
+    }
+    Assert.assertTrue(foundStreamNode);
+  }
+
+  @Test
+  public void testBuildTsBlockNullStreamNodeList() throws Exception {
+    final TShowClusterResp resp = new TShowClusterResp();
+    resp.setStatus(new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode()));
+    resp.setConfigNodeList(Collections.emptyList());
+    resp.setDataNodeList(Collections.emptyList());
+    resp.setAiNodeList(Collections.emptyList());
+    resp.setStreamNodeList(null);
+    resp.setNodeStatus(Collections.emptyMap());
+    resp.setNodeVersionInfo(Collections.emptyMap());
+
+    final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
+    ShowClusterTask.buildTsBlock(resp, future);
+    Assert.assertEquals(0, future.get().getResultSet().getPositionCount());
   }
 }

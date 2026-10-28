@@ -1,0 +1,93 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.apache.iotdb.commons.stream;
+
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+
+public class PeriodWindow extends StreamWindow {
+
+  private final int periodMonth;
+  private final long periodMs;
+  private final long originMs;
+
+  /**
+   * define the period window
+   *
+   * @param periodMonth
+   * @param periodMs
+   * @param originMs
+   */
+  public PeriodWindow(int periodMonth, long periodMs, long originMs) {
+    this.periodMonth = periodMonth;
+    this.periodMs = periodMs;
+    this.originMs = originMs;
+  }
+
+  @Override
+  public StreamWindowType getType() {
+    return StreamWindowType.PERIOD;
+  }
+
+  public int getPeriodMonth() {
+    return periodMonth;
+  }
+
+  public long getPeriodMs() {
+    return periodMs;
+  }
+
+  public long getOriginMs() {
+    return originMs;
+  }
+
+  @Override
+  public void serialize(DataOutputStream stream) throws IOException {
+    super.serialize(stream);
+    stream.writeInt(periodMonth);
+    stream.writeLong(periodMs);
+    stream.writeLong(originMs);
+  }
+
+  @Override
+  public String toString() {
+    return "PeriodWindow{"
+        + "periodMonth="
+        + periodMonth
+        + ",periodMs="
+        + periodMs
+        + "ms"
+        + ", originMs="
+        + originMs
+        + "ms"
+        + '}';
+  }
+
+  public static PeriodWindow deserialize(ByteBuffer byteBuffer) throws IOException {
+    CommonWindowMembers common = deserializeCommonMembers(byteBuffer);
+    int periodMonth = byteBuffer.getInt();
+    long periodMs = byteBuffer.getLong();
+    long originMs = byteBuffer.getLong();
+    PeriodWindow window = new PeriodWindow(periodMonth, periodMs, originMs);
+    common.applyTo(window);
+    return window;
+  }
+}

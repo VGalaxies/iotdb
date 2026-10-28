@@ -69,6 +69,8 @@
                 <exclude>**/ainode-env.*</exclude>
                 <exclude>edge-env.*</exclude>
                 <exclude>**/edge-env.*</exclude>
+                <exclude>streamnode-env.*</exclude>
+                <exclude>**/streamnode-env.*</exclude>
                 <exclude>iotdb-common.sh</exclude>
                 <exclude>**/iotdb-common.bat</exclude>
             </excludes>
@@ -92,6 +94,8 @@
                 <exclude>**/*ainode.*</exclude>
                 <exclude>*edge.*</exclude>
                 <exclude>**/*edge.*</exclude>
+                <exclude>*streamnode.*</exclude>
+                <exclude>**/*streamnode.*</exclude>
             </excludes>
             <fileMode>0755</fileMode>
         </fileSet>
@@ -102,6 +106,8 @@
                 <exclude>*ainode.*</exclude>
                 <exclude>**/*ainode.*</exclude>
                 <exclude>**/*edge.*</exclude>
+                <exclude>*streamnode.*</exclude>
+                <exclude>**/*streamnode.*</exclude>
             </excludes>
             <fileMode>0755</fileMode>
         </fileSet>

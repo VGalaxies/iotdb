@@ -28,6 +28,7 @@ import org.apache.iotdb.common.rpc.thrift.TDataNodeLocation;
 import org.apache.iotdb.common.rpc.thrift.TEndPoint;
 import org.apache.iotdb.common.rpc.thrift.TRegionReplicaSet;
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeConfiguration;
 import org.apache.iotdb.commons.cluster.NodeStatus;
 import org.apache.iotdb.commons.cluster.NodeType;
 import org.apache.iotdb.commons.cluster.RegionStatus;
@@ -47,6 +48,7 @@ import org.apache.iotdb.confignode.manager.load.cache.node.ConfigNodeHeartbeatCa
 import org.apache.iotdb.confignode.manager.load.cache.node.DataNodeHeartbeatCache;
 import org.apache.iotdb.confignode.manager.load.cache.node.NodeHeartbeatSample;
 import org.apache.iotdb.confignode.manager.load.cache.node.NodeStatistics;
+import org.apache.iotdb.confignode.manager.load.cache.node.StreamNodeHeartbeatCache;
 import org.apache.iotdb.confignode.manager.load.cache.region.RegionGroupCache;
 import org.apache.iotdb.confignode.manager.load.cache.region.RegionGroupStatistics;
 import org.apache.iotdb.confignode.manager.load.cache.region.RegionHeartbeatSample;
@@ -144,7 +146,8 @@ public class LoadCache {
     initNodeHeartbeatCache(
         configManager.getNodeManager().getRegisteredConfigNodes(),
         configManager.getNodeManager().getRegisteredDataNodes(),
-        configManager.getNodeManager().getRegisteredAINodes());
+        configManager.getNodeManager().getRegisteredAINodes(),
+        configManager.getNodeManager().getRegisteredStreamNodes());
     initRegionGroupHeartbeatCache(
         configManager.getClusterSchemaManager().getDatabaseNames(null).stream()
             .collect(
@@ -157,7 +160,8 @@ public class LoadCache {
   private void initNodeHeartbeatCache(
       List<TConfigNodeLocation> registeredConfigNodes,
       List<TDataNodeConfiguration> registeredDataNodes,
-      List<TAINodeConfiguration> registeredAINodes) {
+      List<TAINodeConfiguration> registeredAINodes,
+      List<TStreamNodeConfiguration> registeredStreamNodes) {
 
     final int CURRENT_NODE_ID = ConfigNodeHeartbeatCache.CURRENT_NODE_ID;
     nodeCacheMap.clear();
@@ -192,6 +196,13 @@ public class LoadCache {
         aiNodeConfiguration -> {
           int aiNodeId = aiNodeConfiguration.getLocation().getAiNodeId();
           createNodeHeartbeatCache(NodeType.AINode, aiNodeId);
+        });
+
+    // Init StreamNodeHeartbeatCache
+    registeredStreamNodes.forEach(
+        streamNodeConfiguration -> {
+          int streamNodeId = streamNodeConfiguration.getLocation().getStreamNodeId();
+          createNodeHeartbeatCache(NodeType.StreamNode, streamNodeId);
         });
   }
 
@@ -260,6 +271,7 @@ public class LoadCache {
                 case ConfigNode -> new ConfigNodeHeartbeatCache(id);
                 case DataNode -> new DataNodeHeartbeatCache(id);
                 case AINode -> new AINodeHeartbeatCache(id);
+                case StreamNode -> new StreamNodeHeartbeatCache(id);
               };
           if (hasPersistence()) {
             cache.initPersistence(persistedNodeStatusReader.apply(id), this::persistNodeStatus);
@@ -330,6 +342,19 @@ public class LoadCache {
    * @param sample the latest heartbeat sample
    */
   public void cacheAINodeHeartbeatSample(int nodeId, NodeHeartbeatSample sample) {
+    // Only cache sample when the corresponding loadCache exists
+    Optional.ofNullable(nodeCacheMap.get(nodeId))
+        .ifPresent(node -> node.cacheHeartbeatSample(sample));
+    Optional.ofNullable(heartbeatProcessingMap.get(nodeId)).ifPresent(node -> node.set(false));
+  }
+
+  /**
+   * Cache the latest heartbeat sample of a StreamNode.
+   *
+   * @param nodeId the id of the StreamNode
+   * @param sample the latest heartbeat sample
+   */
+  public void cacheStreamNodeHeartbeatSample(int nodeId, NodeHeartbeatSample sample) {
     // Only cache sample when the corresponding loadCache exists
     Optional.ofNullable(nodeCacheMap.get(nodeId))
         .ifPresent(node -> node.cacheHeartbeatSample(sample));
@@ -659,6 +684,23 @@ public class LoadCache {
             nodeCacheEntry ->
                 nodeCacheEntry.getValue() instanceof DataNodeHeartbeatCache
                     && statusPredicate.apply(nodeCacheEntry.getValue().getNodeStatus()))
+        .map(Map.Entry::getKey)
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Filter StreamNodes through the specified NodeStatus.
+   *
+   * @param status The specified NodeStatus
+   * @return Filtered StreamNodes with the specified NodeStatus
+   */
+  public List<Integer> filterStreamNodeThroughStatus(NodeStatus... status) {
+    return nodeCacheMap.entrySet().stream()
+        .filter(
+            nodeCacheEntry ->
+                nodeCacheEntry.getValue() instanceof StreamNodeHeartbeatCache
+                    && Arrays.stream(status)
+                        .anyMatch(s -> s.equals(nodeCacheEntry.getValue().getNodeStatus())))
         .map(Map.Entry::getKey)
         .collect(Collectors.toList());
   }

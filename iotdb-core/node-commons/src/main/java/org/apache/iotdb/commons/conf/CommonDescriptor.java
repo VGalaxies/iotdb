@@ -345,6 +345,11 @@ public class CommonDescriptor {
   }
 
   private void loadSubscriptionProps(TrimProperties properties) throws IOException {
+    config.setSubscriptionEnabled(
+        Boolean.parseBoolean(
+            properties.getProperty(
+                "subscription_enabled", String.valueOf(config.getSubscriptionEnabled()))));
+
     config.setSubscriptionCacheMemoryUsagePercentage(
         parseSubscriptionCacheMemoryUsagePercentage(
             properties.getProperty(

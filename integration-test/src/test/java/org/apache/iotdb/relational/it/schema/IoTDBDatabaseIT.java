@@ -544,6 +544,7 @@ public class IoTDBDatabaseIT {
               "receivers,INF,",
               "regions,INF,",
               "services,INF,",
+              "streams,INF,",
               "subscriptions,INF,",
               "table_disk_usage,INF,",
               "tables,INF,",
@@ -916,6 +917,7 @@ public class IoTDBDatabaseIT {
                   "information_schema,connections,INF,USING,null,SYSTEM VIEW,false,",
                   "information_schema,current_queries,INF,USING,null,SYSTEM VIEW,false,",
                   "information_schema,queries_costs_histogram,INF,USING,null,SYSTEM VIEW,false,",
+                  "information_schema,streams,INF,USING,null,SYSTEM VIEW,false,",
                   "test,test,INF,USING,test,BASE TABLE,true,",
                   "test,view_table,100,USING,null,VIEW FROM TREE,true,")));
       // Include all system tables and the table and view created in the test database.

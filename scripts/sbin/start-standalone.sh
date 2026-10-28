@@ -22,6 +22,8 @@ if [ -z "${IOTDB_HOME}" ]; then
   export IOTDB_HOME="`dirname "$0"`/.."
 fi
 
+source "${IOTDB_HOME}/conf/iotdb-common.sh"
+
 if [ -f "$IOTDB_HOME/sbin/start-confignode.sh" ]; then
   export CONFIGNODE_START_PATH="$IOTDB_HOME/sbin/start-confignode.sh"
 else
@@ -36,10 +38,33 @@ else
   exit 0
 fi
 
-nohup bash "$CONFIGNODE_START_PATH" >/dev/null 2>&1 &
-sleep 3
-nohup bash "$DATANODE_START_PATH" >/dev/null 2>&1 &
-# if you have turned on "-XX:+SafepointTimeout" and "-XX:SafepointTimeoutDelay=1000", you can use commands below instead to see safepoint logs
-#nohup bash "$DATANODE_START_PATH" >"$IOTDB_HOME/logs/log_datanode_safepoint.log" 2>&1 &
+with_streamnode=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --with_streamnode) with_streamnode=1 ; shift ;;
+    *) shift ;;
+  esac
+done
+
+if [ "$with_streamnode" = "1" ]; then
+  if [ -z "${MEMORY_SIZE:-}" ]; then
+    # Allocate system memory at 2:4:2 for CN:DN:SN (SN 20 % comes from its
+    # own streamnode-env.sh default of 2/10, so it is not injected here).
+    system_mb=$(detect_system_memory_mb) || exit 1
+    export MEMORY_SIZE="$((system_mb / 10 * 2))M"
+    nohup bash "$CONFIGNODE_START_PATH" >/dev/null 2>&1 &
+    sleep 3
+    export MEMORY_SIZE="$((system_mb / 10 * 4))M"
+    nohup bash "$DATANODE_START_PATH" >/dev/null 2>&1 &
+  else
+    nohup bash "$CONFIGNODE_START_PATH" >/dev/null 2>&1 &
+    sleep 3
+    nohup bash "$DATANODE_START_PATH" >/dev/null 2>&1 &
+  fi
+else
+  nohup bash "$CONFIGNODE_START_PATH" >/dev/null 2>&1 &
+  sleep 3
+  nohup bash "$DATANODE_START_PATH" >/dev/null 2>&1 &
+fi
 
 echo "Execute start-standalone.sh finished, you can see more details in the logs of confignode and datanode"

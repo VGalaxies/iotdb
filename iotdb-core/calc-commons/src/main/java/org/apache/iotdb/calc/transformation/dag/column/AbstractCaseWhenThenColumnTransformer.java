@@ -244,4 +244,15 @@ public abstract class AbstractCaseWhenThenColumnTransformer extends ColumnTransf
     }
     elseTransformer.close();
   }
+
+  @Override
+  public void reset() {
+    super.reset();
+    for (Pair<ColumnTransformer, ColumnTransformer> whenThenColumnTransformer :
+        whenThenTransformers) {
+      whenThenColumnTransformer.left.reset();
+      whenThenColumnTransformer.right.reset();
+    }
+    elseTransformer.reset();
+  }
 }

@@ -22,6 +22,7 @@ package org.apache.iotdb.commons.queryengine.plan.planner.plan.node;
 import org.apache.iotdb.commons.i18n.QueryMessages;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.AssignUniqueId;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.EnforceSingleRowNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.EventScanNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.ExceptNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.GapFillNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.GroupNode;
@@ -36,6 +37,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.Pattern
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.PreviousFillNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.RowNumberNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.SemiJoinNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.SessionScanNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.StreamSortNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.TableFunctionNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.TableFunctionProcessorNode;
@@ -143,6 +145,10 @@ public class CommonPlanNodeDeserializer implements IPlanNodeDeserializer {
         return ValuesNode.deserialize(buffer);
       case 1043:
         return NextFillNode.deserialize(buffer);
+      case 1044:
+        return SessionScanNode.deserialize(buffer);
+      case 1045:
+        return EventScanNode.deserialize(buffer);
       default:
         throw new IllegalArgumentException(QueryMessages.INVALID_NODE_TYPE + nodeType);
     }

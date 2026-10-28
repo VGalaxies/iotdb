@@ -61,6 +61,7 @@ import org.apache.iotdb.db.queryengine.plan.statement.metadata.GetTimeSlotListSt
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.RemoveAINodeStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.RemoveConfigNodeStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.RemoveDataNodeStatement;
+import org.apache.iotdb.db.queryengine.plan.statement.metadata.RemoveStreamNodeStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.SetTTLStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowAvailableUrlsStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowChildNodesStatement;
@@ -720,6 +721,10 @@ public abstract class StatementVisitor<R, C> {
 
   public R visitRemoveDataNode(RemoveDataNodeStatement removeDataNodeStatement, C context) {
     return visitStatement(removeDataNodeStatement, context);
+  }
+
+  public R visitRemoveStreamNode(RemoveStreamNodeStatement removeStreamNodeStatement, C context) {
+    return visitStatement(removeStreamNodeStatement, context);
   }
 
   public R visitRemoveConfigNode(RemoveConfigNodeStatement removeConfigNodeStatement, C context) {

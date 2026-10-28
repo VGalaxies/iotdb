@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
 import static org.apache.iotdb.commons.schema.column.ColumnHeaderConstant.NODE_TYPE_AI_NODE;
 import static org.apache.iotdb.commons.schema.column.ColumnHeaderConstant.NODE_TYPE_CONFIG_NODE;
 import static org.apache.iotdb.commons.schema.column.ColumnHeaderConstant.NODE_TYPE_DATA_NODE;
+import static org.apache.iotdb.commons.schema.column.ColumnHeaderConstant.NODE_TYPE_STREAM_NODE;
 
 public class ShowClusterTask implements IConfigTask {
 
@@ -180,6 +181,24 @@ public class ShowClusterTask implements IConfigTask {
                       e.getInternalEndPoint().getIp(),
                       e.getInternalEndPoint().getPort(),
                       clusterNodeInfos.getNodeVersionInfo().get(e.getAiNodeId())));
+    }
+    if (clusterNodeInfos.getStreamNodeList() != null) {
+      clusterNodeInfos
+          .getStreamNodeList()
+          .forEach(
+              e ->
+                  buildTsBlock(
+                      builder,
+                      e.getStreamNodeId(),
+                      NODE_TYPE_STREAM_NODE,
+                      clusterNodeInfos.getNodeStatus().get(e.getStreamNodeId()),
+                      hasStatusReason
+                          ? clusterNodeInfos.getNodeStatusReason().get(e.getStreamNodeId())
+                          : null,
+                      hasStatusReason,
+                      e.getInternalEndPoint().getIp(),
+                      e.getInternalEndPoint().getPort(),
+                      clusterNodeInfos.getNodeVersionInfo().get(e.getStreamNodeId())));
     }
     DatasetHeader datasetHeader = new DatasetHeader(columnHeaders, true);
     future.set(new ConfigTaskResult(TSStatusCode.SUCCESS_STATUS, builder.build(), datasetHeader));

@@ -24,6 +24,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.metadata.ColumnSchem
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.OrderingScheme;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.Symbol;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.AggregationNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.EventScanNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.GroupNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.SortNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.StreamSortNode;
@@ -191,6 +192,12 @@ public class TransformSortToStreamSort implements PlanOptimizer {
     @Override
     public PlanNode visitInformationSchemaTableScan(
         InformationSchemaTableScanNode node, Context context) {
+      context.setCanTransform(false);
+      return node;
+    }
+
+    @Override
+    public PlanNode visitEventScan(EventScanNode node, Context context) {
       context.setCanTransform(false);
       return node;
     }

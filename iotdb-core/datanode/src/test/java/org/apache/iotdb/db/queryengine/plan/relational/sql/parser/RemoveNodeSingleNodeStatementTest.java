@@ -25,6 +25,7 @@ import org.apache.iotdb.db.protocol.session.IClientSession;
 import org.apache.iotdb.db.protocol.session.InternalClientSession;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RemoveConfigNode;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RemoveDataNode;
+import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RemoveStreamNode;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -67,8 +68,16 @@ public class RemoveNodeSingleNodeStatementTest {
   }
 
   @Test
+  public void testRemoveSingleStreamNode() {
+    Statement statement = parse("remove streamnode 3");
+    assertTrue(statement instanceof RemoveStreamNode);
+    assertEquals(3, ((RemoveStreamNode) statement).getNodeId().intValue());
+  }
+
+  @Test
   public void testRejectRemovingMultipleNodes() {
     assertThrows(ParsingException.class, () -> parse("remove datanode 3, 4"));
     assertThrows(ParsingException.class, () -> parse("remove confignode 3, 4"));
+    assertThrows(ParsingException.class, () -> parse("remove streamnode 3, 4"));
   }
 }

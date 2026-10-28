@@ -32,6 +32,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.planner.SortOrder;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.Symbol;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.AggregationNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.AssignUniqueId;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.EventScanNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.FilterNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.JoinNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.ProjectNode;
@@ -492,6 +493,15 @@ public class PushPredicateIntoTableScan implements PlanOptimizer {
       }
 
       return combineFilterAndScan(tableScanNode, context.inheritedPredicate);
+    }
+
+    @Override
+    public PlanNode visitEventScan(EventScanNode node, RewriteContext context) {
+      if (TRUE_LITERAL.equals(context.inheritedPredicate)) {
+        return node;
+      }
+
+      return new FilterNode(queryId.genPlanNodeId(), node, context.inheritedPredicate);
     }
 
     public PlanNode combineFilterAndScan(TableScanNode tableScanNode, Expression predicate) {

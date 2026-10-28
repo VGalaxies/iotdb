@@ -18,6 +18,7 @@
 @REM
 
 @echo off
+setlocal ENABLEDELAYEDEXPANSION
 
 pushd %~dp0..\..
 if NOT DEFINED IOTDB_HOME set IOTDB_HOME=%cd%
@@ -37,17 +38,54 @@ IF EXIST "%IOTDB_HOME%\sbin\windows\start-datanode.bat" (
   exit 0
 )
 
-start cmd /c %CONFIGNODE_START_PATH%
-if defined IOTDB_NO_PAUSE (
-  @REM TIMEOUT fails immediately when CI redirects stdin, so use a non-interactive delay.
-  ping 127.0.0.1 -n 6 >NUL
-) ELSE (
-  TIMEOUT /T 5 /NOBREAK
+REM Parse --with_streamnode
+set with_streamnode=0
+for %%i in (%*) do (
+  if "%%i"=="--with_streamnode" set with_streamnode=1
 )
-start cmd /c %DATANODE_START_PATH%
-@REM if you have turned on "-XX:+SafepointTimeout" and "-XX:SafepointTimeoutDelay=1000", you can use commands below instead to see safepoint logs
-@REM SET LOG_SAFEPOINT_PATH=%IOTDB_HOME%\logs\log_datanode_safepoint.log
-@REM start cmd /c %DATANODE_START_PATH% > %LOG_SAFEPOINT_PATH%
+
+if !with_streamnode!==1 (
+  if not defined MEMORY_SIZE (
+    for /f %%b in ('powershell -NoProfile -Command "$v=$host.Version.Major; $mem=if($v -lt 3){(Get-WmiObject Win32_ComputerSystem).TotalPhysicalMemory} else{(Get-CimInstance -ClassName Win32_ComputerSystem).TotalPhysicalMemory}; [math]::Round($mem/1048576)"') do set system_mb=%%b
+    set /a cn_mb=!system_mb! / 10 * 2
+    set /a dn_mb=!system_mb! / 10 * 4
+    set MEMORY_SIZE=!cn_mb!M
+    start cmd /c %CONFIGNODE_START_PATH%
+
+    if defined IOTDB_NO_PAUSE (
+      @REM TIMEOUT fails immediately when CI redirects stdin, so use a non-interactive delay.
+      ping 127.0.0.1 -n 6 >NUL
+    ) ELSE (
+      TIMEOUT /T 5 /NOBREAK
+    )
+
+    set MEMORY_SIZE=!dn_mb!M
+    start cmd /c %DATANODE_START_PATH%
+  ) else (
+    start cmd /c %CONFIGNODE_START_PATH%
+
+    if defined IOTDB_NO_PAUSE (
+      @REM TIMEOUT fails immediately when CI redirects stdin, so use a non-interactive delay.
+      ping 127.0.0.1 -n 6 >NUL
+    ) ELSE (
+      TIMEOUT /T 5 /NOBREAK
+    )
+
+    start cmd /c %DATANODE_START_PATH%
+  )
+) else (
+  start cmd /c %CONFIGNODE_START_PATH%
+
+  if defined IOTDB_NO_PAUSE (
+    @REM TIMEOUT fails immediately when CI redirects stdin, so use a non-interactive delay.
+    ping 127.0.0.1 -n 6 >NUL
+  ) ELSE (
+    TIMEOUT /T 5 /NOBREAK
+  )
+
+  start cmd /c %DATANODE_START_PATH%
+)
 
 echo "Execute start-standalone.bat finished, you can see more details in the logs of confignode and datanode"
+endlocal
 exit 0

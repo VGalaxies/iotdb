@@ -58,6 +58,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WhenClause;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Window;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WindowFrame;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WindowSpecification;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StreamLiteral;
 import org.apache.iotdb.db.i18n.DataNodeQueryMessages;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.ScopeAware;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.AstVisitor;
@@ -183,6 +184,11 @@ class AggregationAnalyzer {
               DataNodeQueryMessages
                   .QUERY_EXCEPTION_AGGREGATION_ANALYSIS_NOT_YET_IMPLEMENTED_FOR_S_38B64170,
               node.getClass().getName()));
+    }
+
+    @Override
+    public Boolean visitStreamLiteral(StreamLiteral node, Void context) {
+      return true;
     }
 
     @Override

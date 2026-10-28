@@ -30,6 +30,7 @@ import org.apache.iotdb.commons.schema.cache.CacheClearOptions;
 import org.apache.iotdb.commons.schema.table.TableNodeStatus;
 import org.apache.iotdb.commons.schema.table.TsTable;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnSchema;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.confignode.rpc.thrift.TDatabaseSchema;
 import org.apache.iotdb.confignode.rpc.thrift.TFetchTableResp;
 import org.apache.iotdb.confignode.rpc.thrift.TSpaceQuotaResp;
@@ -63,6 +64,7 @@ import org.apache.iotdb.db.queryengine.plan.statement.metadata.GetTimeSlotListSt
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.RemoveAINodeStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.RemoveConfigNodeStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.RemoveDataNodeStatement;
+import org.apache.iotdb.db.queryengine.plan.statement.metadata.RemoveStreamNodeStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.SetTTLStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowClusterStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowDatabaseStatement;
@@ -299,6 +301,9 @@ public interface IConfigTaskExecutor {
 
   SettableFuture<ConfigTaskResult> removeDataNode(RemoveDataNodeStatement removeDataNodeStatement);
 
+  SettableFuture<ConfigTaskResult> removeStreamNode(
+      RemoveStreamNodeStatement removeStreamNodeStatement);
+
   SettableFuture<ConfigTaskResult> removeConfigNode(
       RemoveConfigNodeStatement removeConfigNodeStatement);
 
@@ -505,4 +510,17 @@ public interface IConfigTaskExecutor {
       String existingModelId,
       @Nullable String targetSql,
       @Nullable List<String> pathList);
+
+  // ==================================== STREAM =======================================
+  SettableFuture<ConfigTaskResult> createStream(StreamTask streamTask, boolean ifNotExists);
+
+  SettableFuture<ConfigTaskResult> dropStream(String database, String streamName, boolean ifExists);
+
+  SettableFuture<ConfigTaskResult> startStream(String database, String streamName);
+
+  SettableFuture<ConfigTaskResult> stopStream(String database, String streamName);
+
+  SettableFuture<ConfigTaskResult> showStreams(String streamName);
+
+  SettableFuture<ConfigTaskResult> showStreamNodes();
 }

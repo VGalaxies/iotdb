@@ -25,7 +25,9 @@ import org.apache.iotdb.common.rpc.thrift.TConsensusGroupId;
 import org.apache.iotdb.common.rpc.thrift.TConsensusGroupType;
 import org.apache.iotdb.common.rpc.thrift.TDataNodeConfiguration;
 import org.apache.iotdb.common.rpc.thrift.TDataNodeLocation;
+import org.apache.iotdb.common.rpc.thrift.TEndPoint;
 import org.apache.iotdb.common.rpc.thrift.TSStatus;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.commons.cluster.NodeStatus;
 import org.apache.iotdb.commons.conf.CommonConfig;
 import org.apache.iotdb.commons.conf.CommonDescriptor;
@@ -47,6 +49,7 @@ import org.apache.iotdb.commons.schema.table.column.TsTableColumnSchemaUtil;
 import org.apache.iotdb.commons.schema.template.Template;
 import org.apache.iotdb.commons.schema.view.viewExpression.ViewExpression;
 import org.apache.iotdb.commons.service.metric.MetricService;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.commons.subscription.meta.topic.TopicMeta;
 import org.apache.iotdb.commons.trigger.TriggerInformation;
 import org.apache.iotdb.commons.utils.StatusUtils;
@@ -60,6 +63,7 @@ import org.apache.iotdb.confignode.consensus.request.write.database.SetTTLPlan;
 import org.apache.iotdb.confignode.consensus.request.write.datanode.RemoveDataNodePlan;
 import org.apache.iotdb.confignode.consensus.request.write.procedure.UpdateProcedurePlan;
 import org.apache.iotdb.confignode.consensus.request.write.region.CreateRegionGroupsPlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RemoveStreamNodePlan;
 import org.apache.iotdb.confignode.i18n.ManagerMessages;
 import org.apache.iotdb.confignode.i18n.ProcedureMessages;
 import org.apache.iotdb.confignode.manager.partition.PartitionManager;
@@ -79,6 +83,7 @@ import org.apache.iotdb.confignode.procedure.impl.node.AddConfigNodeProcedure;
 import org.apache.iotdb.confignode.procedure.impl.node.RemoveAINodeProcedure;
 import org.apache.iotdb.confignode.procedure.impl.node.RemoveConfigNodeProcedure;
 import org.apache.iotdb.confignode.procedure.impl.node.RemoveDataNodesProcedure;
+import org.apache.iotdb.confignode.procedure.impl.node.RemoveStreamNodeProcedure;
 import org.apache.iotdb.confignode.procedure.impl.partition.DataPartitionTableIntegrityCheckProcedure;
 import org.apache.iotdb.confignode.procedure.impl.pipe.AbstractOperatePipeProcedureV2;
 import org.apache.iotdb.confignode.procedure.impl.pipe.plugin.CreatePipePluginProcedure;
@@ -126,6 +131,11 @@ import org.apache.iotdb.confignode.procedure.impl.schema.table.view.DropViewProc
 import org.apache.iotdb.confignode.procedure.impl.schema.table.view.RenameViewColumnProcedure;
 import org.apache.iotdb.confignode.procedure.impl.schema.table.view.RenameViewProcedure;
 import org.apache.iotdb.confignode.procedure.impl.schema.table.view.SetViewPropertiesProcedure;
+import org.apache.iotdb.confignode.procedure.impl.stream.AbstractStreamProcedure;
+import org.apache.iotdb.confignode.procedure.impl.stream.CreateStreamProcedure;
+import org.apache.iotdb.confignode.procedure.impl.stream.DropStreamProcedure;
+import org.apache.iotdb.confignode.procedure.impl.stream.StartStreamProcedure;
+import org.apache.iotdb.confignode.procedure.impl.stream.StopStreamProcedure;
 import org.apache.iotdb.confignode.procedure.impl.subscription.consumer.CreateConsumerProcedure;
 import org.apache.iotdb.confignode.procedure.impl.subscription.consumer.DropConsumerProcedure;
 import org.apache.iotdb.confignode.procedure.impl.subscription.consumer.runtime.CommitProgressSyncProcedure;
@@ -746,6 +756,98 @@ public class ProcedureManager {
     return true;
   }
 
+  /**
+   * Generate {@link RemoveStreamNodeProcedure}s, and serially execute all the {@link
+   * RemoveStreamNodeProcedure}s.
+   */
+  public boolean removeStreamNode(RemoveStreamNodePlan removeStreamNodePlan) {
+    this.executor.submitProcedure(
+        new RemoveStreamNodeProcedure(removeStreamNodePlan.getStreamNodeLocation()));
+    LOGGER.info(
+        "Submit RemoveStreamNodeProcedure successfully, {}",
+        removeStreamNodePlan.getStreamNodeLocation());
+    return true;
+  }
+
+  /**
+   * Validate whether a StreamNode can be removed from the cluster.
+   *
+   * <ol>
+   *   <li>Only one {@link RemoveStreamNodeProcedure} is allowed at a time.
+   *   <li>Must not conflict with an in-progress Stream operation procedure.
+   *   <li>In a multi-StreamNode cluster, at least one other StreamNode must remain {@link
+   *       NodeStatus#Running}.
+   * </ol>
+   *
+   * @param removedStreamNode the StreamNode to remove
+   * @return SUCCESS_STATUS if removal is allowed, otherwise an error status
+   */
+  public TSStatus checkRemoveStreamNode(TStreamNodeLocation removedStreamNode) {
+    String failMessage = null;
+
+    // 1. Only one RemoveStreamNodeProcedure is allowed in the cluster
+    Optional<Procedure<ConfigNodeProcedureEnv>> anotherRemoveProcedure =
+        getExecutor().getProcedures().values().stream()
+            .filter(
+                procedure ->
+                    procedure instanceof RemoveStreamNodeProcedure && !procedure.isFinished())
+            .findAny();
+    if (anotherRemoveProcedure.isPresent()) {
+      failMessage =
+          String.format(
+              ProcedureMessages
+                  .MESSAGE_SUBMIT_REMOVESTREAMNODEPROCEDURE_FAILED_ANOTHER_PROCEDURE_IN_PROCESSING_D3BAA67B,
+              ((RemoveStreamNodeProcedure) anotherRemoveProcedure.get()).getRemovedStreamNode(),
+              anotherRemoveProcedure.get().getProcId());
+    }
+
+    // 2. Check if the RemoveStreamNodeProcedure conflicts with a Stream operation
+    if (failMessage == null) {
+      Optional<Procedure<ConfigNodeProcedureEnv>> conflictStreamProcedure =
+          getExecutor().getProcedures().values().stream()
+              .filter(
+                  procedure ->
+                      (procedure instanceof CreateStreamProcedure
+                              || procedure instanceof DropStreamProcedure
+                              || procedure instanceof StartStreamProcedure
+                              || procedure instanceof StopStreamProcedure)
+                          && !procedure.isFinished())
+              .findAny();
+      if (conflictStreamProcedure.isPresent()) {
+        failMessage =
+            String.format(
+                ProcedureMessages
+                    .MESSAGE_SUBMIT_REMOVESTREAMNODEPROCEDURE_FAILED_BECAUSE_ANOTHER_STREAM_OPERATION_PROCEDURE_IS_ALREADY_IN_PROCESSING_FOR_FURTHER_INFORMATION_PLEASE_SEARCH_PIDARG_IN_LOG_3D754BBF,
+                conflictStreamProcedure.get().getProcId());
+      }
+    }
+
+    // 3. In a cluster environment, at least one other StreamNode must remain Running
+    if (failMessage == null && getConfigManager().getStreamManager().isClusterEnvironment()) {
+      boolean hasOtherRunning =
+          getConfigManager().getNodeManager().getRegisteredStreamNodes().stream()
+              .filter(streamNode -> !streamNode.getLocation().equals(removedStreamNode))
+              .anyMatch(
+                  streamNode ->
+                      getConfigManager()
+                              .getLoadManager()
+                              .getNodeStatus(streamNode.getLocation().getStreamNodeId())
+                          == NodeStatus.Running);
+      if (!hasOtherRunning) {
+        failMessage =
+            ProcedureMessages
+                .MESSAGE_SUBMIT_REMOVESTREAMNODEPROCEDURE_FAILED_NO_OTHER_RUNNING_STREAMNODE_D93B2930;
+      }
+    }
+
+    if (failMessage != null) {
+      LOGGER.warn(failMessage);
+      return new TSStatus(TSStatusCode.REMOVE_STREAM_NODE_ERROR.getStatusCode())
+          .setMessage(failMessage);
+    }
+    return new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
+  }
+
   public TSStatus checkRemoveDataNodes(List<TDataNodeLocation> dataNodeLocations) {
     // 1. Only one RemoveDataNodesProcedure is allowed in the cluster
     Optional<Procedure<ConfigNodeProcedureEnv>> anotherRemoveProcedure =
@@ -872,6 +974,49 @@ public class ProcedureManager {
         .filter(procedure -> !procedure.isFinished())
         .flatMap(procedure -> ((RemoveDataNodesProcedure) procedure).getRemovedDataNodes().stream())
         .map(TDataNodeLocation::getDataNodeId)
+        .collect(Collectors.toSet());
+  }
+
+  /**
+   * Collect the ids of all StreamNodes that an in-progress {@link RemoveStreamNodeProcedure} is
+   * removing.
+   *
+   * <p>A StreamNode being removed must not receive any newly assigned StreamTask: doing so would
+   * leave the task stranded on a node that is about to disappear. The authoritative source is the
+   * running procedure itself, which holds the removing StreamNode list and survives leader switches
+   * via procedure persistence.
+   *
+   * @return the set of StreamNode ids currently being removed (empty if no removal is in progress)
+   */
+  public Set<Integer> getRemovingStreamNodeIds() {
+    return getExecutor().getProcedures().values().stream()
+        .filter(procedure -> procedure instanceof RemoveStreamNodeProcedure)
+        .filter(procedure -> !procedure.isFinished())
+        .map(procedure -> ((RemoveStreamNodeProcedure) procedure).getRemovedStreamNode())
+        .filter(Objects::nonNull)
+        .map(TStreamNodeLocation::getStreamNodeId)
+        .collect(Collectors.toSet());
+  }
+
+  /**
+   * Collect the names of Streams controlled by an in-progress lifecycle procedure.
+   *
+   * <p>The runtime state is changed before the target state is persisted by Start, Stop, and Drop
+   * procedures. The Stream monitor must not reconcile that transient mismatch using the old target
+   * state. Reading the persisted procedures also preserves this guard across leader switches.
+   *
+   * @return the names of Streams with an in-progress Start, Stop, or Drop procedure
+   */
+  public Set<String> getInProgressStreamNames() {
+    return getExecutor().getProcedures().values().stream()
+        .filter(
+            procedure ->
+                procedure instanceof StartStreamProcedure
+                    || procedure instanceof StopStreamProcedure
+                    || procedure instanceof DropStreamProcedure)
+        .filter(procedure -> !procedure.isFinished())
+        .map(ProcedureManager::getStreamName)
+        .filter(Objects::nonNull)
         .collect(Collectors.toSet());
   }
 
@@ -2263,6 +2408,110 @@ public class ProcedureManager {
     if (interrupted) {
       Thread.currentThread().interrupt();
     }
+  }
+
+  public TSStatus createStream(final StreamTask streamTask) {
+    if (getConfigManager()
+        .getNodeManager()
+        .filterStreamNodeThroughStatus(NodeStatus.Running)
+        .isEmpty()) {
+      return RpcUtils.getStatus(
+          TSStatusCode.NO_REGISTERED_STREAM_NODE_ERROR,
+          ManagerMessages.MESSAGE_NO_RUNNING_STREAMNODE_FOUND_F21CB52B);
+    }
+    return submitStreamOperationProcedure(
+        streamTask.getTaskName(),
+        ProcedureType.CREATE_STREAM_PROCEDURE,
+        new CreateStreamProcedure(streamTask));
+  }
+
+  public TSStatus dropStream(final String streamName) {
+    return submitStreamOperationProcedure(
+        streamName, ProcedureType.DROP_STREAM_PROCEDURE, new DropStreamProcedure(streamName));
+  }
+
+  public TSStatus startStream(final String streamName) {
+    return submitStreamOperationProcedure(
+        streamName, ProcedureType.START_STREAM_PROCEDURE, new StartStreamProcedure(streamName));
+  }
+
+  public TSStatus stopStream(final String streamName) {
+    return submitStreamOperationProcedure(
+        streamName, ProcedureType.STOP_STREAM_PROCEDURE, new StopStreamProcedure(streamName));
+  }
+
+  private TSStatus submitStreamOperationProcedure(
+      final String streamName,
+      final ProcedureType operationType,
+      final AbstractStreamProcedure<?> procedure) {
+    Procedure<ConfigNodeProcedureEnv> procedureToWait = procedure;
+    getEnv().getRemoveStreamNodeLock().lock();
+    try {
+      synchronized (this) {
+        for (final Procedure<ConfigNodeProcedureEnv> running :
+            getExecutor().getProcedures().values()) {
+          if (running.isFinished()) {
+            continue;
+          }
+          if (running instanceof RemoveStreamNodeProcedure
+              && isStreamAssignedToNode(
+                  getConfigManager().getStreamManager().getStreamInfo().getTask(streamName),
+                  ((RemoveStreamNodeProcedure) running).getRemovedStreamNode())) {
+            return RpcUtils.getStatus(
+                TSStatusCode.OVERLAP_WITH_EXISTING_TASK,
+                String.format(
+                    ProcedureMessages
+                        .MESSAGE_STREAM_OPERATION_ARG_CANNOT_BE_SUBMITTED_WHILE_REMOVESTREAMNODEPROCEDURE_PIDARG_IS_IN_PROGRESS_687C153D,
+                    operationType,
+                    running.getProcId()));
+          }
+          final ProcedureType runningType = ProcedureFactory.getProcedureType(running);
+          final String runningStreamName = getStreamName(running);
+          if (!streamName.equals(runningStreamName)) {
+            continue;
+          }
+          if (runningType == operationType && isSameStreamOperation(procedure, running)) {
+            procedureToWait = running;
+            break;
+          }
+          return RpcUtils.getStatus(
+              TSStatusCode.OVERLAP_WITH_EXISTING_TASK,
+              String.format(
+                  ProcedureMessages
+                      .MESSAGE_STREAM_OPERATION_ARG_CONFLICTS_WITH_IN_PROGRESS_OPERATION_ARG_FOR_STREAM_ARG_DE215B81,
+                  operationType,
+                  runningType,
+                  streamName));
+        }
+        if (procedureToWait == procedure) {
+          getExecutor().submitProcedure(procedure);
+        }
+      }
+    } finally {
+      getEnv().getRemoveStreamNodeLock().unlock();
+    }
+    return waitingProcedureFinished(procedureToWait);
+  }
+
+  static boolean isStreamAssignedToNode(
+      final StreamTask task, final TStreamNodeLocation streamNode) {
+    if (task == null || streamNode == null || streamNode.getInternalEndPoint() == null) {
+      return false;
+    }
+    final TEndPoint endPoint = streamNode.getInternalEndPoint();
+    return (endPoint.getIp() + ":" + endPoint.getPort()).equals(task.getRunningOn());
+  }
+
+  private static String getStreamName(final Procedure<?> procedure) {
+    return procedure instanceof AbstractStreamProcedure
+        ? ((AbstractStreamProcedure<?>) procedure).getStreamName()
+        : null;
+  }
+
+  private static boolean isSameStreamOperation(
+      final AbstractStreamProcedure<?> submitted, final Procedure<?> running) {
+    return running instanceof AbstractStreamProcedure
+        && submitted.isSameOperation((AbstractStreamProcedure<?>) running);
   }
 
   public TSStatus createTable(final String database, final TsTable table) {

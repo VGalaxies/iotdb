@@ -497,6 +497,7 @@ public class ConfigNode extends ServerCommandLine implements ConfigNodeMBean {
     LOGGER.info(ConfigNodeMessages.DEACTIVATING, ConfigNodeConstant.GLOBAL_NAME);
     registerManager.deregisterAll();
     JMXService.deregisterMBean(mbeanName);
+    MetricService.getInstance().stop();
     if (configManager != null) {
       configManager.close();
     }

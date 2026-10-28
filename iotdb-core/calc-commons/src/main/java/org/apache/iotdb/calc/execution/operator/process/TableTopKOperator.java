@@ -81,6 +81,11 @@ public class TableTopKOperator extends TopKOperator {
     return peek.tsBlock.getColumn(timeFilterColumnIndex).getLong(peek.rowIndex);
   }
 
+  public TableTopKOperator(TableTopKOperator tableTopKOperator, List<Operator> childrenOperators) {
+    super(tableTopKOperator, childrenOperators);
+    this.timeFilterColumnIndex = -1;
+  }
+
   @Override
   protected TsBlock constrcutResultTsBlock(int positionCount, Column[] columns) {
     return new TsBlock(

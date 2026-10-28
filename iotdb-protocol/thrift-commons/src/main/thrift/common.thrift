@@ -101,6 +101,16 @@ struct TAINodeConfiguration{
   2: required TNodeResource resource
 }
 
+struct TStreamNodeLocation {
+  1: required i32 streamNodeId
+  2: required TEndPoint internalEndPoint
+}
+
+struct TStreamNodeConfiguration {
+  1: required TStreamNodeLocation location
+  2: required TNodeResource resource
+}
+
 enum TRegionMigrateFailedType {
   AddPeerFailed,
   RemovePeerFailed,
@@ -367,4 +377,26 @@ enum FunctionType{
   SCALAR=1,
   AGGREGATE=2,
   TABLE=3
+}
+
+struct TStreamInfo {
+  1: required string streamName
+  2: required string status
+  3: required i64 creationTime
+  4: required string creator
+  5: required string subQuery
+  6: required string runningOn
+  7: required i64 lastUpTime
+  8: required i64 lastDownTime
+  9: required string lastDownReason
+  10: required i64 lastHeartbeatTime
+  11: optional string source
+  12: optional string eventWindow
+  13: optional string target
+  14: optional string properties
+}
+
+struct TShowStreamResp {
+  1: required TSStatus status
+  2: required list<TStreamInfo> streamInfoList
 }

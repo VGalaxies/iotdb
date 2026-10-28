@@ -23,6 +23,9 @@ public final class CalcMessages {
 
   private CalcMessages() {}
 
+  public static final String EXCEPTION_UNEXPECTED_END_OF_STREAM_PROPERTIES_922EBC18 =
+      "stream properties 数据意外结束";
+
   public static final String AND_OPERATOR_ONLY_ACCEPTS_BOOLEAN_OPERANDS =
       "AND 运算符只接受布尔操作数";
   public static final String ARRAYS_NOT_SAME_LENGTH = "数组长度不一致";

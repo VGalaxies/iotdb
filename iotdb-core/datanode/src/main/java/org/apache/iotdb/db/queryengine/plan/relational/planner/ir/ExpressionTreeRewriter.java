@@ -60,6 +60,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.SymbolRefere
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Trim;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TypeParameter;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WhenClause;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StreamLiteral;
 import org.apache.iotdb.db.i18n.DataNodeQueryMessages;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.AstVisitor;
 
@@ -580,6 +581,18 @@ public final class ExpressionTreeRewriter<C> {
         }
       }
 
+      return node;
+    }
+
+    @Override
+    public Expression visitStreamLiteral(StreamLiteral node, Context<C> context) {
+      if (!context.isDefaultRewrite()) {
+        Expression result =
+            rewriter.rewriteLiteral(node, context.get(), ExpressionTreeRewriter.this);
+        if (result != null) {
+          return result;
+        }
+      }
       return node;
     }
 

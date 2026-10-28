@@ -83,7 +83,8 @@ public class ShowClusterDetailsTaskTest {
             Collections.singletonList(dataNode),
             Collections.singletonList(aiNode),
             nodeStatus,
-            nodeVersionInfo);
+            nodeVersionInfo,
+            Collections.emptyList());
     if (statusReasonMap != null) {
       resp.setNodeStatusReason(statusReasonMap);
     }

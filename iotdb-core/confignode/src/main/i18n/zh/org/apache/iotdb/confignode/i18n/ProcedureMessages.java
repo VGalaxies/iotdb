@@ -367,6 +367,17 @@ public final class ProcedureMessages {
       "在 DataNode 上修改 topic（%s -> %s）失败，原因：%s";
   public static final String FAILED_TO_CHANGE_DATANODE_STATUS_DATANODEID_NODESTATUS =
       "{}, 修改 DataNode 状态失败，dataNodeId={}，nodeStatus={}";
+  public static final String BEGIN_TO_CHANGE_STREAMNODE_STATUS_NODESTATUS =
+      "{}, 开始修改 StreamNode 状态，streamNodeId={}，nodeStatus={}";
+  public static final String BEGIN_TO_STOP_STREAM_NODES_AND_KILL_THE_STREAMNODE_PROCESS =
+      "{}, 开始停止 StreamNode 并杀死 StreamNode 进程：{}";
+  public static final String STOP_STREAM_NODE_MEETS_ERROR_ERROR_STREAMNODE =
+      "{}, 停止 StreamNode 出错，出错的 StreamNode：{}";
+  public static final String STOP_STREAM_NODE_SUCCESS = "{}, 停止 StreamNode {} 成功。";
+  public static final String BEGIN_TO_DROP_RUNTIME_STREAM_TASKS_ON_STREAMNODE =
+      "{}, 开始删除运行在 StreamNode {} 上的 StreamTask";
+  public static final String FAILED_TO_DROP_RUNTIME_STREAM_TASK_ON_STREAMNODE =
+      "{}, 删除 StreamNode {} 上的 StreamTask {} 失败";
   public static final String FAILED_TO_COMMIT_SET_TEMPLATE_ON_PATH_DUE_TO =
       "在路径 {} 上提交设置模板 {} 失败，原因：{}";
   public static final String FAILED_TO_CREATE_CONSENSUS_PIPE = "{}, 创建共识 pipe {} 失败：{}";
@@ -483,6 +494,9 @@ public final class ProcedureMessages {
       "回滚在路径 {} 上预设置的模板 {} 失败，原因：{}";
   public static final String FAILED_TO_ROLLBACK_PRE_UNSET_TEMPLATE_OPERATION_OF_TEMPLATE_SET =
       "回滚模板 {}（设置在 {} 上）的预取消设置模板操作失败";
+  public static final String
+      LOG_FAILED_TO_ROLL_BACK_RUNTIME_FOR_STREAMTASK_ARG_STATUS_ARG_DC57901A =
+          "回滚 StreamTask {} 的 runtime 失败，状态：{}";
   public static final String FAILED_TO_ROLLBACK_START_PIPE_DETAILS_METADATA_WILL_BE_SYNCHRONIZED =
       "回滚启动 pipe {} 失败，详情：{}，元数据将稍后同步。";
   public static final String FAILED_TO_ROLLBACK_STOP_PIPE_DETAILS_METADATA_WILL_BE_SYNCHRONIZED =
@@ -534,6 +548,8 @@ public final class ProcedureMessages {
   public static final String FAIL_TO_DROP_TRIGGER_AT_STATE = "在 STATE [%s] 处删除 trigger [%s] 失败";
   public static final String FAIL_TO_DROP_TRIGGER_ON_DATA_NODES = "在 DataNode 上删除 trigger [%s] 失败";
   public static final String FAIL_TO_REMOVE_AINODE_AT_STATE = "在 STATE [%s] 处移除 AINode [%s] 失败，%s";
+  public static final String FAIL_TO_REMOVE_STREAMNODE_AT_STATE =
+      "在 STATE [%s] 处移除 StreamNode [%s] 失败，%s";
   public static final String FAIL_TO_REMOVE_AINODE_ON_CONFIG_NODES =
       "在 ConfigNode [%s] 上移除 [%s] 个 AINode 失败";
   public static final String FAIL_WHEN_EXECUTE = "执行 {} 时失败 ";
@@ -830,6 +846,8 @@ public final class ProcedureMessages {
       "尝试删除 pipe plugin [{}] 时发生可重试错误，状态：{}";
   public static final String RETRIEVABLE_ERROR_TRYING_TO_REMOVE_AINODE_STATE =
       "尝试移除 AINode [{}] 时发生可重试错误，状态 [{}]";
+  public static final String RETRIEVABLE_ERROR_TRYING_TO_REMOVE_STREAMNODE_STATE =
+      "尝试移除 StreamNode [{}] 时发生可重试错误，状态 [{}]";
   public static final String ROLLBACK_CREATETABLE_COSTS_MS = "Rollback CreateTable-{} costs {}ms.";
   public static final String ROLLBACK_CREATE_TABLE_FAILED = "回滚创建表失败";
   public static final String ROLLBACK_DROPTABLE_COSTS_MS = "Rollback DropTable-{} costs {}ms.";
@@ -956,6 +974,10 @@ public final class ProcedureMessages {
       "TopicMetaSyncProcedure: rollbackFromValidate";
   public static final String UNEXPECTED_FAIL_TSSTATUS_IS = "意外的失败，tsStatus 为 ";
   public static final String UNEXPECTED_STATE = "意外的状态";
+  public static final String EXCEPTION_UNEXPECTED_STARTSTREAMPROCEDURE_STATE_ARG_D5F3448B =
+      "StartStreamProcedure 状态异常：%s";
+  public static final String EXCEPTION_UNEXPECTED_STOPSTREAMPROCEDURE_STATE_ARG_FE20B787 =
+      "StopStreamProcedure 状态异常：%s";
   public static final String UNKNOWN_CREATECQSTATE = "未知的 CreateCQState：";
   public static final String UNKNOWN_CREATETRIGGERSTATE = "未知的 CreateTriggerState：";
   public static final String UNKNOWN_DROPTRIGGERSTATE = "未知的 DropTriggerState：";
@@ -971,6 +993,8 @@ public final class ProcedureMessages {
       "执行 operateSubscriptionProcedure 期间出现未知状态，%s";
   public static final String UNKNOWN_STATE_DURING_EXECUTING_REMOVEAINODEPROCEDURE =
       "执行 removeAINodeProcedure 期间出现未知状态，%s";
+  public static final String UNKNOWN_STATE_DURING_EXECUTING_REMOVESTREAMNODEPROCEDURE =
+      "执行 removeStreamNodeProcedure 期间出现未知状态，%s";
   public static final String UNKNOWN_STATE_DURING_ROLLBACK_OPERATESUBSCRIPTIONPROCEDURE =
       "回滚 operateSubscriptionProcedure 期间出现未知状态，%s";
   public static final String UNKNOWN_STATE_FOR_ROLLBACK = "回滚时出现未知状态：";
@@ -1520,9 +1544,30 @@ public final class ProcedureMessages {
   public static final String MESSAGE_ROLLING_BACK_AFTER_FAILURE_ARG_474DF456 = "正在回滚，失败原因：%s。";
   public static final String MESSAGE_ROLLING_BACK_AFTER_AN_EARLIER_FAILURE_850D0AF5 =
       "正在回滚此前发生的失败。";
+
   public static final String
       MESSAGE_SOME_OTHER_TASK_IS_SETTING_OR_UNSETTING_A_TEMPLATE_ON_TARGET_PATH_ARG_D4FEE38F =
-          "有其他任务正在目标路径 %s 上设置或卸载模板。";
+      "有其他任务正在目标路径 %s 上设置或卸载模板。";
+  public static final String MESSAGE_THERE_EXIST_STREAM_NODE_IN_REQUEST_BUT_NOT_IN_CLUSTER_73F04636 =
+      "请求中存在不在集群中的 StreamNode";
+  public static final String
+      MESSAGE_FAILED_TO_REMOVE_STREAM_NODE_BECAUSE_STREAM_TASK_EXISTS_ON_IT_8582D7D6 =
+          "无法移除 StreamNode [%s]，因为它是集群中唯一的 StreamNode 且上面存在 StreamTask；请先删除这些 StreamTask";
+  public static final String
+      MESSAGE_SUBMIT_REMOVESTREAMNODEPROCEDURE_FAILED_ANOTHER_PROCEDURE_IN_PROCESSING_D3BAA67B =
+          "提交 RemoveStreamNodeProcedure 失败，因为另一个 RemoveStreamNodeProcedure %s 正在处理中。IoTDB 同一时间最多允许 1 个 RemoveStreamNodeProcedure。更多信息请搜索日志中的 [pid%d]。";
+  public static final String
+      MESSAGE_SUBMIT_REMOVESTREAMNODEPROCEDURE_FAILED_BECAUSE_ANOTHER_STREAM_OPERATION_PROCEDURE_IS_ALREADY_IN_PROCESSING_FOR_FURTHER_INFORMATION_PLEASE_SEARCH_PIDARG_IN_LOG_3D754BBF =
+          "提交 RemoveStreamNodeProcedure 失败，因为另一个流操作 Procedure 正在处理中。更多信息请搜索日志中的 [pid%d]。";
+  public static final String
+      MESSAGE_SUBMIT_REMOVESTREAMNODEPROCEDURE_FAILED_NO_OTHER_RUNNING_STREAMNODE_D93B2930 =
+          "提交 RemoveStreamNodeProcedure 失败，因为除待删除节点外，集群中没有其他 Running 状态的 StreamNode。请确保至少还有一个 StreamNode 处于 Running。";
+  public static final String
+      MESSAGE_STREAM_OPERATION_ARG_CONFLICTS_WITH_IN_PROGRESS_OPERATION_ARG_FOR_STREAM_ARG_DE215B81 =
+          "流操作 %s 与正在执行的操作 %s 冲突，涉及 stream %s。";
+  public static final String
+      MESSAGE_STREAM_OPERATION_ARG_CANNOT_BE_SUBMITTED_WHILE_REMOVESTREAMNODEPROCEDURE_PIDARG_IS_IN_PROGRESS_687C153D =
+          "流操作 %s 无法提交，因为 RemoveStreamNodeProcedure [pid%d] 正在执行。";
   public static final String EXCEPTION_DATANODE_SETSYSTEMSTATUS_RPC_FAILED_ARG_ARG_ARG_7E8E5F9F =
       "DataNode setSystemStatus RPC 失败：%s：%s：%s； ";
   public static final String EXCEPTION_CONFIGNODE_TRYSETNODESTATUS_FAILED_ARG_ARG_ARG_C9BA78F4 =

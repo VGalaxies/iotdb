@@ -26,6 +26,7 @@ import org.apache.iotdb.commons.audit.IAuditEntity;
 import org.apache.iotdb.commons.audit.UserEntity;
 import org.apache.iotdb.commons.auth.entity.PrivilegeType;
 import org.apache.iotdb.commons.auth.entity.User;
+import org.apache.iotdb.commons.conf.CommonDescriptor;
 import org.apache.iotdb.commons.exception.IllegalPathException;
 import org.apache.iotdb.commons.exception.MetadataException;
 import org.apache.iotdb.commons.exception.SemanticException;
@@ -36,21 +37,57 @@ import org.apache.iotdb.commons.pipe.agent.plugin.builtin.BuiltinPipePlugin;
 import org.apache.iotdb.commons.pipe.config.constant.PipeSinkConstant;
 import org.apache.iotdb.commons.pipe.config.constant.PipeSourceConstant;
 import org.apache.iotdb.commons.pipe.config.constant.SystemConstant;
+import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.PlanNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.metadata.ColumnSchema;
 import org.apache.iotdb.commons.queryengine.plan.relational.metadata.QualifiedObjectName;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.Symbol;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.EventScanNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.OutputNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.SessionScanNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.BooleanLiteral;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.CommonQueryAstVisitor;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.DataType;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Identifier;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Literal;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.LongLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.QualifiedName;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Query;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TimeDurationLiteral;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.AsofEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CapacityEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CreateStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.DropStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.HopEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PeriodEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.ShowStreams;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StartStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StopStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.TumbleEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.VariationEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.util.CommonQuerySqlFormatter;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.util.ExpressionFormatter;
 import org.apache.iotdb.commons.queryengine.plan.relational.type.TypeManager;
 import org.apache.iotdb.commons.queryengine.plan.relational.type.TypeNotFoundException;
+import org.apache.iotdb.commons.queryengine.utils.TimestampPrecisionUtils;
 import org.apache.iotdb.commons.schema.table.TreeViewSchema;
 import org.apache.iotdb.commons.schema.table.TsTable;
 import org.apache.iotdb.commons.schema.table.column.TimeColumnSchema;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnCategory;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnSchema;
+import org.apache.iotdb.commons.stream.AsofWindow;
+import org.apache.iotdb.commons.stream.CapacityWindow;
+import org.apache.iotdb.commons.stream.HopWindow;
+import org.apache.iotdb.commons.stream.IoTDBSubscriptionSource;
+import org.apache.iotdb.commons.stream.IoTDBTarget;
+import org.apache.iotdb.commons.stream.PeriodWindow;
+import org.apache.iotdb.commons.stream.StreamNodeTableTypeProvider;
+import org.apache.iotdb.commons.stream.StreamProperties;
+import org.apache.iotdb.commons.stream.StreamTask;
+import org.apache.iotdb.commons.stream.StreamWindow;
+import org.apache.iotdb.commons.stream.TumbleWindow;
+import org.apache.iotdb.commons.stream.VariationWindow;
 import org.apache.iotdb.confignode.rpc.thrift.TDatabaseSchema;
 import org.apache.iotdb.db.audit.DNAuditLogger;
 import org.apache.iotdb.db.audit.PasswordChangeAuditContext;
@@ -60,7 +97,9 @@ import org.apache.iotdb.db.auth.AuthorityChecker;
 import org.apache.iotdb.db.conf.IoTDBConfig;
 import org.apache.iotdb.db.i18n.DataNodeQueryMessages;
 import org.apache.iotdb.db.protocol.session.IClientSession;
+import org.apache.iotdb.db.queryengine.common.DataNodeEndPoints;
 import org.apache.iotdb.db.queryengine.common.MPPQueryContext;
+import org.apache.iotdb.db.queryengine.common.header.DatasetHeader;
 import org.apache.iotdb.db.queryengine.execution.warnings.WarningCollector;
 import org.apache.iotdb.db.queryengine.plan.analyze.QueryType;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.CreateFunctionTask;
@@ -70,12 +109,15 @@ import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.DropPipePl
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.RemoveAINodeTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.RemoveConfigNodeTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.RemoveDataNodeTask;
+import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.RemoveStreamNodeTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.ShowAvailableUrlsTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.ShowClusterIdTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.ShowClusterTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.ShowFunctionsTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.ShowPipePluginsTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.ShowRegionTask;
+import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.ShowStreamNodesTask;
+import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.ShowStreamsTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.ShowVariablesTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.ai.CreateModelTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.ai.CreateTuningTask;
@@ -125,6 +167,10 @@ import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.ShowTablesDetailsTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.ShowTablesTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.UseDBTask;
+import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.stream.CreateStreamTask;
+import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.stream.DropStreamTask;
+import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.stream.StartStreamTask;
+import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.stream.StopStreamTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.DeallocateTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.PrepareTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.SetSqlDialectTask;
@@ -154,10 +200,14 @@ import org.apache.iotdb.db.queryengine.plan.execution.config.sys.subscription.Dr
 import org.apache.iotdb.db.queryengine.plan.execution.config.sys.subscription.ShowCreateTopicTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.sys.subscription.ShowSubscriptionsTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.sys.subscription.ShowTopicsTask;
+import org.apache.iotdb.db.queryengine.plan.relational.analyzer.Analysis;
 import org.apache.iotdb.db.queryengine.plan.relational.analyzer.Analyzer;
+import org.apache.iotdb.db.queryengine.plan.relational.analyzer.Field;
+import org.apache.iotdb.db.queryengine.plan.relational.analyzer.RelationType;
 import org.apache.iotdb.db.queryengine.plan.relational.analyzer.StatementAnalyzerFactory;
 import org.apache.iotdb.db.queryengine.plan.relational.metadata.Metadata;
 import org.apache.iotdb.db.queryengine.plan.relational.metadata.fetcher.TableHeaderSchemaValidator;
+import org.apache.iotdb.db.queryengine.plan.relational.planner.TableModelPlanner;
 import org.apache.iotdb.db.queryengine.plan.relational.security.AccessControl;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.AddColumn;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.AlterColumnDataType;
@@ -206,6 +256,7 @@ import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RemoveAINode;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RemoveConfigNode;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RemoveDataNode;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RemoveRegion;
+import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RemoveStreamNode;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RenameColumn;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.RenameTable;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.SetColumnComment;
@@ -237,6 +288,7 @@ import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowModels;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowPipePlugins;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowPipes;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowRegions;
+import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowStreamNodes;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowSubscriptions;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowTables;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowTopics;
@@ -257,6 +309,7 @@ import org.apache.iotdb.db.queryengine.plan.statement.metadata.DatabaseSchemaSta
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.RemoveAINodeStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.RemoveConfigNodeStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.RemoveDataNodeStatement;
+import org.apache.iotdb.db.queryengine.plan.statement.metadata.RemoveStreamNodeStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowClusterStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowRegionStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.FlushStatement;
@@ -275,11 +328,15 @@ import org.apache.iotdb.rpc.subscription.config.TopicConstant;
 import org.apache.iotdb.rpc.subscription.exception.SubscriptionException;
 
 import org.apache.tsfile.common.conf.TSFileConfig;
+import org.apache.tsfile.common.constant.TsFileConstant;
+import org.apache.tsfile.enums.ColumnCategory;
 import org.apache.tsfile.enums.TSDataType;
 import org.apache.tsfile.utils.Binary;
 import org.apache.tsfile.utils.Pair;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -291,8 +348,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
+import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.util.concurrent.Futures.immediateFuture;
 import static org.apache.iotdb.commons.conf.IoTDBConstant.MAX_DATABASE_NAME_LENGTH;
 import static org.apache.iotdb.commons.conf.IoTDBConstant.TTL_INFINITE;
@@ -310,6 +369,7 @@ import static org.apache.iotdb.db.queryengine.plan.execution.config.metadata.rel
 import static org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.CreateDBTask.MAX_SCHEMA_REGION_GROUP_NUM_KEY;
 import static org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.CreateDBTask.TIME_PARTITION_INTERVAL_KEY;
 import static org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational.CreateDBTask.TTL_KEY;
+import static org.apache.iotdb.db.queryengine.plan.relational.planner.RelationPlanner.getQualifiedObjectName;
 import static org.apache.tsfile.common.constant.TsFileConstant.PATH_SEPARATOR;
 
 public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryContext> {
@@ -326,6 +386,7 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
   private final AccessControl accessControl;
 
   private final TypeManager typeManager;
+  private TableModelPlanner streamQueryPlanner;
 
   public TableConfigTaskVisitor(
       final IClientSession clientSession,
@@ -336,6 +397,11 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
     this.metadata = metadata;
     this.accessControl = accessControl;
     this.typeManager = typeManager;
+  }
+
+  public TableConfigTaskVisitor withStreamQueryPlanner(TableModelPlanner streamQueryPlanner) {
+    this.streamQueryPlanner = streamQueryPlanner;
+    return this;
   }
 
   @Override
@@ -536,6 +602,18 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
   }
 
   @Override
+  public IConfigTask visitRemoveStreamNode(
+      final RemoveStreamNode removeStreamNode, final MPPQueryContext context) {
+    context.setQueryType(QueryType.OTHER);
+    accessControl.checkUserGlobalSysPrivilege(context);
+    // As the implementation is identical, we'll simply translate to the
+    // corresponding tree-model variant and execute that.
+    final RemoveStreamNodeStatement treeStatement =
+        new RemoveStreamNodeStatement(removeStreamNode.getNodeId());
+    return new RemoveStreamNodeTask(treeStatement);
+  }
+
+  @Override
   public IConfigTask visitRemoveConfigNode(
       final RemoveConfigNode removeConfigNode, final MPPQueryContext context) {
     context.setQueryType(QueryType.OTHER);
@@ -589,6 +667,14 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
     context.setQueryType(QueryType.READ);
     accessControl.checkUserGlobalSysPrivilege(context);
     return new ShowAINodesTask();
+  }
+
+  @Override
+  public IConfigTask visitShowStreamNodes(
+      final ShowStreamNodes showStreamNodesStatement, final MPPQueryContext context) {
+    context.setQueryType(QueryType.READ);
+    accessControl.checkUserGlobalSysPrivilege(context);
+    return new ShowStreamNodesTask();
   }
 
   @Override
@@ -1266,7 +1352,12 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
         : Optional.empty();
   }
 
-  private long parseLongFromLiteral(final Object value, final String name) {
+  private static long parseLongFromLiteral(final Object value, final String name) {
+    return parseLongFromLiteral(value, name, false);
+  }
+
+  private static long parseLongFromLiteral(
+      final Object value, final String name, final boolean allowUnbounded) {
     if (!(value instanceof LongLiteral)) {
       throw new SemanticException(
           name
@@ -1276,14 +1367,14 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
               + value);
     }
     final long parsedValue = ((LongLiteral) value).getParsedValue();
-    if (parsedValue < 0) {
+    if (parsedValue < 0 && (!allowUnbounded || parsedValue != -1)) {
       throw new SemanticException(
           name + DataNodeQueryMessages.VALUE_MUST_BE_EQUAL_TO_OR_GREATER_THAN_0_BUT_NOW_IS + value);
     }
     return parsedValue;
   }
 
-  private int parseIntFromLiteral(final Object value, final String name) {
+  private static int parseIntFromLiteral(final Object value, final String name) {
     if (!(value instanceof LongLiteral)) {
       throw new SemanticException(
           name
@@ -1988,7 +2079,7 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
     context.setQueryType(QueryType.OTHER);
     accessControl.checkUserGlobalSysPrivilege(context);
     String uri = node.getUri();
-    if (uri != null && ExecutableManager.isUriTrusted(uri)) {
+    if (uri != null && isUriTrusted(uri)) {
       // user specified uri and that uri is trusted
       return new CreateModelTask(node.getModelId(), uri);
     }
@@ -2034,5 +2125,412 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
     context.setQueryType(QueryType.OTHER);
     accessControl.checkUserGlobalSysPrivilege(context);
     return new UnloadModelTask(node.getModelId(), node.getDeviceIdList());
+  }
+
+  // ================================== STREAM ==========================================
+
+  @Override
+  public IConfigTask visitCreateStream(CreateStream node, MPPQueryContext context) {
+    accessControl.checkUserGlobalSysPrivilege(context);
+
+    context.setQueryType(QueryType.READ_WRITE);
+    TableModelPlanner planner = streamQueryPlanner;
+    Analysis analysis = (Analysis) planner.analyze(context);
+    String calcSql = formatCreateStreamQuerySql(node.getQuery());
+    PlanNode calcPlanNode =
+        analysis.containsRowsPlaceholder()
+            ? planner.doLogicalPlan(analysis, context).getRootNode()
+            : new SessionScanNode(
+                context.getQueryId().genPlanNodeId(), calcSql, analysis.getDatabaseName());
+    planner
+        .getSymbolAllocator()
+        .getTypes()
+        .allTableModelTypes()
+        .forEach((k, v) -> context.getTypeProvider().putTableModelType(k, v));
+    StreamTask streamTask = buildStreamTask(node, context, calcSql, calcPlanNode, analysis);
+    return new CreateStreamTask(streamTask, node.hasIfNotExistsCondition());
+  }
+
+  @Override
+  public IConfigTask visitDropStream(DropStream node, MPPQueryContext context) {
+    accessControl.checkUserGlobalSysPrivilege(context);
+
+    context.setQueryType(QueryType.WRITE);
+    String database = context.getDatabaseName().orElse(null);
+    String streamName = node.getName().toString();
+    return new DropStreamTask(database, streamName, node.isIfExists());
+  }
+
+  @Override
+  public IConfigTask visitStartStream(StartStream node, MPPQueryContext context) {
+    accessControl.checkUserGlobalSysPrivilege(context);
+
+    context.setQueryType(QueryType.WRITE);
+    String database = context.getDatabaseName().orElse(null);
+    String streamName = node.getName().toString();
+    return new StartStreamTask(database, streamName);
+  }
+
+  @Override
+  public IConfigTask visitStopStream(StopStream node, MPPQueryContext context) {
+    accessControl.checkUserGlobalSysPrivilege(context);
+
+    context.setQueryType(QueryType.WRITE);
+    String database = context.getDatabaseName().orElse(null);
+    String streamName = node.getName().toString();
+    return new StopStreamTask(database, streamName);
+  }
+
+  @Override
+  public IConfigTask visitShowStreams(ShowStreams node, MPPQueryContext context) {
+    accessControl.checkUserGlobalSysPrivilege(context);
+
+    context.setQueryType(QueryType.READ);
+    // The SYSTEM check above makes the caller entitled to every stream, so no creator filter is
+    // carried along.
+    return new ShowStreamsTask(node);
+  }
+
+  private static final CommonQueryAstVisitor<StreamWindow, Void>
+      CREATE_STREAM_EVENT_WINDOW_VISITOR =
+          new CommonQueryAstVisitor<StreamWindow, Void>() {
+
+            @Override
+            public StreamWindow visitNode(Node node, Void context) {
+              throw new SemanticException(
+                  "Unsupported event window: " + node.getClass().getSimpleName());
+            }
+
+            @Override
+            public StreamWindow visitPeriodEventWindow(PeriodEventWindow p, Void context) {
+              int periodMonth = p.getPeriod() == null ? 0 : p.getPeriod().getValue().monthDuration;
+              long periodMs =
+                  p.getPeriod() == null
+                      ? 0L
+                      : TimeUnit.MILLISECONDS.convert(
+                          p.getPeriod().getValue().nonMonthDuration,
+                          TimestampPrecisionUtils.currPrecision);
+              long originMs =
+                  p.getOrigin() == null
+                      ? 0L
+                      : TimeUnit.MILLISECONDS.convert(
+                          p.getOrigin().getParsedValue(), TimestampPrecisionUtils.currPrecision);
+              if (periodMonth <= 0 && periodMs <= 0) {
+                throw new SemanticException("The period cannot be 0!");
+              }
+
+              return new PeriodWindow(periodMonth, periodMs, originMs);
+            }
+
+            @Override
+            public StreamWindow visitTumbleEventWindow(TumbleEventWindow t, Void context) {
+              long size =
+                  t.getSize().getValue().getTotalDuration(TimestampPrecisionUtils.currPrecision);
+              long origin = t.getOrigin() == null ? 0L : t.getOrigin().getParsedValue();
+              return new TumbleWindow(size, origin);
+            }
+
+            @Override
+            public StreamWindow visitHopEventWindow(HopEventWindow h, Void context) {
+              String timeCol =
+                  h.getTimeColumn() == null
+                      ? null
+                      : ExpressionFormatter.formatExpression(h.getTimeColumn());
+              long size =
+                  h.getSize().getValue().getTotalDuration(TimestampPrecisionUtils.currPrecision);
+              long slide =
+                  h.getSlide().getValue().getTotalDuration(TimestampPrecisionUtils.currPrecision);
+              long origin = h.getOrigin() == null ? 0L : h.getOrigin().getParsedValue();
+              return new HopWindow(timeCol, size, slide, origin);
+            }
+
+            @Override
+            public StreamWindow visitVariationEventWindow(VariationEventWindow v, Void context) {
+              String col = ExpressionFormatter.formatExpression(v.getColumn());
+              double delta = v.getDelta() == null ? 0.0 : v.getDelta().getValue();
+              return new VariationWindow(col, delta);
+            }
+
+            @Override
+            public StreamWindow visitCapacityEventWindow(CapacityEventWindow c, Void context) {
+              long sizeLong = c.getSize().getParsedValue();
+              List<String> cols = null;
+              if (c.getColumns() != null && !c.getColumns().isEmpty()) {
+                cols = new ArrayList<>();
+                for (Identifier id : c.getColumns()) {
+                  cols.add(ExpressionFormatter.formatExpression(id));
+                }
+              }
+              return new CapacityWindow((int) sizeLong, cols);
+            }
+
+            @Override
+            public StreamWindow visitAsofEventWindow(AsofEventWindow a, Void context) {
+              AsofWindow.AfterMatchMode mode = null;
+              if (a.getAfterMatchMode() != null) {
+                mode = AsofWindow.AfterMatchMode.valueOf(a.getAfterMatchMode().name());
+              }
+              return new AsofWindow(mode);
+            }
+          };
+
+  private static StreamTask buildStreamTask(
+      CreateStream node,
+      MPPQueryContext context,
+      String calcSql,
+      PlanNode calcPlanNode,
+      Analysis analysis) {
+    StreamWindow window = CREATE_STREAM_EVENT_WINDOW_VISITOR.process(node.getEventWindow(), null);
+    QualifiedObjectName sinkName = getQualifiedObjectName(node.getSinkTable(), analysis);
+    String defaultDb = context.getDatabaseName().orElse(sinkName.getDatabaseName());
+
+    IoTDBSubscriptionSource source = null;
+    if (node.getSourceTable() != null) {
+      QualifiedObjectName sourceName = getQualifiedObjectName(node.getSourceTable(), analysis);
+      // PARTITION BY columns are honored regardless of whether the calculation plan references
+      // the ${rows} placeholder: without ${rows} the ${n} placeholders still need the partition
+      // values, so the source must carry the partition columns and the tablets must be split by
+      // them at runtime.
+      List<String> partitionColumns = getPartitionByColumns(node);
+      String userName = context.getSession().getUserName();
+
+      User streamUser = AuthorityChecker.getUser(userName);
+      checkState(streamUser != null, "User %s not found when creating stream", userName);
+      source =
+          new IoTDBSubscriptionSource(
+              sourceName.getDatabaseName(),
+              sourceName.getObjectName(),
+              node.getPreFilter(),
+              partitionColumns,
+              DataNodeEndPoints.LOCAL_CLIENT_RPC_ENDPOINT.getIp(),
+              DataNodeEndPoints.LOCAL_CLIENT_RPC_ENDPOINT.getPort(),
+              userName,
+              streamUser.getPassword());
+    }
+
+    List<Integer> columnIndex2TsBlockColumnIndexList = null;
+    if (analysis.containsRowsPlaceholder()) {
+      DatasetHeader respDatasetHeader = analysis.getRespDatasetHeader();
+      respDatasetHeader.setTableColumnToTsBlockIndexMap((OutputNode) calcPlanNode);
+      columnIndex2TsBlockColumnIndexList =
+          respDatasetHeader.getColumnIndex2TsBlockColumnIndexList();
+    }
+
+    RelationType sinkRelationType = analysis.getStreamSinkRelationType();
+    List<String> sinkColumnNames = new ArrayList<>();
+    List<TSDataType> sinkColumnDataTypes = new ArrayList<>();
+    List<ColumnCategory> sinkColumnCategories = new ArrayList<>();
+    for (Field sinkField : sinkRelationType.getVisibleFields()) {
+      sinkColumnNames.add(sinkField.getName().orElse(""));
+      sinkColumnDataTypes.add(getTSDataType(sinkField.getType()));
+      sinkColumnCategories.add(sinkField.getColumnCategory().toTsFileColumnType());
+    }
+    IoTDBTarget target =
+        new IoTDBTarget(
+            "127.0.0.1:6667",
+            sinkName.getDatabaseName(),
+            sinkName.getObjectName(),
+            sinkColumnNames,
+            sinkColumnDataTypes,
+            sinkColumnCategories,
+            columnIndex2TsBlockColumnIndexList);
+
+    ByteBuffer calcPlan = calcPlanNode.serializeToByteBuffer();
+
+    StreamTask task = new StreamTask();
+    task.setTaskName(node.getStreamName().getValue());
+    task.setDatabase(defaultDb);
+    task.setCreationTime(System.currentTimeMillis());
+    task.setCreator(context.getSession().getUserName());
+    task.setSource(source);
+    task.setWindow(window);
+    task.setSubQuery(calcSql);
+    task.setCalcPlan(calcPlan);
+    task.setTypeProvider(
+        new StreamNodeTableTypeProvider(context.getTypeProvider().allTableModelTypes()));
+    task.getWindow().setEventInputColumns(getEventInputColumns(calcPlanNode));
+    task.getWindow().setEventInputColumnTypes(getEventInputColumnTypes(calcPlanNode));
+    task.getWindow().setContainsRowsPlaceholder(analysis.containsRowsPlaceholder());
+    task.getWindow().setLiteralPlaceholders(analysis.getLiteralPlaceholders());
+    task.setTarget(target);
+    task.setEpoch(0);
+    StreamProperties streamProperties = buildStreamProperties(node.getProperties());
+    if (streamProperties == null) {
+      streamProperties = new StreamProperties();
+    }
+    streamProperties.setSubscriptionConsensusWalRetentionSizeInBytes(
+        CommonDescriptor.getInstance()
+            .getConfig()
+            .getSubscriptionConsensusWalRetentionSizeInBytes());
+    streamProperties.setSubscriptionConsensusWalRetentionTimeMs(
+        CommonDescriptor.getInstance().getConfig().getSubscriptionConsensusWalRetentionTimeMs());
+    if (node.getSubscriptionConsensusWalRetentionSizeInBytes() != null) {
+      streamProperties.setSubscriptionConsensusWalRetentionSizeInBytes(
+          parseLongFromLiteral(
+              node.getSubscriptionConsensusWalRetentionSizeInBytes(),
+              StreamProperties.SUBSCRIPTION_CONSENSUS_WAL_RETENTION_SIZE_IN_BYTES,
+              true));
+    }
+    if (node.getSubscriptionConsensusWalRetentionTimeMs() != null) {
+      streamProperties.setSubscriptionConsensusWalRetentionTimeMs(
+          parseLongFromLiteral(
+              node.getSubscriptionConsensusWalRetentionTimeMs(),
+              StreamProperties.SUBSCRIPTION_CONSENSUS_WAL_RETENTION_TIME_MS,
+              true));
+    }
+    task.setProperties(streamProperties);
+    return task;
+  }
+
+  private static StreamProperties buildStreamProperties(Map<String, Expression> properties) {
+    if (properties == null || properties.isEmpty()) {
+      return null;
+    }
+
+    long watermark = 0;
+    long allowedLateness = 0;
+    long maxDelayWindowCloseMs = 0;
+    long maxIdleWindowRetainMs = 0;
+    boolean leftClosed = true;
+    Integer subscriptionPollThreadCount = null;
+
+    for (Map.Entry<String, Expression> entry : properties.entrySet()) {
+      String key = entry.getKey();
+      Expression value = entry.getValue();
+      switch (key) {
+        case StreamProperties.WATERMARK:
+          if (value instanceof TimeDurationLiteral) {
+            watermark =
+                ((TimeDurationLiteral) value)
+                    .getValue()
+                    .getTotalDuration(TimestampPrecisionUtils.currPrecision);
+          } else if (value instanceof LongLiteral) {
+            watermark = ((LongLiteral) value).getParsedValue();
+          }
+          break;
+        case StreamProperties.ALLOWED_LATENESS:
+          if (value instanceof TimeDurationLiteral) {
+            allowedLateness =
+                ((TimeDurationLiteral) value)
+                    .getValue()
+                    .getTotalDuration(TimestampPrecisionUtils.currPrecision);
+          } else if (value instanceof LongLiteral) {
+            allowedLateness = ((LongLiteral) value).getParsedValue();
+          }
+          break;
+        case StreamProperties.MAX_DELAY_WINDOW_CLOSE:
+          if (value instanceof TimeDurationLiteral) {
+            maxDelayWindowCloseMs =
+                ((TimeDurationLiteral) value).getValue().getTotalDuration(TimeUnit.MILLISECONDS);
+          } else if (value instanceof LongLiteral) {
+            maxDelayWindowCloseMs = ((LongLiteral) value).getParsedValue();
+          }
+          break;
+        case StreamProperties.MAX_IDLE_WINDOW_RETAIN:
+          if (value instanceof TimeDurationLiteral) {
+            maxIdleWindowRetainMs =
+                ((TimeDurationLiteral) value).getValue().getTotalDuration(TimeUnit.MILLISECONDS);
+          } else if (value instanceof LongLiteral) {
+            maxIdleWindowRetainMs = ((LongLiteral) value).getParsedValue();
+          }
+          break;
+        case StreamProperties.LEFT_CLOSED:
+          if (value instanceof BooleanLiteral) {
+            leftClosed = ((BooleanLiteral) value).getValue();
+          }
+          break;
+        case StreamProperties.SUBSCRIPTION_POLL_THREAD_COUNT:
+          subscriptionPollThreadCount =
+              parseIntFromLiteral(value, StreamProperties.SUBSCRIPTION_POLL_THREAD_COUNT);
+          break;
+        default:
+          break;
+      }
+    }
+    StreamProperties streamProperties =
+        new StreamProperties(
+            watermark, allowedLateness, maxDelayWindowCloseMs, maxIdleWindowRetainMs, leftClosed);
+    streamProperties.setSubscriptionPollThreadCount(subscriptionPollThreadCount);
+    return streamProperties;
+  }
+
+  private static List<String> getPartitionByColumns(CreateStream node) {
+    if (!node.getPartitionBy().isEmpty()) {
+      List<String> partitionColumns = new ArrayList<>();
+      for (Expression e : node.getPartitionBy()) {
+        partitionColumns.add(ExpressionFormatter.formatExpression(e));
+      }
+      return partitionColumns;
+    }
+    return Collections.emptyList();
+  }
+
+  private static List<String> getEventInputColumns(PlanNode calcPlanNode) {
+    List<EventScanColumn> columns = extractEventScanColumns(calcPlanNode);
+    if (columns == null) {
+      return null;
+    }
+    List<String> names = new ArrayList<>(columns.size());
+    for (EventScanColumn column : columns) {
+      names.add(column.name());
+    }
+    return names;
+  }
+
+  private static List<TSDataType> getEventInputColumnTypes(PlanNode calcPlanNode) {
+    List<EventScanColumn> columns = extractEventScanColumns(calcPlanNode);
+    if (columns == null) {
+      return null;
+    }
+    List<TSDataType> types = new ArrayList<>(columns.size());
+    for (EventScanColumn column : columns) {
+      types.add(column.type());
+    }
+    return types;
+  }
+
+  private static List<EventScanColumn> extractEventScanColumns(PlanNode calcPlanNode) {
+    EventScanNode eventScanNode = findEventScanNode(calcPlanNode);
+    if (eventScanNode == null) {
+      return null;
+    }
+    List<EventScanColumn> columns = new ArrayList<>();
+    for (Symbol symbol : eventScanNode.getOutputSymbols()) {
+      ColumnSchema columnSchema = eventScanNode.getAssignments().get(symbol);
+      if (columnSchema == null) {
+        throw new SemanticException(
+            String.format("Missing column schema for symbol '%s' in EventScanNode", symbol));
+      }
+      if (columnSchema.getColumnCategory() == TsTableColumnCategory.TIME) {
+        columns.add(
+            new EventScanColumn(
+                TsFileConstant.TIME_COLUMN_ID, getTSDataType(columnSchema.getType())));
+      } else {
+        columns.add(
+            new EventScanColumn(columnSchema.getName(), getTSDataType(columnSchema.getType())));
+      }
+    }
+    return columns;
+  }
+
+  private record EventScanColumn(String name, TSDataType type) {}
+
+  private static EventScanNode findEventScanNode(PlanNode node) {
+    if (node instanceof EventScanNode) {
+      return (EventScanNode) node;
+    }
+    for (PlanNode child : node.getChildren()) {
+      EventScanNode matched = findEventScanNode(child);
+      if (matched != null) {
+        return matched;
+      }
+    }
+    return null;
+  }
+
+  private static String formatCreateStreamQuerySql(Query query) {
+    StringBuilder builder = new StringBuilder();
+    new CommonQuerySqlFormatter(builder).visitQuery(query, 0);
+    return builder.toString();
   }
 }

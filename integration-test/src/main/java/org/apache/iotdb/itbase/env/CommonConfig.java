@@ -189,6 +189,8 @@ public interface CommonConfig {
 
   CommonConfig setDataNodeMemoryProportion(String dataNodeMemoryProportion);
 
+  CommonConfig setSubscriptionEnabled(boolean subscriptionEnabled);
+
   CommonConfig setSubscriptionPrefetchTsFileBatchMaxDelayInMs(
       int subscriptionPrefetchTsFileBatchMaxDelayInMs);
 

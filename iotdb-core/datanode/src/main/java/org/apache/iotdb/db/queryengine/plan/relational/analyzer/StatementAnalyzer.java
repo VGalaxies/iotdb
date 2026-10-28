@@ -37,6 +37,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.AllRows;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.ArithmeticBinaryExpression;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.ArithmeticUnaryExpression;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.BetweenPredicate;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.BooleanLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Cast;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.CoalesceExpression;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Columns;
@@ -116,12 +117,25 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WindowRefere
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WindowSpecification;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.With;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.WithQuery;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CreateStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.DropStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.EventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.PeriodEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.ShowStreams;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StartStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StopStream;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StreamRows;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.TumbleEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.util.ExpressionFormatter;
 import org.apache.iotdb.commons.queryengine.plan.relational.type.TypeManager;
 import org.apache.iotdb.commons.queryengine.plan.statement.component.FillPolicy;
+import org.apache.iotdb.commons.queryengine.utils.TimestampPrecisionUtils;
 import org.apache.iotdb.commons.queryengine.utils.cte.CteDataStore;
+import org.apache.iotdb.commons.schema.table.InformationSchema;
 import org.apache.iotdb.commons.schema.table.TsTable;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnCategory;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnSchema;
+import org.apache.iotdb.commons.stream.StreamProperties;
 import org.apache.iotdb.commons.udf.builtin.relational.tvf.FFTTableFunction;
 import org.apache.iotdb.commons.udf.builtin.relational.tvf.M4TableFunction;
 import org.apache.iotdb.commons.udf.utils.UDFDataTypeTransformer;
@@ -129,6 +143,7 @@ import org.apache.iotdb.commons.utils.FileUtils;
 import org.apache.iotdb.db.conf.IoTDBConfig;
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
 import org.apache.iotdb.db.i18n.DataNodeQueryMessages;
+import org.apache.iotdb.db.i18n.DataNodeStreamMessages;
 import org.apache.iotdb.db.queryengine.common.MPPQueryContext;
 import org.apache.iotdb.db.queryengine.common.MPPQueryContext.ExplainType;
 import org.apache.iotdb.db.queryengine.execution.warnings.IoTDBWarning;
@@ -145,6 +160,7 @@ import org.apache.iotdb.db.queryengine.plan.relational.analyzer.tablefunction.Ta
 import org.apache.iotdb.db.queryengine.plan.relational.analyzer.tablefunction.TableFunctionInvocationAnalysis;
 import org.apache.iotdb.db.queryengine.plan.relational.function.tvf.read_tsfile.ReadTsFileTableFunction;
 import org.apache.iotdb.db.queryengine.plan.relational.metadata.Metadata;
+import org.apache.iotdb.db.queryengine.plan.relational.metadata.TreeDeviceViewSchema;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.PlannerContext;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.ScopeAware;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.TranslationMap;
@@ -170,6 +186,7 @@ import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.CreateTable;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.CreateTopic;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.CreateView;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.DefaultExpressionTraversalVisitor;
+import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.DefaultTraversalVisitor;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.Delete;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.DeleteDevice;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.DescribeTable;
@@ -268,6 +285,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -1217,104 +1235,11 @@ public class StatementAnalyzer {
       // analyze the query that creates the data
       Scope queryScope = analyze(insert.getQuery(), Optional.empty(), false);
 
-      // verify the insert table exists
-      QualifiedObjectName targetTable =
-          createQualifiedObjectName(sessionContext, insert.getTarget());
-      if (!metadata.tableExists(targetTable)) {
-        CommonMetadataUtils.throwTableNotExistsException(
-            targetTable.getDatabaseName(), targetTable.getObjectName());
-      }
-      // verify access privileges
-      accessControl.checkCanInsertIntoTable(
-          sessionContext.getUserName(), targetTable, queryContext);
-
-      // verify the insert destination columns match the query
-      Optional<TableSchema> tableSchema = metadata.getTableSchema(sessionContext, targetTable);
-      if (!tableSchema.isPresent()) {
-        CommonMetadataUtils.throwTableNotExistsException(
-            targetTable.getDatabaseName(), targetTable.getObjectName());
-      }
-      List<ColumnSchema> columns =
-          tableSchema.get().getColumns().stream()
-              .filter(column -> !column.isHidden())
-              .collect(toImmutableList());
-      analysis.registerTable(insert.getTable(), tableSchema, targetTable);
-
-      LinkedHashSet<String> tableColumns = new LinkedHashSet<>();
-      String actualTimeColumnName = null;
-      for (ColumnSchema column : columns) {
-        tableColumns.add(column.getName().toLowerCase(ENGLISH));
-
-        if (column.getColumnCategory() == TsTableColumnCategory.TIME) {
-          if (actualTimeColumnName != null) {
-            throw new SemanticException(
-                DataNodeQueryMessages.MULTIPLE_COLUMNS_FOUND_WITH_TIME_CATEGORY_IN_TABLE_SCHEMA);
-          }
-          actualTimeColumnName = column.getName();
-        }
-      }
-      if (actualTimeColumnName == null) {
-        throw new SemanticException(
-            DataNodeQueryMessages.TARGET_TABLE_SCHEMA_MISSES_A_TIME_CATEGORY_COLUMN);
-      }
-
-      LinkedHashSet<String> insertColumns;
-      if (insert.getColumns().isPresent()) {
-        insertColumns =
-            insert.getColumns().get().stream()
-                .map(Identifier::getValue)
-                .map(column -> column.toLowerCase(ENGLISH))
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-        Set<String> columnNames = new HashSet<>();
-        for (String insertColumn : insertColumns) {
-          if (!tableColumns.contains(insertColumn)) {
-            throw new SemanticException(
-                String.format(
-                    DataNodeQueryMessages.INSERT_COLUMN_NAME_DOES_NOT_EXIST_IN_TARGET_TABLE_S,
-                    insertColumn));
-          }
-          if (!columnNames.add(insertColumn)) {
-            throw new SemanticException(
-                String.format(
-                    DataNodeQueryMessages.INSERT_COLUMN_NAME_IS_SPECIFIED_MORE_THAN_ONCE_S,
-                    insertColumn));
-          }
-        }
-      } else {
-        insertColumns = tableColumns;
-      }
-
-      // insert columns should contain time
-      if (!insertColumns.contains(actualTimeColumnName)) {
-        throw new SemanticException(DataNodeQueryMessages.TIME_COLUMN_CAN_NOT_BE_NULL);
-      }
-      // insert columns should contain at least one field column
-      Map<String, ColumnSchema> columnSchemaMap = tableSchema.get().getColumnSchemaMap();
-      if (!containsAnyFieldColumn(insertColumns, columnSchemaMap)) {
-        throw new SemanticException(DataNodeQueryMessages.NO_FIELD_COLUMN_PRESENT);
-      }
+      List<ColumnSchema> insertColumnSchemas =
+          analyzeTableForInsert(insert.getTable(), insert.getColumns().orElse(null), queryScope);
 
       // set Insert in analysis
-      analysis.setInsert(
-          new Analysis.Insert(
-              insert.getTable(),
-              insertColumns.stream().map(columnSchemaMap::get).collect(toImmutableList())));
-
-      List<Type> tableTypes =
-          insertColumns.stream()
-              .map(insertColumn -> tableSchema.get().getColumn(insertColumn).getType())
-              .collect(toImmutableList());
-      List<Type> queryTypes =
-          queryScope.getRelationType().getVisibleFields().stream()
-              .map(Field::getType)
-              .collect(toImmutableList());
-      if (!typesMatchForInsert(tableTypes, queryTypes)) {
-        throw new SemanticException(
-            String.format(
-                DataNodeQueryMessages.INSERT_QUERY_HAS_MISMATCHED_COLUMN_TYPES_TABLE_S_QUERY_S,
-                Joiner.on(QueryMessages.EXCEPTION_COMMA_50AD1C01).join(tableTypes),
-                Joiner.on(QueryMessages.EXCEPTION_COMMA_50AD1C01).join(queryTypes)));
-      }
+      analysis.setInsert(new Analysis.Insert(insert.getTable(), insertColumnSchemas));
 
       return createAndAssignScope(
           insert, scope, Field.newUnqualified(Insert.ROWS, Insert.ROWS_TYPE, Insert.ROWS_CATEGORY));
@@ -3256,6 +3181,15 @@ public class StatementAnalyzer {
               String.format(
                   DataNodeQueryMessages.DISTINCT_CAN_ONLY_BE_APPLIED_TO_COMPARABLE_TYPES_ACTUAL_S,
                   type));
+        }
+        TsTableColumnCategory columnCategory = field.getColumnCategory();
+        if (analysis.containsRowsPlaceholder()
+            && columnCategory == TsTableColumnCategory.ATTRIBUTE) {
+          throw new SemanticException(
+              String.format(
+                  DataNodeStreamMessages
+                      .EXCEPTION_NON_ATTRIBUTE_COLUMNS_WITH_ROWS_PLACEHOLDER_BE816EFA,
+                  field));
         }
       }
       analysis.setSelectAllResultFields(allColumns, itemOutputFieldBuilder.build());
@@ -5748,6 +5682,26 @@ public class StatementAnalyzer {
     }
 
     @Override
+    public Scope visitDropStream(DropStream node, Optional<Scope> context) {
+      return createAndAssignScope(node, context);
+    }
+
+    @Override
+    public Scope visitStartStream(StartStream node, Optional<Scope> context) {
+      return createAndAssignScope(node, context);
+    }
+
+    @Override
+    public Scope visitStopStream(StopStream node, Optional<Scope> context) {
+      return createAndAssignScope(node, context);
+    }
+
+    @Override
+    public Scope visitShowStreams(ShowStreams node, Optional<Scope> context) {
+      return createAndAssignScope(node, context);
+    }
+
+    @Override
     public Scope visitTableFunctionInvocation(TableFunctionInvocation node, Optional<Scope> scope) {
       String functionName = node.getName().toString();
       TableFunction function = metadata.getTableFunction(functionName);
@@ -5913,6 +5867,520 @@ public class StatementAnalyzer {
               functionAnalysis.isRequireRecordSnapshot()));
 
       return createAndAssignScope(node, scope, fields.build());
+    }
+
+    @Override
+    public Scope visitStreamRows(StreamRows node, Optional<Scope> context) {
+      EventWindow eventWindow = analysis.getStreamEventWindow();
+      if (eventWindow == null) {
+        throw new SemanticException(
+            DataNodeStreamMessages
+                .EXCEPTION_PLACEHOLDER_ROWS_MUST_BE_USED_WITH_EVENT_WINDOW_E3EACBB9);
+      }
+      if (eventWindow instanceof PeriodEventWindow) {
+        throw new SemanticException(
+            DataNodeStreamMessages
+                .EXCEPTION_PLACEHOLDER_ROWS_CANNOT_BE_USED_WITH_PERIOD_EVENT_WINDOW_1667B0B2);
+      }
+      RelationType sourceRelationType = analysis.getStreamSourceRelationType();
+      if (sourceRelationType == null) {
+        throw new SemanticException(
+            DataNodeStreamMessages
+                .EXCEPTION_PLACEHOLDER_ROWS_REQUIRES_A_STREAM_SOURCE_TABLE_EF99E714);
+      }
+      analysis.setContainsRowsPlaceholder(true);
+      return createAndAssignScope(node, context, sourceRelationType);
+    }
+
+    @Override
+    public Scope visitCreateStream(CreateStream node, Optional<Scope> context) {
+      analyzeStreamProperties(node.getProperties());
+      analyzeStreamSource(node.getSourceTable(), node.getPreFilter(), node.getPartitionBy());
+      analyzeStreamEventWindow(node.getEventWindow(), node.getSourceTable(), node.getPartitionBy());
+      Scope calcPlanScope = analyzeCalcPlan(node.getQuery(), context);
+      analyzeStreamSink(node, calcPlanScope);
+
+      return createAndAssignScope(
+          node, Optional.of(calcPlanScope), calcPlanScope.getRelationType());
+    }
+
+    // Control options of CREATE STREAM ... WITH (...): they are consumed by
+    // buildStreamProperties in TableConfigTaskVisitor, which assumes a well-typed value, so any
+    // invalid type or unit is rejected here before planning.
+    private void analyzeStreamProperties(Map<String, Expression> properties) {
+      if (properties == null) {
+        return;
+      }
+      for (Map.Entry<String, Expression> entry : properties.entrySet()) {
+        switch (entry.getKey()) {
+          case StreamProperties.WATERMARK:
+          case StreamProperties.ALLOWED_LATENESS:
+            validateStreamDurationProperty(entry.getKey(), entry.getValue(), false);
+            break;
+          case StreamProperties.MAX_DELAY_WINDOW_CLOSE:
+          case StreamProperties.MAX_IDLE_WINDOW_RETAIN:
+            validateStreamDurationProperty(entry.getKey(), entry.getValue(), true);
+            break;
+          case StreamProperties.LEFT_CLOSED:
+            if (!(entry.getValue() instanceof BooleanLiteral)) {
+              throw new SemanticException(
+                  String.format(
+                      DataNodeStreamMessages
+                          .EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_A_BOOLEAN_BUT_GOT_ARG_DA94CDE1,
+                      entry.getKey(),
+                      ExpressionFormatter.formatExpression(entry.getValue())));
+            }
+            break;
+          case StreamProperties.SUBSCRIPTION_POLL_THREAD_COUNT:
+            break;
+          default:
+            throw new SemanticException(
+                String.format(
+                    DataNodeStreamMessages.EXCEPTION_UNRECOGNIZED_STREAM_PROPERTY_ARG_11A5C18E,
+                    entry.getKey()));
+        }
+      }
+    }
+
+    // Unsupported duration units are already rejected at parse time by AstBuilder. The
+    // window-close and idle-retain options must be at least 5 seconds.
+    private static void validateStreamDurationProperty(
+        String name, Expression value, boolean atLeastFiveSeconds) {
+      if (!(value instanceof LongLiteral) && !(value instanceof TimeDurationLiteral)) {
+        throw new SemanticException(
+            String.format(
+                DataNodeStreamMessages
+                    .EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_A_TIME_DURATION_E_G_1S_OR_AN_INTEGER_BUT_GOT_ARG_DEE25F8B,
+                name,
+                ExpressionFormatter.formatExpression(value)));
+      }
+      if (atLeastFiveSeconds) {
+        final long duration =
+            value instanceof LongLiteral
+                ? ((LongLiteral) value).getParsedValue()
+                : ((TimeDurationLiteral) value).getValue().nonMonthDuration;
+        final long oneSecond = TimestampPrecisionUtils.currPrecision.convert(1, TimeUnit.SECONDS);
+        if (duration < 5 * oneSecond) {
+          throw new SemanticException(
+              String.format(
+                  DataNodeStreamMessages
+                      .EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_AT_LEAST_5_SECONDS_BUT_GOT_ARG_AF49F29C,
+                  name,
+                  ExpressionFormatter.formatExpression(value)));
+        }
+      }
+    }
+
+    private Scope analyzeCalcPlan(Query query, Optional<Scope> context) {
+      Scope queryScope = process(query, context);
+      validateRowsPlaceholderNotInJoin(query);
+      // AllColumns (SELECT *) is checked in analyzeAllColumnsFromTable because the expanded
+      // FieldReferences are not present in the original query AST walked here.
+      validateNonAttributeColumnsWithRowsPlaceholder(query);
+      RelationType relationType = queryScope.getRelationType();
+      return createAndAssignScope(query, Optional.of(queryScope), relationType);
+    }
+
+    private void validateRowsPlaceholderNotInJoin(Query query) {
+      query.accept(
+          new DefaultTraversalVisitor<Void>() {
+            private boolean insideJoin = false;
+
+            @Override
+            public Void visitJoin(Join node, Void context) {
+              boolean parentInsideJoin = insideJoin;
+              insideJoin = true;
+              super.visitJoin(node, context);
+              insideJoin = parentInsideJoin;
+              return null;
+            }
+
+            @Override
+            public Void visitStreamRows(StreamRows node, Void context) {
+              if (insideJoin) {
+                throw new SemanticException(
+                    DataNodeStreamMessages
+                        .EXCEPTION_PLACEHOLDER_ROWS_CANNOT_PARTICIPATE_IN_A_JOIN_OPERATION_D6F83512);
+              }
+              return null;
+            }
+          },
+          null);
+    }
+
+    // The rows fed to the calculation plan through the ${rows} placeholder only carry TIME, TAG
+    // and FIELD values, so a reference to an ATTRIBUTE column could never be evaluated against
+    // real data.
+    private void validateNonAttributeColumnsWithRowsPlaceholder(Query query) {
+      if (!analysis.containsRowsPlaceholder()) {
+        return;
+      }
+      Map<NodeRef<Expression>, ResolvedField> columnReferenceFields =
+          analysis.getColumnReferenceFields();
+      List<Expression> expressions = new ArrayList<>();
+      collectExpressions(query, expressions);
+      for (Expression expression : expressions) {
+        ResolvedField resolvedField = columnReferenceFields.get(NodeRef.of(expression));
+        if (resolvedField != null
+            && resolvedField.getColumnCategory() == TsTableColumnCategory.ATTRIBUTE) {
+          throw new SemanticException(
+              String.format(
+                  DataNodeStreamMessages
+                      .EXCEPTION_NON_ATTRIBUTE_COLUMNS_WITH_ROWS_PLACEHOLDER_BE816EFA,
+                  expression));
+        }
+      }
+    }
+
+    private static void collectExpressions(Node node, List<Expression> expressions) {
+      if (node instanceof Expression) {
+        expressions.add((Expression) node);
+      }
+      for (Node child : node.getChildren()) {
+        collectExpressions(child, expressions);
+      }
+    }
+
+    private void analyzeStreamSink(CreateStream node, Scope queryScope) {
+      Table sourceTable = node.getSourceTable();
+      if (sourceTable != null
+          && createQualifiedObjectName(sessionContext, node.getSinkTable().getName())
+              .equals(createQualifiedObjectName(sessionContext, sourceTable.getName()))) {
+        throw new SemanticException(
+            DataNodeStreamMessages
+                .EXCEPTION_SINK_TABLE_MUST_BE_DIFFERENT_FROM_THE_SOURCE_TABLE_91B401CC);
+      }
+
+      List<ColumnSchema> sinkColumnSchemas =
+          analyzeTableForInsert(node.getSinkTable(), node.getColumns(), queryScope);
+
+      // Create new RelationType with proper columnCategory from sink column schema.
+      // Cannot use queryScope.getRelationType() because its column categories are always field,
+      // which fails category validation when starting the stream.
+      List<Field> sinkFields =
+          sinkColumnSchemas.stream()
+              .map(cs -> Field.newUnqualified(cs.getName(), cs.getType(), cs.getColumnCategory()))
+              .collect(toImmutableList());
+
+      analysis.setStreamSinkRelationType(new RelationType(sinkFields));
+    }
+
+    /**
+     * Validates the table for INSERT operations (used by INSERT and CREATE STREAM). This includes:
+     * 1. Verifying the table exists 2. Verifying INSERT access privileges 3. Validating target
+     * columns if specified 4. Checking type compatibility between query outputs and target columns
+     *
+     * @param targetTable the table object to validate
+     * @param targetColumns the target column identifiers (null means all columns)
+     * @param queryScope the scope containing query outputs for type checking
+     * @return List of ColumnSchema representing the validated target columns
+     */
+    private List<ColumnSchema> analyzeTableForInsert(
+        Table targetTable, List<Identifier> targetColumns, Scope queryScope) {
+      QualifiedObjectName tableName =
+          createQualifiedObjectName(sessionContext, targetTable.getName());
+
+      // verify the table exists
+      if (!metadata.tableExists(tableName)) {
+        CommonMetadataUtils.throwTableNotExistsException(
+            tableName.getDatabaseName(), tableName.getObjectName());
+      }
+      // check INSERT access privileges
+      accessControl.checkCanInsertIntoTable(sessionContext.getUserName(), tableName, queryContext);
+
+      analysis.setRelationName(
+          targetTable, QualifiedName.of(tableName.getDatabaseName(), tableName.getObjectName()));
+
+      // verify the insert destination columns match the query
+      Optional<TableSchema> tableSchema = metadata.getTableSchema(sessionContext, tableName);
+      if (tableSchema.isEmpty()) {
+        CommonMetadataUtils.throwTableNotExistsException(
+            tableName.getDatabaseName(), tableName.getObjectName());
+      }
+      List<ColumnSchema> tableColumnSchemas =
+          tableSchema.get().getColumns().stream()
+              .filter(column -> !column.isHidden())
+              .collect(toImmutableList());
+      analysis.registerTable(targetTable, tableSchema, tableName);
+
+      LinkedHashSet<String> tableColumns = new LinkedHashSet<>();
+      String actualTimeColumnName = null;
+      for (ColumnSchema columnSchema : tableColumnSchemas) {
+        tableColumns.add(columnSchema.getName().toLowerCase(ENGLISH));
+
+        if (columnSchema.getColumnCategory() == TsTableColumnCategory.TIME) {
+          if (actualTimeColumnName != null) {
+            throw new SemanticException(
+                DataNodeQueryMessages.MULTIPLE_COLUMNS_FOUND_WITH_TIME_CATEGORY_IN_TABLE_SCHEMA);
+          }
+          actualTimeColumnName = columnSchema.getName();
+        }
+      }
+      if (actualTimeColumnName == null) {
+        throw new SemanticException(
+            DataNodeQueryMessages.TARGET_TABLE_SCHEMA_MISSES_A_TIME_CATEGORY_COLUMN);
+      }
+
+      LinkedHashSet<String> insertColumns;
+      if (targetColumns != null) {
+        // Check for duplicate columns and collect to LinkedHashSet in one pass
+        insertColumns = new LinkedHashSet<>();
+        int index = 0;
+        for (Identifier c : targetColumns) {
+          String columnName = c.getValue().toLowerCase(ENGLISH);
+          index++;
+          insertColumns.add(columnName);
+          if (insertColumns.size() != index) {
+            throw new SemanticException(
+                String.format(
+                    DataNodeQueryMessages.INSERT_CONTAINS_DUPLICATED_COLUMN_NAME, columnName));
+          }
+        }
+        // Validate all columns exist in the target table
+        for (String insertColumn : insertColumns) {
+          if (!tableColumns.contains(insertColumn)) {
+            throw new SemanticException(
+                String.format(
+                    DataNodeQueryMessages.INSERT_COLUMN_NAME_DOES_NOT_EXIST_IN_TARGET_TABLE,
+                    insertColumn));
+          }
+        }
+      } else {
+        insertColumns = tableColumns;
+      }
+
+      // insert columns should contain time
+      if (!insertColumns.contains(actualTimeColumnName)) {
+        throw new SemanticException(DataNodeQueryMessages.TIME_COLUMN_CAN_NOT_BE_NULL);
+      }
+      // insert columns should contain at least one field column
+      Map<String, ColumnSchema> columnSchemaMap = tableSchema.get().getColumnSchemaMap();
+      if (!containsAnyFieldColumn(insertColumns, columnSchemaMap)) {
+        throw new SemanticException(DataNodeQueryMessages.NO_FIELD_COLUMN_PRESENT);
+      }
+
+      List<Type> tableTypes =
+          insertColumns.stream()
+              .map(insertColumn -> tableSchema.get().getColumn(insertColumn).getType())
+              .collect(toImmutableList());
+      List<Type> queryTypes =
+          queryScope.getRelationType().getVisibleFields().stream()
+              .map(Field::getType)
+              .collect(toImmutableList());
+      if (!typesMatchForInsert(tableTypes, queryTypes)) {
+        throw new SemanticException(
+            String.format(
+                DataNodeQueryMessages
+                    .INSERT_QUERY_HAS_MISMATCHED_COLUMN_TYPES_BETWEEN_TABLE_AND_QUERY,
+                Joiner.on(QueryMessages.EXCEPTION_COMMA_50AD1C01).join(tableTypes),
+                Joiner.on(QueryMessages.EXCEPTION_COMMA_50AD1C01).join(queryTypes)));
+      }
+
+      return insertColumns.stream().map(columnSchemaMap::get).collect(toImmutableList());
+    }
+
+    private void analyzeStreamEventWindow(
+        EventWindow eventWindow, Table sourceTable, List<Expression> partitionBy) {
+      List<TableFunctionArgument> arguments = eventWindow.getArguments();
+
+      boolean argumentsPassedByName =
+          !arguments.isEmpty()
+              && arguments.stream().allMatch(argument -> argument.getName().isPresent());
+      boolean argumentsPassedByPosition =
+          arguments.stream().noneMatch(argument -> argument.getName().isPresent());
+      if (!argumentsPassedByName && !argumentsPassedByPosition) {
+        throw new SemanticException(
+            DataNodeQueryMessages
+                .ALL_ARGUMENTS_MUST_BE_PASSED_BY_NAME_OR_ALL_MUST_BE_PASSED_POSITIONALLY);
+      }
+
+      Map<String, Node> argumentMap =
+          createArgumentMap(argumentsPassedByName, arguments, eventWindow.getArgumentNames());
+      eventWindow.parseArguments(argumentMap);
+
+      // Validate window constraints
+      validateEventWindowConstraints(eventWindow, sourceTable, partitionBy);
+
+      analysis.setStreamEventWindow(eventWindow);
+    }
+
+    private void validateEventWindowConstraints(
+        EventWindow eventWindow, Table sourceTable, List<Expression> partitionBy) {
+      // PERIOD window constraints
+      if (eventWindow instanceof PeriodEventWindow) {
+        if (sourceTable != null) {
+          throw new SemanticException(
+              DataNodeStreamMessages
+                  .EXCEPTION_PERIOD_EVENT_WINDOW_CANNOT_BE_USED_WITH_FROM_CLAUSE_D1549FCF);
+        }
+        if (!partitionBy.isEmpty()) {
+          throw new SemanticException(
+              DataNodeStreamMessages
+                  .EXCEPTION_PERIOD_EVENT_WINDOW_CANNOT_BE_USED_WITH_PARTITION_BY_38B93B69);
+        }
+      }
+
+      // TUMBLE window constraints
+      if (eventWindow instanceof TumbleEventWindow) {
+        if (sourceTable == null) {
+          throw new SemanticException(
+              DataNodeStreamMessages
+                  .EXCEPTION_TUMBLE_EVENT_WINDOW_MUST_BE_USED_WITH_FROM_CLAUSE_C77B71B9);
+        }
+      }
+    }
+
+    private Map<String, Node> createArgumentMap(
+        boolean argumentsPassedByName,
+        List<TableFunctionArgument> arguments,
+        List<String> requiredArguments) {
+      Map<String, Node> passedArguments = new HashMap<>();
+      if (argumentsPassedByName) {
+        for (TableFunctionArgument argument : arguments) {
+          // it has been checked that all arguments have different names
+          String argumentName = argument.getName().get().getCanonicalValue();
+          if (!requiredArguments.contains(argumentName)) {
+            continue;
+          }
+          if (passedArguments.containsKey(argumentName)) {
+            throw new SemanticException(
+                String.format(
+                    DataNodeQueryMessages.DUPLICATE_ARGUMENT_NAME,
+                    "'" + argumentName.toLowerCase() + "'"));
+          }
+          passedArguments.put(argumentName, getArgumentValue(argument));
+        }
+      } else {
+        if (arguments.size() > requiredArguments.size()) {
+          throw new SemanticException(
+              DataNodeStreamMessages.EXCEPTION_EXCEEDING_ARGUMENTS_PROVIDED_D43758F6);
+        }
+
+        for (int i = 0; i < arguments.size(); i++) {
+          TableFunctionArgument argument = arguments.get(i);
+          String argumentName = requiredArguments.get(i);
+          if (passedArguments.containsKey(argumentName)) {
+            throw new SemanticException(
+                String.format(
+                    DataNodeQueryMessages.DUPLICATE_ARGUMENT_NAME,
+                    "'" + argumentName.toLowerCase() + "'"));
+          }
+          passedArguments.put(argumentName, getArgumentValue(argument));
+        }
+      }
+      return passedArguments;
+    }
+
+    private Node getArgumentValue(TableFunctionArgument argument) {
+      if (argument == null) {
+        return null;
+      }
+      if (argument.getValue() instanceof TableFunctionTableArgument) {
+        return ((TableFunctionTableArgument) argument.getValue()).getTable();
+      }
+      return argument.getValue();
+    }
+
+    private void analyzeStreamSource(
+        Table sourceTable, Expression preFilter, List<Expression> partitionBy) {
+      // StreamSource
+      if (sourceTable == null) {
+        return;
+      }
+      Scope sourceScope = visitTable(sourceTable, Optional.empty());
+      checkStreamSourceTable(sourceTable);
+      analysis.setStreamSourceRelationType(sourceScope.getRelationType());
+
+      // preFilter
+      analyzePreFilter(sourceScope, preFilter);
+
+      // partitionBy
+      analyzePartitionBy(sourceScope, partitionBy);
+    }
+
+    private void checkStreamSourceTable(Table sourceTable) {
+      if (createQualifiedObjectName(sessionContext, sourceTable.getName())
+              .getDatabaseName()
+              .equals(InformationSchema.INFORMATION_DATABASE)
+          || analysis.getTableHandle(sourceTable) instanceof TreeDeviceViewSchema) {
+        throw new SemanticException(
+            DataNodeStreamMessages
+                .EXCEPTION_THE_SOURCE_TABLE_OF_THE_STREAM_CANNOT_BE_A_SYSTEM_TABLE_OR_A_VIEW_44C037BC);
+      }
+    }
+
+    private void analyzePreFilter(Scope scope, Expression preFilter) {
+      if (preFilter == null) {
+        return;
+      }
+      verifyNoAggregateWindowOrGroupingFunctions(
+          preFilter, DataNodeStreamMessages.PREFILTER_CLAUSE);
+
+      ExpressionAnalysis expressionAnalysis = analyzeExpression(preFilter, scope);
+
+      Type predicateType = expressionAnalysis.getType(preFilter);
+      if (!predicateType.equals(BOOLEAN)) {
+        throw new SemanticException(
+            String.format(
+                DataNodeStreamMessages
+                    .EXCEPTION_PREFILTER_CLAUSE_MUST_EVALUATE_TO_BOOLEAN_TYPE_D79AF560,
+                predicateType));
+      }
+
+      recordPreFilterTypesToTypeProvider(expressionAnalysis);
+    }
+
+    private void recordPreFilterTypesToTypeProvider(ExpressionAnalysis expressionAnalysis) {
+      expressionAnalysis
+          .getColumnReferences()
+          .forEach(
+              (nodeRef, resolvedField) -> {
+                Expression expression = nodeRef.getNode();
+                Type type = expressionAnalysis.getType(expression);
+                Field field = resolvedField.getField();
+                String columnName =
+                    field.getOriginColumnName().orElse(field.getName().orElse(null));
+                if (columnName != null) {
+                  queryContext.getTypeProvider().putTableModelType(new Symbol(columnName), type);
+                }
+              });
+    }
+
+    private void analyzePartitionBy(Scope scope, List<Expression> partitionBy) {
+      ImmutableList.Builder<Expression> partitionByExpressions = ImmutableList.builder();
+
+      for (Expression column : partitionBy) {
+        if (column instanceof LongLiteral) {
+          throw new SemanticException(
+              DataNodeStreamMessages.EXCEPTION_PARTITION_BY_MUST_NOT_BE_ORDINAL_POSITIONS_E3191E38);
+        }
+
+        analyzeExpression(column, scope);
+        ResolvedField resolvedField = analysis.getColumnReferenceFields().get(NodeRef.of(column));
+        if (resolvedField == null) {
+          throw new SemanticException(
+              DataNodeStreamMessages.EXCEPTION_PARTITION_BY_MUST_BE_COLUMN_REFERENCE_FF33719A);
+        }
+
+        Field field = resolvedField.getField();
+        String fieldName = field.getOriginColumnName().orElse(field.getName().orElse(""));
+        validatePartitionByColumn(field.getColumnCategory(), fieldName);
+
+        partitionByExpressions.add(column);
+      }
+
+      List<Expression> expressions = partitionByExpressions.build();
+      for (Expression expression : expressions) {
+        Type type = analysis.getType(expression);
+        if (!type.isComparable()) {
+          throw new SemanticException(
+              String.format(
+                  DataNodeQueryMessages
+                      .S_IS_NOT_COMPARABLE_AND_THEREFORE_CANNOT_BE_USED_IN_PARTITION_BY,
+                  type));
+        }
+      }
+      analysis.setStreamPartitionBy(expressions);
     }
 
     private String castNameAsSpecification(Set<String> specifiedNames, String passedName) {
@@ -6595,6 +7063,16 @@ public class StatementAnalyzer {
       }
 
       return field.get().getField();
+    }
+  }
+
+  private void validatePartitionByColumn(TsTableColumnCategory columnCategory, String fieldName) {
+    if (columnCategory != TsTableColumnCategory.TAG) {
+      throw new SemanticException(
+          String.format(
+              DataNodeQueryMessages.PARTITION_BY_COLUMN_MUST_BE_TAG_COLUMN,
+              fieldName,
+              columnCategory));
     }
   }
 

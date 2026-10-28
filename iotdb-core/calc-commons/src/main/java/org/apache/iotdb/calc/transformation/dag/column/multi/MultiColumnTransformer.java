@@ -104,4 +104,12 @@ public abstract class MultiColumnTransformer extends ColumnTransformer {
       columnTransformer.close();
     }
   }
+
+  @Override
+  public void reset() {
+    super.reset();
+    for (ColumnTransformer columnTransformer : columnTransformerList) {
+      columnTransformer.reset();
+    }
+  }
 }

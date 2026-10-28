@@ -559,6 +559,12 @@ public final class DataNodeQueryMessages {
       "开始移除 DataNode，已移除的 DataNode 端点：{}";
   public static final String SUBMIT_REMOVE_DATANODES_RESULT =
       "提交移除 DataNode 结果 {} ";
+  public static final String STARTING_TO_REMOVE_STREAMNODE_WITH_NODE_ID =
+      "开始移除 StreamNode，节点 ID：{}";
+  public static final String THE_STREAMNODE_TO_BE_REMOVED_IS_NOT_IN_THE_CLUSTER_OR_THE_INPUT_FORMAT_IS_INCORRECT =
+      "要移除的 StreamNode 不在集群中，或输入格式不正确。";
+  public static final String REMOVE_STREAMNODE_FAILED = "移除 StreamNode 失败：";
+  public static final String STREAMNODE_IS_REMOVED = "StreamNode {} 已移除。";
   public static final String STARTING_TO_REMOVE_CONFIGNODE_WITH_NODE_ID =
       "开始移除 ConfigNode，节点 ID：{}";
   public static final String CONFIGNODE_IS_REMOVED =
@@ -831,6 +837,10 @@ public final class DataNodeQueryMessages {
       "不支持的帧类型：";
   public static final String COLUMNS_ONLY_SUPPORT_TO_BE_USED_IN_SELECT =
       "Columns 仅支持在 SELECT 和 WHERE 子句中使用";
+  public static final String STREAM_LITERAL_ONLY_ALLOWED_IN_STREAM_QUERY =
+      "流占位符 ${%s} 只能在带有事件窗口的流查询中使用";
+  public static final String PARTITION_BY_COLUMN_MUST_BE_TAG_COLUMN =
+      "PARTITION BY 列必须是 TAG 列，但 %s 是 %s 列";
   public static final String TYPE_MISMATCH_FMT =
       "%s：%s 与 %s";
   public static final String UNKNOWN_PATTERN_RECOGNITION_FUNCTION =
@@ -2403,13 +2413,13 @@ public final class DataNodeQueryMessages {
   public static final String MULTIPLE_COLUMNS_FOUND_WITH_TIME_CATEGORY_IN_TABLE_SCHEMA =
 
       "表 schema 中发现多个 TIME 类别列。";
-  public static final String INSERT_COLUMN_NAME_DOES_NOT_EXIST_IN_TARGET_TABLE_S =
+  public static final String INSERT_COLUMN_NAME_DOES_NOT_EXIST_IN_TARGET_TABLE =
 
-      "插入列名在目标表中不存在：%s";
-  public static final String INSERT_COLUMN_NAME_IS_SPECIFIED_MORE_THAN_ONCE_S =
+      "插入列名 '%s' 在目标表中不存在";
+  public static final String INSERT_CONTAINS_DUPLICATED_COLUMN_NAME =
 
-      "插入列名被指定多次：%s";
-  public static final String INSERT_QUERY_HAS_MISMATCHED_COLUMN_TYPES_TABLE_S_QUERY_S =
+      "插入包含重复的列名 '%s'";
+  public static final String INSERT_QUERY_HAS_MISMATCHED_COLUMN_TYPES_BETWEEN_TABLE_AND_QUERY =
 
       "插入查询的列类型不匹配：表：[%s]，查询：[%s]";
   public static final String WITH_QUERY_NAME_S_SPECIFIED_MORE_THAN_ONCE =
@@ -4770,6 +4780,7 @@ public final class DataNodeQueryMessages {
   public static final String EXCEPTION_VISIBLEALIASES_IS_NULL_630B27F1 = "visibleAliases 不能为空";
   public static final String EXCEPTION_HAS_NO_PERMISSION_TO_EXECUTE_ARG_BECAUSE_ONLY_THE_SUPERUSER_CAN_ALTER_HIM_HERSELF_C5902893 =
       "无权执行 %s，因为只有超级用户可以修改其自身。";
+
   public static final String
       LOG_FAILED_TO_CLEAN_DEVICEENTRY_DATA_SET_ASYNCHRONOUSLY_QUERYID_ARG_PLANNODEID_ARG_9106C4C5 =
           "异步清理 DeviceEntry 数据集失败：queryId=%s，planNodeId=%s";

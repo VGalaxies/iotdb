@@ -30,6 +30,8 @@ import org.apache.iotdb.common.rpc.thrift.TSStatus;
 import org.apache.iotdb.common.rpc.thrift.TSetConfigurationReq;
 import org.apache.iotdb.common.rpc.thrift.TShowAppliedConfigurationsResp;
 import org.apache.iotdb.common.rpc.thrift.TShowConfigurationResp;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeConfiguration;
+import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.commons.auth.AuthException;
 import org.apache.iotdb.commons.cluster.NodeStatus;
 import org.apache.iotdb.commons.cluster.NodeType;
@@ -41,10 +43,15 @@ import org.apache.iotdb.commons.service.metric.MetricService;
 import org.apache.iotdb.confignode.client.CnToCnNodeRequestType;
 import org.apache.iotdb.confignode.client.async.CnToDnAsyncRequestType;
 import org.apache.iotdb.confignode.client.async.CnToDnInternalServiceAsyncRequestManager;
+import org.apache.iotdb.confignode.client.async.CnToSnAsyncRequestType;
+import org.apache.iotdb.confignode.client.async.CnToSnInternalServiceAsyncRequestManager;
 import org.apache.iotdb.confignode.client.async.handlers.DataNodeAsyncRequestContext;
+import org.apache.iotdb.confignode.client.async.handlers.StreamNodeAsyncRequestContext;
 import org.apache.iotdb.confignode.client.sync.CnToDnSyncRequestType;
+import org.apache.iotdb.confignode.client.sync.CnToSnSyncRequestType;
 import org.apache.iotdb.confignode.client.sync.SyncConfigNodeClientPool;
 import org.apache.iotdb.confignode.client.sync.SyncDataNodeClientPool;
+import org.apache.iotdb.confignode.client.sync.SyncStreamNodeClientPool;
 import org.apache.iotdb.confignode.conf.ConfigNodeConfig;
 import org.apache.iotdb.confignode.conf.ConfigNodeDescriptor;
 import org.apache.iotdb.confignode.consensus.request.ConfigPhysicalPlan;
@@ -59,12 +66,16 @@ import org.apache.iotdb.confignode.consensus.request.write.confignode.UpdateVers
 import org.apache.iotdb.confignode.consensus.request.write.datanode.RegisterDataNodePlan;
 import org.apache.iotdb.confignode.consensus.request.write.datanode.RemoveDataNodePlan;
 import org.apache.iotdb.confignode.consensus.request.write.datanode.UpdateDataNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RegisterStreamNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.RemoveStreamNodePlan;
+import org.apache.iotdb.confignode.consensus.request.write.streamnode.UpdateStreamNodePlan;
 import org.apache.iotdb.confignode.consensus.response.ainode.AINodeConfigurationResp;
 import org.apache.iotdb.confignode.consensus.response.ainode.AINodeRegisterResp;
 import org.apache.iotdb.confignode.consensus.response.datanode.ConfigurationResp;
 import org.apache.iotdb.confignode.consensus.response.datanode.DataNodeConfigurationResp;
 import org.apache.iotdb.confignode.consensus.response.datanode.DataNodeRegisterResp;
 import org.apache.iotdb.confignode.consensus.response.datanode.DataNodeToStatusResp;
+import org.apache.iotdb.confignode.consensus.response.streamnode.StreamNodeRegisterResp;
 import org.apache.iotdb.confignode.i18n.ConfigNodeMessages;
 import org.apache.iotdb.confignode.i18n.ManagerMessages;
 import org.apache.iotdb.confignode.manager.ClusterManager;
@@ -84,6 +95,7 @@ import org.apache.iotdb.confignode.manager.pipe.coordinator.PipeManager;
 import org.apache.iotdb.confignode.manager.schema.ClusterSchemaManager;
 import org.apache.iotdb.confignode.persistence.node.NodeInfo;
 import org.apache.iotdb.confignode.procedure.env.RemoveDataNodeHandler;
+import org.apache.iotdb.confignode.procedure.env.RemoveStreamNodeHandler;
 import org.apache.iotdb.confignode.rpc.thrift.TAINodeInfo;
 import org.apache.iotdb.confignode.rpc.thrift.TAINodeRegisterReq;
 import org.apache.iotdb.confignode.rpc.thrift.TAINodeRestartReq;
@@ -104,6 +116,10 @@ import org.apache.iotdb.confignode.rpc.thrift.TNodeVersionInfo;
 import org.apache.iotdb.confignode.rpc.thrift.TRatisConfig;
 import org.apache.iotdb.confignode.rpc.thrift.TRuntimeConfiguration;
 import org.apache.iotdb.confignode.rpc.thrift.TSetDataNodeStatusReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeInfo;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRegisterReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRestartReq;
+import org.apache.iotdb.confignode.rpc.thrift.TStreamNodeRestartResp;
 import org.apache.iotdb.consensus.common.DataSet;
 import org.apache.iotdb.consensus.common.Peer;
 import org.apache.iotdb.consensus.exception.ConsensusException;
@@ -531,6 +547,14 @@ public class NodeManager {
     return nodeInfo.getRegisteredAINode(aiNodeId);
   }
 
+  public List<TStreamNodeConfiguration> getRegisteredStreamNodes() {
+    return nodeInfo.getRegisteredStreamNodes();
+  }
+
+  public TStreamNodeConfiguration getRegisteredStreamNode(int streamNodeId) {
+    return nodeInfo.getRegisteredStreamNode(streamNodeId);
+  }
+
   /**
    * Register AINode. Use synchronized to make sure
    *
@@ -656,6 +680,156 @@ public class NodeManager {
       AINodeConfigurationResp response = new AINodeConfigurationResp();
       response.setStatus(res);
       return response;
+    }
+  }
+
+  /**
+   * Register StreamNode.
+   *
+   * @param req TStreamNodeRegisterReq
+   * @return StreamNodeRegisterResp. The {@link TSStatus} will be set to {@link
+   *     TSStatusCode#SUCCESS_STATUS} when register success.
+   */
+  public DataSet registerStreamNode(TStreamNodeRegisterReq req) {
+    StreamNodeRegisterResp resp = new StreamNodeRegisterResp();
+    resp.setConfigNodeList(getRegisteredConfigNodes());
+
+    // Create a new StreamNodeHeartbeatCache and force update NodeStatus
+    int streamNodeId = nodeInfo.generateNextNodeId();
+    getLoadManager().getLoadCache().createNodeHeartbeatCache(NodeType.StreamNode, streamNodeId);
+
+    RegisterStreamNodePlan registerStreamNodePlan =
+        new RegisterStreamNodePlan(req.getStreamNodeConfiguration());
+    registerStreamNodePlan.getStreamNodeConfiguration().getLocation().setStreamNodeId(streamNodeId);
+    try {
+      getConsensusManager().write(registerStreamNodePlan);
+    } catch (ConsensusException e) {
+      LOGGER.warn(CONSENSUS_WRITE_ERROR, e);
+    }
+
+    // update stream node's versionInfo
+    UpdateVersionInfoPlan updateVersionInfoPlan =
+        new UpdateVersionInfoPlan(req.getVersionInfo(), streamNodeId);
+    try {
+      getConsensusManager().write(updateVersionInfoPlan);
+    } catch (ConsensusException e) {
+      LOGGER.warn(CONSENSUS_WRITE_ERROR, e);
+    }
+
+    resp.setStatus(ClusterNodeStartUtils.ACCEPT_NODE_REGISTRATION);
+    resp.setStreamNodeId(
+        registerStreamNodePlan.getStreamNodeConfiguration().getLocation().getStreamNodeId());
+    resp.setRuntimeConfiguration(getRuntimeConfiguration(streamNodeId));
+    return resp;
+  }
+
+  public TStreamNodeRestartResp updateStreamNodeIfNecessary(TStreamNodeRestartReq req) {
+    final String clusterId =
+        configManager
+            .getClusterManager()
+            .getClusterIdWithRetry(
+                CommonDescriptor.getInstance().getConfig().getCnConnectionTimeoutInMS() / 2);
+    TStreamNodeRestartResp resp = new TStreamNodeRestartResp();
+    resp.setConfigNodeList(getRegisteredConfigNodes());
+    if (clusterId == null) {
+      resp.setStatus(
+          new TSStatus(TSStatusCode.GET_CLUSTER_ID_ERROR.getStatusCode())
+              .setMessage("clusterId has not generated"));
+      return resp;
+    }
+
+    int nodeId = req.getStreamNodeConfiguration().getLocation().getStreamNodeId();
+    TStreamNodeConfiguration streamNodeConfiguration = getRegisteredStreamNode(nodeId);
+    if (!req.getStreamNodeConfiguration().equals(streamNodeConfiguration)) {
+      // Update DataNodeConfiguration when modified during restart
+      UpdateStreamNodePlan updateStreamNodePlan =
+          new UpdateStreamNodePlan(req.getStreamNodeConfiguration());
+      try {
+        getConsensusManager().write(updateStreamNodePlan);
+      } catch (ConsensusException e) {
+        LOGGER.warn(CONSENSUS_WRITE_ERROR, e);
+      }
+    }
+    TNodeVersionInfo versionInfo = nodeInfo.getVersionInfo(nodeId);
+    if (!req.getVersionInfo().equals(versionInfo)) {
+      // Update versionInfo when modified during restart
+      UpdateVersionInfoPlan updateVersionInfoPlan =
+          new UpdateVersionInfoPlan(req.getVersionInfo(), nodeId);
+      try {
+        getConsensusManager().write(updateVersionInfoPlan);
+      } catch (ConsensusException e) {
+        LOGGER.warn(CONSENSUS_WRITE_ERROR, e);
+      }
+    }
+
+    resp.setStatus(ClusterNodeStartUtils.ACCEPT_NODE_RESTART);
+    resp.setRuntimeConfiguration(getRuntimeConfiguration(nodeId));
+
+    return resp;
+  }
+
+  public List<TStreamNodeInfo> getRegisteredStreamNodeInfoList() {
+    List<TStreamNodeInfo> streamNodeInfoList = new ArrayList<>();
+    Map<Integer, NodeStatistics> nodeStatisticsSnapshot =
+        getLoadManager().getNodeStatisticsSnapshot();
+    for (TStreamNodeConfiguration streamNodeConfiguration : getRegisteredStreamNodes()) {
+      TStreamNodeInfo streamNodeInfo = new TStreamNodeInfo();
+      int streamNodeId = streamNodeConfiguration.getLocation().getStreamNodeId();
+      streamNodeInfo.setStreamNodeId(streamNodeId);
+      NodeStatistics statistics = nodeStatisticsSnapshot.get(streamNodeId);
+
+      streamNodeInfo.setStatus(
+          statistics == null ? NodeStatus.Unknown.getStatus() : statistics.getStatus().getStatus());
+      streamNodeInfo.setStatusReason(statistics == null ? null : statistics.getStatusReason());
+      streamNodeInfo.setInternalAddress(
+          streamNodeConfiguration.getLocation().getInternalEndPoint().getIp());
+      streamNodeInfo.setInternalPort(
+          streamNodeConfiguration.getLocation().getInternalEndPoint().getPort());
+      streamNodeInfoList.add(streamNodeInfo);
+    }
+    return streamNodeInfoList;
+  }
+
+  /**
+   * Removes the specified StreamNodes.
+   *
+   * @param removeStreamNodePlan the plan detailing which StreamNodes to remove
+   * @return TSStatus
+   */
+  public TSStatus removeStreamNode(RemoveStreamNodePlan removeStreamNodePlan) {
+    LOGGER.info(ManagerMessages.NODEMANAGER_START_TO_REMOVE_STREAMNODE, removeStreamNodePlan);
+    configManager.getProcedureManager().getEnv().getRemoveStreamNodeLock().lock();
+    try {
+      // Checks if the RemoveStreamNode request is valid
+      RemoveStreamNodeHandler removeStreamNodeHandler =
+          configManager.getProcedureManager().getEnv().getRemoveStreamNodeHandler();
+      TSStatus preCheckStatus =
+          removeStreamNodeHandler.checkRemoveStreamNodeRequest(removeStreamNodePlan);
+      if (preCheckStatus.getCode() != TSStatusCode.SUCCESS_STATUS.getStatusCode()) {
+        LOGGER.error(
+            ManagerMessages.THE_REMOVE_STREAM_NODE_REQUEST_CHECK_FAILED_REQ_CHECK_RESULT,
+            removeStreamNodePlan,
+            preCheckStatus);
+        return preCheckStatus;
+      }
+
+      // Add request to queue, then return to client
+      boolean removeSucceed =
+          configManager.getProcedureManager().removeStreamNode(removeStreamNodePlan);
+      TSStatus status;
+      if (removeSucceed) {
+        status = new TSStatus(TSStatusCode.SUCCESS_STATUS.getStatusCode());
+        status.setMessage(ManagerMessages.SERVER_ACCEPTED_THE_REQUEST);
+      } else {
+        status = new TSStatus(TSStatusCode.REMOVE_STREAM_NODE_ERROR.getStatusCode());
+        status.setMessage(ManagerMessages.SERVER_REJECTED_THE_REQUEST_MAYBE_REQUESTS_ARE_TOO_MANY);
+      }
+
+      LOGGER.info(
+          ManagerMessages.NODEMANAGER_SUBMIT_REMOVESTREAMNODEPLAN_FINISHED, removeStreamNodePlan);
+      return status;
+    } finally {
+      configManager.getProcedureManager().getEnv().getRemoveStreamNodeLock().unlock();
     }
   }
 
@@ -1171,6 +1345,28 @@ public class NodeManager {
       responseList.addAll(clientHandler.getResponseList());
     }
 
+    // send to streamnode
+    Map<Integer, TStreamNodeLocation> streamNodeLocationMap = new HashMap<>();
+    List<TStreamNodeConfiguration> streamNodes = getRegisteredStreamNodes();
+    for (TStreamNodeConfiguration streamNode : streamNodes) {
+      if (streamNode.getLocation() == null) {
+        continue;
+      }
+      int streamNodeId = streamNode.getLocation().getStreamNodeId();
+      if (nodeId >= 0 && nodeId != streamNodeId) {
+        continue;
+      }
+      streamNodeLocationMap.put(streamNodeId, streamNode.getLocation());
+    }
+    if (!streamNodeLocationMap.isEmpty()) {
+      StreamNodeAsyncRequestContext<TSetConfigurationReq, TSStatus> clientHandler =
+          new StreamNodeAsyncRequestContext<>(
+              CnToSnAsyncRequestType.SET_CONFIGURATION, req, streamNodeLocationMap);
+      CnToSnInternalServiceAsyncRequestManager.getInstance()
+          .sendAsyncRequestWithRetry(clientHandler);
+      responseList.addAll(clientHandler.getResponseList());
+    }
+
     // send to config node
     List<TConfigNodeLocation> configNodes = getRegisteredConfigNodes();
     for (TConfigNodeLocation configNode : configNodes) {
@@ -1220,6 +1416,8 @@ public class NodeManager {
   }
 
   public List<TSStatus> submitLoadConfigurationTask() {
+    List<TSStatus> responseList = new ArrayList<>();
+
     Map<Integer, TDataNodeLocation> dataNodeLocationMap =
         configManager.getNodeManager().getRegisteredDataNodeLocations();
     DataNodeAsyncRequestContext<Object, TSStatus> dataNodeRequestContext =
@@ -1227,7 +1425,26 @@ public class NodeManager {
             CnToDnAsyncRequestType.LOAD_CONFIGURATION, dataNodeLocationMap);
     CnToDnInternalServiceAsyncRequestManager.getInstance()
         .sendAsyncRequestWithRetry(dataNodeRequestContext);
-    return dataNodeRequestContext.getResponseList();
+    responseList.addAll(dataNodeRequestContext.getResponseList());
+
+    // send to streamnodes
+    Map<Integer, TStreamNodeLocation> streamNodeLocationMap = new HashMap<>();
+    for (TStreamNodeConfiguration streamNode : getRegisteredStreamNodes()) {
+      if (streamNode.getLocation() != null) {
+        streamNodeLocationMap.put(
+            streamNode.getLocation().getStreamNodeId(), streamNode.getLocation());
+      }
+    }
+    if (!streamNodeLocationMap.isEmpty()) {
+      StreamNodeAsyncRequestContext<Object, TSStatus> streamNodeRequestContext =
+          new StreamNodeAsyncRequestContext<>(
+              CnToSnAsyncRequestType.LOAD_CONFIGURATION, streamNodeLocationMap);
+      CnToSnInternalServiceAsyncRequestManager.getInstance()
+          .sendAsyncRequestWithRetry(streamNodeRequestContext);
+      responseList.addAll(streamNodeRequestContext.getResponseList());
+    }
+
+    return responseList;
   }
 
   public TShowConfigurationResp showConfiguration(int nodeId) {
@@ -1244,6 +1461,21 @@ public class NodeManager {
                   dataNodeLocation.getInternalEndPoint(),
                   null,
                   CnToDnSyncRequestType.SHOW_CONFIGURATION);
+    }
+
+    // stream node
+    TStreamNodeConfiguration streamNode = getRegisteredStreamNode(nodeId);
+    if (streamNode.getLocation() != null && streamNode.getLocation().getStreamNodeId() == nodeId) {
+      Object result =
+          SyncStreamNodeClientPool.getInstance()
+              .sendSyncRequestToStreamNodeWithRetry(
+                  streamNode.getLocation().getInternalEndPoint(),
+                  null,
+                  CnToSnSyncRequestType.SHOW_CONFIGURATION);
+      if (result instanceof TSStatus) {
+        return new TShowConfigurationResp((TSStatus) result, "");
+      }
+      return (TShowConfigurationResp) result;
     }
 
     // other config node
@@ -1275,6 +1507,21 @@ public class NodeManager {
                   dataNodeLocation.getInternalEndPoint(),
                   null,
                   CnToDnSyncRequestType.SHOW_APPLIED_CONFIGURATIONS);
+    }
+
+    // stream node
+    TStreamNodeConfiguration streamNode = getRegisteredStreamNode(nodeId);
+    if (streamNode.getLocation() != null && streamNode.getLocation().getStreamNodeId() == nodeId) {
+      Object result =
+          SyncStreamNodeClientPool.getInstance()
+              .sendSyncRequestToStreamNodeWithRetry(
+                  streamNode.getLocation().getInternalEndPoint(),
+                  null,
+                  CnToSnSyncRequestType.SHOW_APPLIED_CONFIGURATIONS);
+      if (result instanceof TSStatus) {
+        return new TShowAppliedConfigurationsResp((TSStatus) result);
+      }
+      return (TShowAppliedConfigurationsResp) result;
     }
 
     // other config node
@@ -1380,6 +1627,17 @@ public class NodeManager {
    */
   public List<TDataNodeConfiguration> filterDataNodeThroughStatus(NodeStatus... status) {
     return nodeInfo.getRegisteredDataNodes(getLoadManager().filterDataNodeThroughStatus(status));
+  }
+
+  /**
+   * Filter StreamNodes through the specified NodeStatus.
+   *
+   * @param status The specified NodeStatus
+   * @return Filtered StreamNodes with the specified NodeStatus
+   */
+  public List<TStreamNodeConfiguration> filterStreamNodeThroughStatus(NodeStatus... status) {
+    return nodeInfo.getRegisteredStreamNodes(
+        getLoadManager().filterStreamNodeThroughStatus(status));
   }
 
   /**

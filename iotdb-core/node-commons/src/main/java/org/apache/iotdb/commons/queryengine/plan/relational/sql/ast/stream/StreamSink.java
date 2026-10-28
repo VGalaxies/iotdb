@@ -1,0 +1,89 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream;
+
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Identifier;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.NodeLocation;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Statement;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Table;
+
+import com.google.common.collect.ImmutableList;
+import org.apache.tsfile.utils.RamUsageEstimator;
+
+import java.util.List;
+import java.util.Objects;
+
+import static com.google.common.base.MoreObjects.toStringHelper;
+
+public class StreamSink extends Statement {
+  private static final long INSTANCE_SIZE =
+      RamUsageEstimator.shallowSizeOfInstance(StreamSink.class);
+
+  private final Table table;
+  private final List<Identifier> columns;
+
+  public StreamSink(
+      final NodeLocation location, final Table table, final List<Identifier> columns) {
+    super(location);
+    this.table = table;
+    this.columns = columns;
+  }
+
+  public Table getTable() {
+    return table;
+  }
+
+  public List<Identifier> getColumns() {
+    return columns;
+  }
+
+  @Override
+  public List<Node> getChildren() {
+    return ImmutableList.of();
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(table, columns);
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj) {
+      return true;
+    }
+    if (obj == null || getClass() != obj.getClass()) {
+      return false;
+    }
+    StreamSink other = (StreamSink) obj;
+    return Objects.equals(table, other.table) && Objects.equals(columns, other.columns);
+  }
+
+  @Override
+  public String toString() {
+    return toStringHelper(this).add("table", table).add("columns", columns).toString();
+  }
+
+  @Override
+  public long ramBytesUsed() {
+    return INSTANCE_SIZE + table.ramBytesUsed() + RamUsageEstimator.sizeOfArrayList(columns);
+  }
+}
