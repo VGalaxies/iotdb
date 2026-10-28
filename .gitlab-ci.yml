@@ -65,9 +65,7 @@ streamnode-integration-test:
   tags:
     - hybrid-db
   script:
-    - 'mvn -pl iotdb-core/streamnode -am -DskipITs -Drat.skip=true -Dsurefire.failIfNoSpecifiedTests=false -Dtest=StreamTaskManagerTest,StreamTaskSchedulerTest,StreamTaskSchedulerIntegrationTest,StreamTaskInstanceTest,StreamSubTaskTest,WriteBackEngineTest,PartitionKeyTest,StreamTaskSerializationTest,ColumnPartitionedTabletDispatcherTest,IoTDBSubscriptionSourceInstanceTest,PlaceholderReplacerTest,StreamComputeTaskTest,StreamSinkTaskTest test'
-    - 'mvn clean verify -P with-integration-tests -P SimpleIT -DskipUTs -DfailIfNoTests=false -Dfailsafe.failIfNoSpecifiedTests=false -Dit.test=IoTDBSubscriptionSourceInstanceTest,StreamNodeManualRuntimeAssemblyIT,StreamSqlMetadataIT -DConfigNodeMaxHeapSize=1024 -DDataNodeMaxHeapSize=1024 -pl integration-test -am'
-    - 'mvn clean verify -P with-integration-tests -P StreamClusterIT -DskipUTs -DfailIfNoTests=false -Dfailsafe.failIfNoSpecifiedTests=false -DConfigNodeMaxHeapSize=1024 -DDataNodeMaxHeapSize=1024 -pl integration-test -am'
+    - 'mvn clean verify -P with-integration-tests -P StreamClusterIT -DskipUTs -DintegrationTest.forkCount=4 -DfailIfNoTests=false -Dfailsafe.failIfNoSpecifiedTests=false -DConfigNodeMaxHeapSize=1024 -DDataNodeMaxHeapSize=1024 -pl integration-test -am'
   interruptible: true
   rules:
     - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH

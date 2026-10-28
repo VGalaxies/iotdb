@@ -29,6 +29,10 @@
     <artifactId>iotdb-streamnode</artifactId>
     <packaging>jar</packaging>
     <name>IoTDB: Core: Stream Node</name>
+    <properties>
+        <streamnode.test.skip>false</streamnode.test.skip>
+        <streamnode.ut.skip>${streamnode.test.skip}</streamnode.ut.skip>
+    </properties>
     <dependencies>
         <!-- add back, after we add code in streamnode module -->
         <dependency>
@@ -168,6 +172,13 @@
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <skipTests>${streamnode.ut.skip}</skipTests>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <executions>
                     <execution>
@@ -205,4 +216,31 @@
             </plugin>
         </plugins>
     </build>
+    <profiles>
+        <profile>
+            <id>skipStreamNodeTests</id>
+            <activation>
+                <property>
+                    <name>skipTests</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <properties>
+                <streamnode.test.skip>true</streamnode.test.skip>
+                <streamnode.ut.skip>true</streamnode.ut.skip>
+            </properties>
+        </profile>
+        <profile>
+            <id>skipUT_StreamNode_Tests</id>
+            <activation>
+                <property>
+                    <name>skipUTs</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <properties>
+                <streamnode.ut.skip>true</streamnode.ut.skip>
+            </properties>
+        </profile>
+    </profiles>
 </project>
