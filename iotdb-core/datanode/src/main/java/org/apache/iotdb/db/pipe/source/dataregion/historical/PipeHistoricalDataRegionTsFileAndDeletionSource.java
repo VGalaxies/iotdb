@@ -794,6 +794,9 @@ public class PipeHistoricalDataRegionTsFileAndDeletionSource
                               : Collections.emptySet()));
       filteredTsFileResources2TableNames.putAll(unSequenceTsFileResources2TableNames);
 
+      warnIfRequestedStartTimeIsEarlierThanEarliestAvailable(
+          filteredTsFileResources2TableNames.keySet());
+
       filteredTsFileResources2TableNames
           .keySet()
           .removeIf(
@@ -845,6 +848,28 @@ public class PipeHistoricalDataRegionTsFileAndDeletionSource
           statistics.pinFailedCount);
     } finally {
       tsFileManager.readUnlock();
+    }
+  }
+
+  private void warnIfRequestedStartTimeIsEarlierThanEarliestAvailable(
+      final Set<TsFileResource> resources) {
+    if (historicalDataExtractionStartTime == Long.MIN_VALUE || resources.isEmpty()) {
+      return;
+    }
+    long earliestAvailableStartTime = Long.MAX_VALUE;
+    for (final TsFileResource resource : resources) {
+      earliestAvailableStartTime =
+          Math.min(earliestAvailableStartTime, resource.getFileStartTime());
+    }
+    if (earliestAvailableStartTime != Long.MAX_VALUE
+        && historicalDataExtractionStartTime < earliestAvailableStartTime) {
+      LOGGER.warn(
+          DataNodePipeMessages
+              .PIPE_LOG_HISTORY_START_TIME_ARG_EARLIER_THAN_EARLIEST_AVAILABLE_ARG_STARTING_FROM_ARG_2A7C5D91,
+          pipeName,
+          dataRegionId,
+          historicalDataExtractionStartTime,
+          earliestAvailableStartTime);
     }
   }
 

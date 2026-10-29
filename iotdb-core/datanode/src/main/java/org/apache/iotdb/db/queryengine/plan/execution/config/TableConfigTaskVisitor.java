@@ -54,6 +54,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.LongLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Node;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.QualifiedName;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Query;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.StringLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.TimeDurationLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.AsofEventWindow;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CapacityEventWindow;
@@ -70,6 +71,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.util.CommonQuery
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.util.ExpressionFormatter;
 import org.apache.iotdb.commons.queryengine.plan.relational.type.TypeManager;
 import org.apache.iotdb.commons.queryengine.plan.relational.type.TypeNotFoundException;
+import org.apache.iotdb.commons.queryengine.utils.DateTimeUtils;
 import org.apache.iotdb.commons.queryengine.utils.TimestampPrecisionUtils;
 import org.apache.iotdb.commons.schema.table.TreeViewSchema;
 import org.apache.iotdb.commons.schema.table.TsTable;
@@ -96,6 +98,7 @@ import org.apache.iotdb.db.audit.UserRoleModificationAuditContext;
 import org.apache.iotdb.db.auth.AuthorityChecker;
 import org.apache.iotdb.db.conf.IoTDBConfig;
 import org.apache.iotdb.db.i18n.DataNodeQueryMessages;
+import org.apache.iotdb.db.i18n.DataNodeStreamMessages;
 import org.apache.iotdb.db.protocol.session.IClientSession;
 import org.apache.iotdb.db.queryengine.common.DataNodeEndPoints;
 import org.apache.iotdb.db.queryengine.common.MPPQueryContext;
@@ -2358,25 +2361,42 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
     if (streamProperties == null) {
       streamProperties = new StreamProperties();
     }
-    streamProperties.setSubscriptionConsensusWalRetentionSizeInBytes(
-        CommonDescriptor.getInstance()
-            .getConfig()
-            .getSubscriptionConsensusWalRetentionSizeInBytes());
-    streamProperties.setSubscriptionConsensusWalRetentionTimeMs(
-        CommonDescriptor.getInstance().getConfig().getSubscriptionConsensusWalRetentionTimeMs());
-    if (node.getSubscriptionConsensusWalRetentionSizeInBytes() != null) {
+    if (streamProperties.isFillHistory()) {
+      if (node.getSubscriptionConsensusWalRetentionSizeInBytes() != null) {
+        throw new SemanticException(
+            String.format(
+                DataNodeStreamMessages
+                    .EXCEPTION_STREAM_PROPERTY_ARG_CANNOT_BE_USED_WITH_FILL_HISTORY_3F8B6E52,
+                StreamProperties.SUBSCRIPTION_CONSENSUS_WAL_RETENTION_SIZE_IN_BYTES));
+      }
+      if (node.getSubscriptionConsensusWalRetentionTimeMs() != null) {
+        throw new SemanticException(
+            String.format(
+                DataNodeStreamMessages
+                    .EXCEPTION_STREAM_PROPERTY_ARG_CANNOT_BE_USED_WITH_FILL_HISTORY_3F8B6E52,
+                StreamProperties.SUBSCRIPTION_CONSENSUS_WAL_RETENTION_TIME_MS));
+      }
+    } else {
       streamProperties.setSubscriptionConsensusWalRetentionSizeInBytes(
-          parseLongFromLiteral(
-              node.getSubscriptionConsensusWalRetentionSizeInBytes(),
-              StreamProperties.SUBSCRIPTION_CONSENSUS_WAL_RETENTION_SIZE_IN_BYTES,
-              true));
-    }
-    if (node.getSubscriptionConsensusWalRetentionTimeMs() != null) {
+          CommonDescriptor.getInstance()
+              .getConfig()
+              .getSubscriptionConsensusWalRetentionSizeInBytes());
       streamProperties.setSubscriptionConsensusWalRetentionTimeMs(
-          parseLongFromLiteral(
-              node.getSubscriptionConsensusWalRetentionTimeMs(),
-              StreamProperties.SUBSCRIPTION_CONSENSUS_WAL_RETENTION_TIME_MS,
-              true));
+          CommonDescriptor.getInstance().getConfig().getSubscriptionConsensusWalRetentionTimeMs());
+      if (node.getSubscriptionConsensusWalRetentionSizeInBytes() != null) {
+        streamProperties.setSubscriptionConsensusWalRetentionSizeInBytes(
+            parseLongFromLiteral(
+                node.getSubscriptionConsensusWalRetentionSizeInBytes(),
+                StreamProperties.SUBSCRIPTION_CONSENSUS_WAL_RETENTION_SIZE_IN_BYTES,
+                true));
+      }
+      if (node.getSubscriptionConsensusWalRetentionTimeMs() != null) {
+        streamProperties.setSubscriptionConsensusWalRetentionTimeMs(
+            parseLongFromLiteral(
+                node.getSubscriptionConsensusWalRetentionTimeMs(),
+                StreamProperties.SUBSCRIPTION_CONSENSUS_WAL_RETENTION_TIME_MS,
+                true));
+      }
     }
     task.setProperties(streamProperties);
     return task;
@@ -2393,6 +2413,8 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
     long maxIdleWindowRetainMs = 0;
     boolean leftClosed = true;
     Integer subscriptionPollThreadCount = null;
+    boolean fillHistory = false;
+    Long fillHistoryStartTime = null;
 
     for (Map.Entry<String, Expression> entry : properties.entrySet()) {
       String key = entry.getKey();
@@ -2443,15 +2465,77 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
           subscriptionPollThreadCount =
               parseIntFromLiteral(value, StreamProperties.SUBSCRIPTION_POLL_THREAD_COUNT);
           break;
+        case StreamProperties.FILL_HISTORY:
+          if (value instanceof BooleanLiteral) {
+            fillHistory = ((BooleanLiteral) value).getValue();
+          }
+          break;
+        case StreamProperties.FILL_HISTORY_START_TIME:
+          fillHistoryStartTime = parseFillHistoryStartTime(value);
+          break;
         default:
           break;
+      }
+    }
+    if (fillHistoryStartTime != null && !fillHistory) {
+      throw new SemanticException(
+          String.format(
+              DataNodeStreamMessages
+                  .EXCEPTION_STREAM_PROPERTY_ARG_REQUIRES_FILL_HISTORY_TRUE_6B1C4D2E,
+              StreamProperties.FILL_HISTORY_START_TIME));
+    }
+    if (fillHistory && fillHistoryStartTime != null) {
+      final long now =
+          TimestampPrecisionUtils.currPrecision.convert(
+              System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+      if (fillHistoryStartTime > now) {
+        throw new SemanticException(
+            String.format(
+                DataNodeStreamMessages
+                    .EXCEPTION_STREAM_PROPERTY_ARG_MUST_NOT_BE_LATER_THAN_CURRENT_TIME_BUT_GOT_ARG_9C2D7A41,
+                StreamProperties.FILL_HISTORY_START_TIME,
+                fillHistoryStartTime));
       }
     }
     StreamProperties streamProperties =
         new StreamProperties(
             watermark, allowedLateness, maxDelayWindowCloseMs, maxIdleWindowRetainMs, leftClosed);
     streamProperties.setSubscriptionPollThreadCount(subscriptionPollThreadCount);
+    streamProperties.setFillHistory(fillHistory);
+    streamProperties.setFillHistoryStartTime(fillHistoryStartTime);
     return streamProperties;
+  }
+
+  private static long parseFillHistoryStartTime(final Expression value) {
+    try {
+      if (value instanceof LongLiteral) {
+        return ((LongLiteral) value).getParsedValue();
+      }
+      if (value instanceof StringLiteral) {
+        final String text = ((StringLiteral) value).getValue().trim();
+        if (TopicConstant.NOW_TIME_VALUE.equalsIgnoreCase(text)) {
+          return TimestampPrecisionUtils.currPrecision.convert(
+              System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+        }
+        return DateTimeUtils.convertTimestampOrDatetimeStrToLongWithDefaultZone(text);
+      }
+    } catch (final SemanticException e) {
+      throw e;
+    } catch (final Exception e) {
+      throw new SemanticException(
+          String.format(
+              DataNodeStreamMessages
+                  .EXCEPTION_FAILED_TO_PARSE_STREAM_PROPERTY_ARG_AS_DATE_TIME_ARG_7D4E2B63,
+              StreamProperties.FILL_HISTORY_START_TIME,
+              ExpressionFormatter.formatExpression(value),
+              e.getMessage()));
+    }
+    throw new SemanticException(
+        String.format(
+            DataNodeStreamMessages
+                .EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_A_DATE_TIME_STRING_OR_AN_INTEGER_BUT_GOT_ARG_5E7A1F30,
+            StreamProperties.FILL_HISTORY_START_TIME,
+            ExpressionFormatter.formatExpression(value)));
   }
 
   private static List<String> getPartitionByColumns(CreateStream node) {

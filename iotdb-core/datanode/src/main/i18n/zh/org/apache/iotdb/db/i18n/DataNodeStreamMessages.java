@@ -80,6 +80,21 @@ public final class DataNodeStreamMessages {
   public static final String
       EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_A_BOOLEAN_BUT_GOT_ARG_DA94CDE1 =
           "流属性 %s 必须是布尔值，但当前为 %s";
+  public static final String
+      EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_A_DATE_TIME_STRING_OR_AN_INTEGER_BUT_GOT_ARG_5E7A1F30 =
+          "流属性 %s 必须是日期时间字符串或整数时间戳，但当前为 %s";
+  public static final String
+      EXCEPTION_STREAM_PROPERTY_ARG_REQUIRES_FILL_HISTORY_TRUE_6B1C4D2E =
+          "流属性 %s 需要同时设置 fill_history = true";
+  public static final String
+      EXCEPTION_STREAM_PROPERTY_ARG_MUST_NOT_BE_LATER_THAN_CURRENT_TIME_BUT_GOT_ARG_9C2D7A41 =
+          "流属性 %s 不能晚于当前时间，但当前为 %s";
+  public static final String
+      EXCEPTION_STREAM_PROPERTY_ARG_CANNOT_BE_USED_WITH_FILL_HISTORY_3F8B6E52 =
+          "流属性 %s 不能与 fill_history 同时使用";
+  public static final String
+      EXCEPTION_FAILED_TO_PARSE_STREAM_PROPERTY_ARG_AS_DATE_TIME_ARG_7D4E2B63 =
+          "无法将流属性 %s = %s 解析为日期时间：%s";
   public static final String EXCEPTION_UNRECOGNIZED_STREAM_PROPERTY_ARG_11A5C18E =
       "无法识别的流属性：%s";
   public static final String

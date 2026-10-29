@@ -4340,6 +4340,17 @@ public class AstBuilder extends RelationalSqlBaseVisitor<Node> {
       }
     }
 
+    final Expression fillHistoryValue = properties.get(StreamProperties.FILL_HISTORY);
+    if (properties.containsKey(StreamProperties.FILL_HISTORY_START_TIME)
+        && !(fillHistoryValue instanceof BooleanLiteral
+            && ((BooleanLiteral) fillHistoryValue).getValue())) {
+      throw new SemanticException(
+          String.format(
+              DataNodeStreamMessages
+                  .EXCEPTION_STREAM_PROPERTY_ARG_REQUIRES_FILL_HISTORY_TRUE_6B1C4D2E,
+              StreamProperties.FILL_HISTORY_START_TIME));
+    }
+
     // Stream Source
     StreamSource source = (StreamSource) visitStreamSourceClause(ctx.source);
     // Stream Sink

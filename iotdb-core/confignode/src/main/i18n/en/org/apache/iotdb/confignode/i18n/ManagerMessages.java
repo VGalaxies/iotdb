@@ -505,6 +505,8 @@ public final class ManagerMessages {
       "Restarting UNKNOWN task: {}";
   public static final String STREAM_MANAGER_STALE_HEARTBEAT =
       "Stale heartbeat for task %s: expected epoch=%d leaderTerm=%d, got epoch=%d leaderTerm=%d";
+  public static final String STREAM_MANAGER_TOPIC_CONFIG_MISMATCH_2F6C9A1B =
+      "Failed to start stream: existing topic %s does not match the requested fill_history configuration (expected mode=%s, start-time=%s; actual mode=%s, start-time=%s). Drop and recreate the stream to change fill_history.";
   public static final String STREAM_MANAGER_STARTING_STREAM = "Starting stream: {}";
   public static final String STREAM_MANAGER_STOPPING_STREAM = "Stopping stream: {}";
   public static final String STREAM_MANAGER_TASK_NOT_FOUND = "Stream task not found: %s";
