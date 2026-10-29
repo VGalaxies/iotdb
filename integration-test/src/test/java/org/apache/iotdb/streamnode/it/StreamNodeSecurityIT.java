@@ -78,7 +78,7 @@ public class StreamNodeSecurityIT extends StreamNodeITBase {
   private static final String SOURCE_TABLE = "src_t";
   private static final String SINK_TABLE = "sink_t";
   private static final String OTHER_TABLE = "other_t";
-  private static final String PASSWORD = "sec_pwd_123456";
+  private static final String PASSWORD = "Sec_pwd_123456";
   private static final String NO_PERMISSION_SYSTEM =
       "No permissions for this operation, please add privilege SYSTEM";
 

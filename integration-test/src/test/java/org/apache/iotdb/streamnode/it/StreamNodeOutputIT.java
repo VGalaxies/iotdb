@@ -359,7 +359,7 @@ public class StreamNodeOutputIT extends StreamNodeITBase {
   @Test
   public void testUnqualifiedTargetResolvesToCurrentDb() throws Exception {
     final String userName = "out03_user";
-    final String password = "out03_pwd";
+    final String password = "Out03_pwd_123";
     setupTwoDbUser(userName, password);
 
     try (Connection connection =
@@ -417,7 +417,7 @@ public class StreamNodeOutputIT extends StreamNodeITBase {
   @Test
   public void testFullyQualifiedTargetResolves() throws Exception {
     final String userName = "out04_user";
-    final String password = "out04_pwd";
+    final String password = "Out04_pwd_123";
     setupTwoDbUser(userName, password);
 
     try (Connection connection =

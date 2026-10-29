@@ -221,9 +221,11 @@ public class AbstractDriverThreadTest {
     thread.start();
     assertTrue("execute() should start", executeStarted.await(5, TimeUnit.SECONDS));
 
-    // Interrupt the thread while it's in execute() AND close it simultaneously
-    thread.interrupt();
+    // Close the thread, then interrupt it while it's in execute(). Close must come first: the
+    // interrupt wakes execute() at once, and a worker that still sees closed=false loops back,
+    // fails the next poll() and calls produce() before close() runs.
     thread.close();
+    thread.interrupt();
     // Release execute to let it complete and reach the finally block
     releaseExecute.countDown();
 

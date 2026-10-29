@@ -118,7 +118,7 @@ public class StreamNodeClusterIT {
     final BaseEnv env = StreamEnvFactory.getEnv();
     final String dbName = "test";
     final String userName = "test_user";
-    final String password = "test_123456";
+    final String password = "Test_1234567";
     createUser(env, userName, password);
     // The test user needs the privilege to create a database so that the assertions focus on the
     // SYSTEM privilege required by the stream operations.
