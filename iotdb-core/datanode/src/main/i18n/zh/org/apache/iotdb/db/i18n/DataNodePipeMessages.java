@@ -620,6 +620,8 @@ public final class DataNodePipeMessages {
       "Pipe {}@{}：historical data extraction time range, start time {}({}), end time {}({}), "
           + "sloppy pattern {}, sloppy time range {}, should transfer mod file {}, username: {}, "
           + "skip if no privileges: {}, is forwarding pipe requests: {}";
+  public static final String PIPE_LOG_HISTORY_START_TIME_ARG_EARLIER_THAN_EARLIEST_AVAILABLE_ARG_STARTING_FROM_ARG_2A7C5D91 =
+      "Pipe {}@{}：请求的历史起始时间 {} 早于最早可用数据 {}，将从最早可用数据开始。";
   public static final String PIPE_IS_SET_TO_FALSE_USE_HEARTBEAT =
       "Pipe：'{}'（'{}'）设置为 false，使用 heartbeat 实时 source。";
   public static final String PIPE_ON_DATA_REGION_SKIP_COMMIT_OF =

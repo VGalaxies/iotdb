@@ -5933,12 +5933,44 @@ public class StatementAnalyzer {
             break;
           case StreamProperties.SUBSCRIPTION_POLL_THREAD_COUNT:
             break;
+          case StreamProperties.FILL_HISTORY:
+            if (!(entry.getValue() instanceof BooleanLiteral)) {
+              throw new SemanticException(
+                  String.format(
+                      DataNodeStreamMessages
+                          .EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_A_BOOLEAN_BUT_GOT_ARG_DA94CDE1,
+                      entry.getKey(),
+                      ExpressionFormatter.formatExpression(entry.getValue())));
+            }
+            break;
+          case StreamProperties.FILL_HISTORY_START_TIME:
+            if (!(entry.getValue() instanceof StringLiteral)
+                && !(entry.getValue() instanceof LongLiteral)) {
+              throw new SemanticException(
+                  String.format(
+                      DataNodeStreamMessages
+                          .EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_A_DATE_TIME_STRING_OR_AN_INTEGER_BUT_GOT_ARG_5E7A1F30,
+                      entry.getKey(),
+                      ExpressionFormatter.formatExpression(entry.getValue())));
+            }
+            break;
           default:
             throw new SemanticException(
                 String.format(
                     DataNodeStreamMessages.EXCEPTION_UNRECOGNIZED_STREAM_PROPERTY_ARG_11A5C18E,
                     entry.getKey()));
         }
+      }
+
+      final Expression fillHistory = properties.get(StreamProperties.FILL_HISTORY);
+      final boolean fillHistoryEnabled =
+          fillHistory instanceof BooleanLiteral && ((BooleanLiteral) fillHistory).getValue();
+      if (properties.containsKey(StreamProperties.FILL_HISTORY_START_TIME) && !fillHistoryEnabled) {
+        throw new SemanticException(
+            String.format(
+                DataNodeStreamMessages
+                    .EXCEPTION_STREAM_PROPERTY_ARG_REQUIRES_FILL_HISTORY_TRUE_6B1C4D2E,
+                StreamProperties.FILL_HISTORY_START_TIME));
       }
     }
 
