@@ -868,7 +868,8 @@ public class ConfigNodeProcedureEnv {
     return clientHandler.getResponseMap();
   }
 
-  public List<TSStatus> pushSingleConsumerGroupOnDataNode(ByteBuffer consumerGroupMeta) {
+  public Map<Integer, TPushConsumerGroupMetaResp> pushSingleConsumerGroupOnDataNode(
+      ByteBuffer consumerGroupMeta) {
     final Map<Integer, TDataNodeLocation> dataNodeLocationMap =
         configManager.getNodeManager().getRegisteredDataNodeLocations();
     final TPushSingleConsumerGroupMetaReq request =
@@ -883,9 +884,7 @@ public class ConfigNodeProcedureEnv {
     final long timeoutInMs = getRequiredSubscriptionMetadataRequestTimeoutInMs();
     sendRequiredMetadataRequest(clientHandler, timeoutInMs);
     fillMissingConsumerGroupPushMetaResponses(clientHandler, timeoutInMs);
-    return clientHandler.getResponseList().stream()
-        .map(TPushConsumerGroupMetaResp::getStatus)
-        .collect(Collectors.toList());
+    return clientHandler.getResponseMap();
   }
 
   public List<TSStatus> dropSingleConsumerGroupOnDataNode(String consumerGroupNameToDrop) {
