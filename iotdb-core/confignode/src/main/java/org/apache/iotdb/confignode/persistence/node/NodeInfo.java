@@ -1022,6 +1022,8 @@ public class NodeInfo implements SnapshotProcessor {
   private void tryDeserializeRegisteredStreamNode(
       ByteArrayInputStream inputStream, TProtocol protocol) throws IOException {
     try {
+      // 0 has no meaning here
+      inputStream.mark(0);
       deserializeRegisteredStreamNode(inputStream, protocol);
     } catch (IOException | TException ignore) {
       // Exception happens here means that the data is upgraded from the old version

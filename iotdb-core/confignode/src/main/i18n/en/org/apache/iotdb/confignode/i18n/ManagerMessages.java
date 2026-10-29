@@ -473,6 +473,9 @@ public final class ManagerMessages {
       "Invalid StreamInfo snapshot magic: %d";
   public static final String EXCEPTION_UNSUPPORTED_STREAMINFO_SNAPSHOT_VERSION_ARG_F766EDEE =
       "Unsupported StreamInfo snapshot version: %d";
+  public static final String
+      LOG_STREAMINFO_SNAPSHOT_FILE_ARG_DOES_NOT_EXIST_WHICH_IS_EXPECTED_WHEN_UPGRADING_FROM_A_VERSION_WITHOUT_STREAMNODE_218B1A42 =
+          "StreamInfo snapshot file [{}] does not exist, which is expected when upgrading from a version without StreamNode.";
   public static final String MESSAGE_CANNOT_START_STREAM_ARG_OWNER_EPOCH_EXCEEDS_THE_SUPPORTED_TASK_EPOCH_RANGE_06BF0D1D =
       "Cannot start stream %s: owner epoch exceeds the supported task epoch range.";
   public static final String MESSAGE_CANNOT_ADVANCE_STREAM_ARG_TASK_EPOCH_HAS_REACHED_THE_MAXIMUM_SUPPORTED_VALUE_ED9FA887 =

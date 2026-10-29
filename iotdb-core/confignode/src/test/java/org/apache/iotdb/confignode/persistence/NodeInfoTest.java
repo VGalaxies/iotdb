@@ -44,14 +44,18 @@ import org.apache.iotdb.confignode.rpc.thrift.TNodeVersionInfo;
 import org.apache.iotdb.rpc.TSStatusCode;
 
 import org.apache.thrift.TException;
+import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.thrift.transport.TIOStreamTransport;
 import org.apache.tsfile.external.commons.io.FileUtils;
 import org.apache.tsfile.utils.Pair;
+import org.apache.tsfile.utils.ReadWriteIOUtils;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.Collections;
@@ -130,6 +134,48 @@ public class NodeInfoTest {
     Assert.assertEquals(oldNodeInfo, restored);
     Assert.assertTrue(restored.getPersistedNodeStatuses().isEmpty());
     Assert.assertEquals(new TNodeVersionInfo("2.0", "build"), restored.getVersionInfo(10003));
+  }
+
+  @Test
+  public void testLoadSnapshotWithoutStreamNodes() throws TException, IOException {
+    NodeInfo oldNodeInfo = new NodeInfo();
+    TDataNodeConfiguration dataNodeConfiguration = generateTDataNodeConfiguration(3);
+    TNodeVersionInfo versionInfo = new TNodeVersionInfo("2.0.0-SNAPSHOT", "build");
+    oldNodeInfo.registerDataNode(new RegisterDataNodePlan(dataNodeConfiguration));
+    oldNodeInfo.updateVersionInfo(new UpdateVersionInfoPlan(versionInfo, 10003));
+    oldNodeInfo.applyNodeStatusPlan(
+        new UpdateNodeStatusPlan(10003, NodeStatus.Removing, "remove reason"));
+    File oldSnapshotDir = new File(snapshotDir, "without-stream-nodes");
+    Assert.assertTrue(oldSnapshotDir.mkdirs());
+    // The previous format has no StreamNode section between the AINodes and the version info.
+    try (FileOutputStream outputStream =
+            new FileOutputStream(new File(oldSnapshotDir, "node_info.bin"));
+        TIOStreamTransport transport = new TIOStreamTransport(outputStream)) {
+      ReadWriteIOUtils.write(10003, outputStream);
+      // ConfigNodes
+      ReadWriteIOUtils.write(0, outputStream);
+      // DataNodes
+      ReadWriteIOUtils.write(1, outputStream);
+      ReadWriteIOUtils.write(10003, outputStream);
+      dataNodeConfiguration.write(new TBinaryProtocol(transport));
+      // AINodes
+      ReadWriteIOUtils.write(0, outputStream);
+      // Version info
+      ReadWriteIOUtils.write(1, outputStream);
+      ReadWriteIOUtils.write(10003, outputStream);
+      ReadWriteIOUtils.write(versionInfo.getVersion(), outputStream);
+      ReadWriteIOUtils.write(versionInfo.getBuildInfo(), outputStream);
+      // Persisted node statuses
+      ReadWriteIOUtils.write(1, outputStream);
+      ReadWriteIOUtils.write(10003, outputStream);
+      ReadWriteIOUtils.write(NodeStatus.Removing.getStatus(), outputStream);
+      ReadWriteIOUtils.write("remove reason", outputStream);
+    }
+
+    NodeInfo restored = new NodeInfo();
+    restored.processLoadSnapshot(oldSnapshotDir);
+    Assert.assertEquals(oldNodeInfo, restored);
+    Assert.assertTrue(restored.getRegisteredStreamNodes().isEmpty());
   }
 
   @Test

@@ -268,8 +268,9 @@ public class StreamInfo implements SnapshotProcessor {
   public void processLoadSnapshot(File snapshotDir) throws IOException {
     final File snapshotFile = new File(snapshotDir, SNAPSHOT_FILENAME);
     if (!snapshotFile.exists() || !snapshotFile.isFile()) {
-      LOGGER.error(
-          "Failed to load snapshot, snapshot file [{}] does not exist.",
+      LOGGER.info(
+          ManagerMessages
+              .LOG_STREAMINFO_SNAPSHOT_FILE_ARG_DOES_NOT_EXIST_WHICH_IS_EXPECTED_WHEN_UPGRADING_FROM_A_VERSION_WITHOUT_STREAMNODE_218B1A42,
           snapshotFile.getAbsolutePath());
       return;
     }

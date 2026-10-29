@@ -468,6 +468,9 @@ public final class ManagerMessages {
       "StreamInfo 快照魔数无效：%d";
   public static final String EXCEPTION_UNSUPPORTED_STREAMINFO_SNAPSHOT_VERSION_ARG_F766EDEE =
       "不支持的 StreamInfo 快照版本：%d";
+  public static final String
+      LOG_STREAMINFO_SNAPSHOT_FILE_ARG_DOES_NOT_EXIST_WHICH_IS_EXPECTED_WHEN_UPGRADING_FROM_A_VERSION_WITHOUT_STREAMNODE_218B1A42 =
+          "StreamInfo 快照文件 [{}] 不存在，从不支持 StreamNode 的旧版本升级时属于正常现象。";
   public static final String STREAM_IS_BEING_MIGRATED_8E91E470 = "Stream 正在迁移：%s";
   public static final String MESSAGE_CANNOT_START_STREAM_ARG_OWNER_EPOCH_EXCEEDS_THE_SUPPORTED_TASK_EPOCH_RANGE_06BF0D1D =
       "无法启动 Stream %s：owner epoch 超出支持的 task epoch 范围。";
