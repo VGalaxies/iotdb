@@ -654,6 +654,8 @@ public final class DataNodePipeMessages {
       "Pipe {}@{}: historical data extraction time range, start time {}({}), end time {}({}), "
           + "sloppy pattern {}, sloppy time range {}, should transfer mod file {}, username: {}, "
           + "skip if no privileges: {}, is forwarding pipe requests: {}";
+  public static final String PIPE_LOG_HISTORY_START_TIME_ARG_EARLIER_THAN_EARLIEST_AVAILABLE_ARG_STARTING_FROM_ARG_2A7C5D91 =
+      "Pipe {}@{}: requested history start time {} is earlier than the earliest available data {}; starting from the earliest available data.";
   public static final String PIPE_IS_SET_TO_FALSE_USE_HEARTBEAT =
       "Pipe: '{}' ('{}') is set to false, use heartbeat realtime source.";
   public static final String PIPE_ON_DATA_REGION_SKIP_COMMIT_OF =

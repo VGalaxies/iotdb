@@ -33,6 +33,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.EventSc
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.OutputNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.CreateStream;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StreamLiteral;
+import org.apache.iotdb.commons.queryengine.utils.DateTimeUtils;
 import org.apache.iotdb.commons.schema.column.ColumnHeader;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnCategory;
 import org.apache.iotdb.commons.stream.IoTDBSubscriptionSource;
@@ -209,6 +210,63 @@ public class StreamPlannerTest {
         Integer.valueOf(3),
         createStreamTask.getStreamTask().getProperties().getSubscriptionPollThreadCount());
     verify(streamQueryPlanner, never()).doLogicalPlan(same(analysis), same(context));
+  }
+
+  @Test
+  public void testCreateStreamTaskWithFillHistoryOptions() {
+    String sql =
+        "create stream s_fill from testdb.table1 "
+            + "tumble(size => 1h, origin => 2000-01-01T00:00:00) "
+            + "into testdb.table2(time, s1) "
+            + "select time, s1 from testdb.table1 "
+            + "with (fill_history = true, "
+            + "fill_history_start_time = '2026-01-01 00:00:00')";
+    MPPQueryContext context = newTestContext(sql);
+    Analysis analysis = PlanTester.analyze(sql, new TestMetadata(), context);
+    CreateStream createStream = (CreateStream) analysis.getStatement();
+    analysis.setRespDatasetHeader(
+        new DatasetHeader(
+            Arrays.asList(
+                new ColumnHeader("start_time", INT64), new ColumnHeader("row_num", INT64)),
+            true));
+
+    TableModelPlanner streamQueryPlanner = Mockito.mock(TableModelPlanner.class);
+    when(streamQueryPlanner.analyze(context)).thenReturn(analysis);
+    when(streamQueryPlanner.getSymbolAllocator()).thenReturn(new SymbolAllocator());
+
+    TableConfigTaskVisitor visitor =
+        new TableConfigTaskVisitor(
+                Mockito.mock(IClientSession.class),
+                new TestMetadata(),
+                new AllowAllAccessControl(),
+                new org.apache.iotdb.commons.queryengine.plan.relational.type.InternalTypeManager())
+            .withStreamQueryPlanner(streamQueryPlanner);
+
+    mockCurrentUser();
+    IConfigTask configTask = visitor.visitCreateStream(createStream, context);
+    Assert.assertTrue(configTask instanceof CreateStreamTask);
+    StreamTask streamTask = ((CreateStreamTask) configTask).getStreamTask();
+    Assert.assertTrue(streamTask.getProperties().isFillHistory());
+    Assert.assertEquals(
+        Long.valueOf(
+            DateTimeUtils.convertTimestampOrDatetimeStrToLongWithDefaultZone(
+                "2026-01-01 00:00:00")),
+        streamTask.getProperties().getFillHistoryStartTime());
+    Assert.assertNull(streamTask.getProperties().getSubscriptionConsensusWalRetentionSizeInBytes());
+    Assert.assertNull(streamTask.getProperties().getSubscriptionConsensusWalRetentionTimeMs());
+  }
+
+  @Test
+  public void testFillHistoryStartTimeRequiresFillHistory() {
+    String sql =
+        "create stream s_fill_invalid from testdb.table1 "
+            + "tumble(size => 1h, origin => 2000-01-01T00:00:00) "
+            + "into testdb.table2(time, s1) "
+            + "select time, s1 from testdb.table1 "
+            + "with (fill_history_start_time = '2026-01-01 00:00:00')";
+    Assert.assertThrows(
+        SemanticException.class,
+        () -> PlanTester.analyze(sql, new TestMetadata(), newTestContext(sql)));
   }
 
   @Test
