@@ -82,7 +82,6 @@ public class IoTDBStreamWriteBackDataNodeFailureIT {
   private static final long EVENT_TIME_ORIGIN_MS =
       Instant.parse("2026-01-01T00:00:00Z").toEpochMilli();
   private static final long SHORT_OUTAGE_MS = 500L;
-  private static final long LONG_OUTAGE_MS = 3_000L;
 
   @BeforeClass
   public static void setUp() throws Exception {
@@ -133,7 +132,7 @@ public class IoTDBStreamWriteBackDataNodeFailureIT {
   }
 
   @Test
-  public void testLongOutageDropsFailedWindowThenContinues() throws Exception {
+  public void testLongOutageRetainsFailedWindowThenRecovers() throws Exception {
     runOutageScenario(false);
   }
 
@@ -178,15 +177,28 @@ public class IoTDBStreamWriteBackDataNodeFailureIT {
                 "Write-back should succeed before the sink DataNode is killed",
                 countSinkRows(env, sourceWrapper) >= 1));
 
+    final int logOffset = readStreamNodeLog().length();
     env.shutdownDataNode(sinkIndex);
     env.ensureNodeStatus(
         Collections.singletonList(sinkWrapper), Collections.singletonList(NodeStatus.Stopped));
 
-    Thread.sleep(shortOutage ? SHORT_OUTAGE_MS : LONG_OUTAGE_MS);
-
-    env.startDataNode(sinkIndex);
-    env.ensureNodeStatus(
-        Collections.singletonList(sinkWrapper), Collections.singletonList(NodeStatus.Running));
+    try {
+      if (shortOutage) {
+        Thread.sleep(SHORT_OUTAGE_MS);
+      } else {
+        // Keep the target unavailable until a whole retry round fails. Recovery must retry the
+        // retained batch, rather than succeeding within the original retry budget.
+        AWAIT.untilAsserted(
+            () ->
+                Assert.assertTrue(
+                    "Long outage must exhaust a write-back retry round",
+                    readStreamNodeLog().substring(logOffset).contains("Write failed after")));
+      }
+    } finally {
+      env.startDataNode(sinkIndex);
+      env.ensureNodeStatus(
+          Collections.singletonList(sinkWrapper), Collections.singletonList(NodeStatus.Running));
+    }
 
     writerThread.join();
     if (writerError.get() != null) {
@@ -200,27 +212,16 @@ public class IoTDBStreamWriteBackDataNodeFailureIT {
         0.0f);
 
     final int expectedWindows = expectedWindowCount(insertedRows.get());
+    AWAIT.untilAsserted(
+        () ->
+            Assert.assertEquals(
+                "Every closed window must be recovered after the sink DataNode restarts",
+                expectedWindows,
+                countSinkRows(env, sourceWrapper)));
     if (shortOutage) {
-      AWAIT.untilAsserted(
-          () ->
-              Assert.assertEquals(
-                  "Short outage should write back every closed window",
-                  expectedWindows,
-                  countSinkRows(env, sourceWrapper)));
-    } else {
-      Thread.sleep(2 * WINDOW_SIZE_MS);
-      final int actual = countSinkRows(env, sourceWrapper);
       Assert.assertTrue(
-          "Long outage should drop at least one closed window, actual="
-              + actual
-              + " expected="
-              + expectedWindows,
-          actual < expectedWindows);
-    }
-    if (shortOutage) {
-      assertStreamNodeLogContains("Write failed (attempt");
-    } else {
-      assertStreamNodeLogContains("Write failed after");
+          "Short outage must exercise write-back retries",
+          readStreamNodeLog().substring(logOffset).contains("Write failed (attempt"));
     }
   }
 
@@ -445,7 +446,7 @@ public class IoTDBStreamWriteBackDataNodeFailureIT {
     throw new AssertionError("Cannot map DataNodeId " + dataNodeId + " to wrapper index");
   }
 
-  private static void assertStreamNodeLogContains(final String snippet) throws IOException {
+  private static String readStreamNodeLog() throws IOException {
     final StreamNodeWrapper wrapper =
         StreamEnvFactory.getEnv().getNodeWrapperList().stream()
             .filter(node -> node instanceof StreamNodeWrapper)
@@ -454,10 +455,7 @@ public class IoTDBStreamWriteBackDataNodeFailureIT {
             .orElseThrow(() -> new AssertionError("StreamNode wrapper not found"));
     final Path logPath = Paths.get(wrapper.getLogPath());
     Assert.assertTrue("StreamNode log should exist: " + logPath, Files.exists(logPath));
-    final String log = Files.readString(logPath, StandardCharsets.UTF_8);
-    Assert.assertTrue(
-        "StreamNode log should contain: " + snippet + "\nactual log:\n" + log,
-        log.contains(snippet));
+    return Files.readString(logPath, StandardCharsets.UTF_8);
   }
 
   private static class RegionLocation {

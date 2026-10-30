@@ -23,7 +23,6 @@ import org.apache.iotdb.isession.ITableSession;
 import org.apache.iotdb.isession.pool.ITableSessionPool;
 import org.apache.iotdb.rpc.IoTDBConnectionException;
 import org.apache.iotdb.rpc.StatementExecutionException;
-import org.apache.iotdb.streamnode.exception.NonRetryableException;
 import org.apache.iotdb.streamnode.exception.RetryableException;
 
 import org.apache.tsfile.write.record.Tablet;
@@ -45,22 +44,11 @@ public class TabletWriter {
         session.insert(tablet);
       }
     } catch (IoTDBConnectionException e) {
-      throw new RetryableException("Connection error", e);
+      throw new RetryableException(e.getMessage(), e);
     } catch (StatementExecutionException e) {
-      if (isRetryable(e)) throw new RetryableException("Retryable", e);
-      throw new NonRetryableException("Statement error", e);
+      // Schema and permission errors can be repaired while the stream is running. Never
+      // discard source data based on the wording (or locale) of the server's error.
+      throw new RetryableException(e.getMessage(), e);
     }
-  }
-
-  private boolean isRetryable(StatementExecutionException exception) {
-    String message = exception.getMessage();
-    if (message != null) {
-      return message.contains("Retryable")
-          || message.contains("timeout")
-          || message.contains("Connection")
-          || message.contains("Network")
-          || message.contains("Fail to send plan node");
-    }
-    return false;
   }
 }

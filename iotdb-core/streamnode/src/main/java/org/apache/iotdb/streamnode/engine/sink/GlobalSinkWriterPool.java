@@ -326,6 +326,7 @@ public class GlobalSinkWriterPool {
         // Re-arm only if more entries arrived while processing; a partial batch is flushed by the
         // periodic flushByTime() above.
         if (pipeline.isRunning()
+            && pipeline.getPendingBatch(shard) == null
             && pipeline.getQueue(shard).hasData()
             && scheduledByShard.get(shard).add(pipeline.getPipelineId())) {
           readyShards.get(shard).offer(pipeline);
@@ -350,14 +351,25 @@ public class GlobalSinkWriterPool {
       if (!pipeline.isRunning()) {
         return;
       }
-      List<SinkEntry> batch = new ArrayList<>();
+      if (pipeline.getPendingBatch(shard) != null) {
+        if (pipeline.canRetry(shard)) {
+          doFlush(pipeline, shard);
+        }
+        if (pipeline.getPendingBatch(shard) != null) {
+          return;
+        }
+      }
       BatchAccumulator acc = pipeline.getAccumulator(shard);
-      int drained = pipeline.getQueue(shard).drainTo(batch, drainBatchSize);
-      if (drained != 0) {
-        for (SinkEntry entry : batch) {
-          acc.add(entry);
-          if (acc.shouldFlushBySize()) {
-            doFlush(pipeline, shard);
+      for (int drained = 0; drained < drainBatchSize; drained++) {
+        SinkEntry entry = pipeline.getQueue(shard).poll();
+        if (entry == null) {
+          break;
+        }
+        acc.add(entry);
+        if (acc.shouldFlushBySize()) {
+          doFlush(pipeline, shard);
+          if (pipeline.getPendingBatch(shard) != null) {
+            return;
           }
         }
       }
@@ -378,8 +390,17 @@ public class GlobalSinkWriterPool {
       ReentrantLock lock = pipeline.getShardLock(shard);
       lock.lock();
       try {
-        if (pipeline.isRunning() && pipeline.getAccumulator(shard).shouldFlushByTime()) {
-          doFlush(pipeline, shard);
+        if (pipeline.isRunning()) {
+          if (pipeline.getPendingBatch(shard) != null) {
+            if (pipeline.canRetry(shard)) {
+              processShard(pipeline, shard);
+              if (pipeline.getPendingBatch(shard) == null && pipeline.getQueue(shard).hasData()) {
+                notifyShard(pipeline, shard);
+              }
+            }
+          } else if (pipeline.getAccumulator(shard).shouldFlushByTime()) {
+            doFlush(pipeline, shard);
+          }
         }
       } finally {
         lock.unlock();
@@ -398,7 +419,10 @@ public class GlobalSinkWriterPool {
    */
   private void doFlush(SinkPipeline pipeline, int shard) {
     BatchAccumulator acc = pipeline.getAccumulator(shard);
-    FlushBatch batch = acc.buildTabletAndReset();
+    FlushBatch batch = pipeline.getPendingBatch(shard);
+    if (batch == null) {
+      batch = acc.buildTabletAndReset();
+    }
     boolean hasRows = batch.getTablet().getRowSize() > 0;
 
     SinkPipelineMetrics metrics = pipeline.getMetrics();
@@ -407,6 +431,7 @@ public class GlobalSinkWriterPool {
       metrics.recordBatchLinger(batch.getBatchLingerNanos(), TimeUnit.NANOSECONDS);
     }
     long startNanos = System.nanoTime();
+    boolean writeSucceeded = false;
     try {
       if (hasRows) {
         String poolKey = generatePoolKey(pipeline.getIotdbTarget());
@@ -416,13 +441,22 @@ public class GlobalSinkWriterPool {
           metrics.recordWriteSuccess();
         }
       }
+      writeSucceeded = true;
+      pipeline.setPendingBatch(shard, null, 0);
       onFlushSuccess(pipeline, batch);
     } catch (Exception e) {
       if (hasRows && metrics != null) {
         metrics.recordFlushLatency(System.nanoTime() - startNanos, TimeUnit.NANOSECONDS);
         metrics.recordWriteFail();
       }
-      onFlushFailure(pipeline, batch, e);
+      if (hasRows && !writeSucceeded) {
+        pipeline.setPendingBatch(
+            shard, batch, System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(retryBackoffBaseMs));
+      }
+      LOGGER.error(
+          StreamNodeMessages.LOG_FLUSH_FAILED_FOR_PIPELINE_ARG_3275329B,
+          pipeline.getPipelineId(),
+          e);
     }
   }
 
@@ -471,8 +505,7 @@ public class GlobalSinkWriterPool {
     if (tracker == null) {
       return;
     }
-    // One callback per SinkEntry (not per FlushBatch / row); EOF may close a window. markSettled
-    // makes the notification exactly-once against the close/cleanup drop paths.
+    // EOF is processed only after all preceding batches in this shard were written successfully.
     for (SinkEntry entry : batch.getEntries()) {
       if (entry.getWindowId() < 0 || !entry.isEof()) {
         continue;
@@ -481,34 +514,14 @@ public class GlobalSinkWriterPool {
     }
   }
 
-  private void onFlushFailure(SinkPipeline pipeline, FlushBatch batch, Exception cause) {
-    if (pipeline.getMemoryController().release(batch.getMemoryToRelease())) {
-      notifyMemoryReleased();
-    }
-    CommitTracker tracker = pipeline.getCommitTracker();
-    if (tracker != null) {
-      // Best-effort: drop the failed windows from commit gating so later windows can still
-      // advance source commit instead of stalling on a window that will never flush.
-      for (SinkEntry entry : batch.getEntries()) {
-        if (entry.getWindowId() < 0) {
-          continue;
-        }
-        tracker.onWindowFailed(entry.getWindowId());
-      }
-    }
-    LOGGER.error(
-        StreamNodeMessages.LOG_FLUSH_FAILED_FOR_PIPELINE_ARG_3275329B,
-        pipeline.getPipelineId(),
-        cause);
-  }
-
   /**
    * Retries entries parked by any running pipeline after shared write-back memory was released.
    *
-   * <p>Must be invoked from every path that returns memory to the global pool (flush success, flush
-   * failure, and pipeline stop/discard). A pipeline may have parked entries because the shared
-   * global pool rejected the reservation even though its own quota was fine; without a
-   * cross-pipeline wake those entries stay blocked forever when no further flush happens.
+   * <p>Must be invoked from every path that returns memory to the global pool (flush success and
+   * pipeline stop/discard). Failed batches retain their reservation until retry succeeds. A
+   * pipeline may have parked entries because the shared global pool rejected the reservation even
+   * though its own quota was fine; without a cross-pipeline wake those entries stay blocked forever
+   * when no further flush happens.
    *
    * <p>Always calls {@link SinkQueue#tryAdmitParkedEntries()} instead of peeking {@code
    * hasPendingPushes()} first: that peek is not the queue lock, so it can miss an entry that has

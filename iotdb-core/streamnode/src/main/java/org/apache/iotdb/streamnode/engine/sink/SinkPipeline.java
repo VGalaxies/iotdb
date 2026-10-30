@@ -47,6 +47,9 @@ public class SinkPipeline {
   private final SinkQueue[] queues;
   private final BatchAccumulator[] accumulators;
   private final int shardCount;
+  // Owned by the shard lock; retained batches keep their original memory reservation.
+  private final FlushBatch[] pendingBatches;
+  private final long[] retryAfterNanos;
 
   /**
    * Guards a shard's {@link BatchAccumulator} and the flush-vs-discard decision between the owning
@@ -94,6 +97,8 @@ public class SinkPipeline {
     this.iotdbTarget = iotdbTarget;
     this.memoryController = memoryController;
     this.shardCount = writerPool.getShardCount();
+    this.pendingBatches = new FlushBatch[shardCount];
+    this.retryAfterNanos = new long[shardCount];
     this.queues = new SinkQueue[shardCount];
     this.accumulators = new BatchAccumulator[shardCount];
     this.shardLocks = new ReentrantLock[shardCount];
@@ -145,6 +150,19 @@ public class SinkPipeline {
   /** Lock that serializes writes and stop-cleanup for one shard; used by the writer pool. */
   public ReentrantLock getShardLock(int shard) {
     return shardLocks[shard];
+  }
+
+  FlushBatch getPendingBatch(int shard) {
+    return pendingBatches[shard];
+  }
+
+  void setPendingBatch(int shard, FlushBatch batch, long retryAfter) {
+    pendingBatches[shard] = batch;
+    retryAfterNanos[shard] = retryAfter;
+  }
+
+  boolean canRetry(int shard) {
+    return System.nanoTime() - retryAfterNanos[shard] >= 0;
   }
 
   public SinkMemoryController getMemoryController() {
@@ -278,6 +296,13 @@ public class SinkPipeline {
       if (memoryController.release(bytes)) {
         releasedBytes += bytes;
       }
+    }
+    FlushBatch pending = pendingBatches[shard];
+    if (pending != null) {
+      if (memoryController.release(pending.getMemoryToRelease())) {
+        releasedBytes += pending.getMemoryToRelease();
+      }
+      pendingBatches[shard] = null;
     }
     long accumulatorMemory = 0;
     for (SinkEntry discarded : accumulators[shard].discardAndReset()) {
