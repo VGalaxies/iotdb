@@ -40,8 +40,8 @@ public class IoTDBSubscriptionSourceTest {
     Assert.assertEquals(
         TopicConstant.MODE_INITIAL_VALUE, topicProperties.getProperty(TopicConstant.MODE_KEY));
     Assert.assertEquals("1234", topicProperties.getProperty(TopicConstant.START_TIME_KEY));
-    Assert.assertNull(
-        topicProperties.getProperty(TopicConstant.RETAIN_PROGRESS_AFTER_UNSUBSCRIBE_KEY));
+    Assert.assertEquals(
+        "true", topicProperties.getProperty(TopicConstant.RETAIN_PROGRESS_AFTER_UNSUBSCRIBE_KEY));
   }
 
   @Test
