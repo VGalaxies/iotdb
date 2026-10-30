@@ -2484,19 +2484,6 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
                   .EXCEPTION_STREAM_PROPERTY_ARG_REQUIRES_FILL_HISTORY_TRUE_6B1C4D2E,
               StreamProperties.FILL_HISTORY_START_TIME));
     }
-    if (fillHistory && fillHistoryStartTime != null) {
-      final long now =
-          TimestampPrecisionUtils.currPrecision.convert(
-              System.currentTimeMillis(), TimeUnit.MILLISECONDS);
-      if (fillHistoryStartTime > now) {
-        throw new SemanticException(
-            String.format(
-                DataNodeStreamMessages
-                    .EXCEPTION_STREAM_PROPERTY_ARG_MUST_NOT_BE_LATER_THAN_CURRENT_TIME_BUT_GOT_ARG_9C2D7A41,
-                StreamProperties.FILL_HISTORY_START_TIME,
-                fillHistoryStartTime));
-      }
-    }
     StreamProperties streamProperties =
         new StreamProperties(
             watermark, allowedLateness, maxDelayWindowCloseMs, maxIdleWindowRetainMs, leftClosed);

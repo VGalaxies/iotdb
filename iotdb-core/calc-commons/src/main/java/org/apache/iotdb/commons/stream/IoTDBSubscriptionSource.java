@@ -123,8 +123,8 @@ public class IoTDBSubscriptionSource extends StreamSource {
       }
     } else {
       topicProperties.setProperty(TopicConstant.MODE_KEY, TopicConstant.MODE_CONSENSUS_VALUE);
-      topicProperties.setProperty(TopicConstant.RETAIN_PROGRESS_AFTER_UNSUBSCRIBE_KEY, "true");
     }
+    topicProperties.setProperty(TopicConstant.RETAIN_PROGRESS_AFTER_UNSUBSCRIBE_KEY, "true");
     // Stream windows may hold events until they close; disable timeout-based redelivery.
     topicProperties.setProperty(TopicConstant.RECYCLE_UNCOMMITTED_EVENT_INTERVAL_MS_KEY, "-1");
     if (subscribeColumns != null && !subscribeColumns.isEmpty()) {

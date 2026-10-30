@@ -140,17 +140,39 @@ public class IoTDBStreamFillHistoryIT {
   }
 
   @Test
-  public void testInvalidFillHistoryOptionsAreRejected() throws Exception {
+  public void testFutureStartTimeFiltersUntilEventTime() throws Exception {
+    try (Connection connection = ENV.getConnection(BaseEnv.TABLE_SQL_DIALECT);
+        Statement statement = connection.createStatement()) {
+      prepareTables(statement);
+      final long future = System.currentTimeMillis() + 60_000L;
+      createStream(statement, "fill_history = true, fill_history_start_time = " + future);
+      statement.execute("START STREAM " + STREAM);
+
+      statement.execute(
+          "INSERT INTO source_table(time, value) VALUES ("
+              + (future - 1000)
+              + ", 1), ("
+              + (future - 999)
+              + ", 2)");
+      statement.execute(
+          "INSERT INTO source_table(time, value) VALUES ("
+              + future
+              + ", 3), ("
+              + (future + 1)
+              + ", 4)");
+
+      awaitSinkValue(statement, future, 3);
+      assertNoSinkRow(statement, future - 1000);
+    }
+  }
+
+  @Test
+  public void testFillHistoryStartTimeWithoutFillHistoryIsRejected() throws Exception {
     try (Connection connection = ENV.getConnection(BaseEnv.TABLE_SQL_DIALECT);
         Statement statement = connection.createStatement()) {
       prepareTables(statement);
       assertThrows(
           SQLException.class, () -> createStream(statement, "fill_history_start_time = 1000"));
-      assertThrows(
-          SQLException.class,
-          () ->
-              createStream(
-                  statement, "fill_history = true, fill_history_start_time = " + Long.MAX_VALUE));
     }
   }
 

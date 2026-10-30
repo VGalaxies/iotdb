@@ -87,9 +87,6 @@ public final class DataNodeStreamMessages {
       EXCEPTION_STREAM_PROPERTY_ARG_REQUIRES_FILL_HISTORY_TRUE_6B1C4D2E =
           "Stream property %s requires fill_history = true";
   public static final String
-      EXCEPTION_STREAM_PROPERTY_ARG_MUST_NOT_BE_LATER_THAN_CURRENT_TIME_BUT_GOT_ARG_9C2D7A41 =
-          "Stream property %s must not be later than current time, but got %s";
-  public static final String
       EXCEPTION_STREAM_PROPERTY_ARG_CANNOT_BE_USED_WITH_FILL_HISTORY_3F8B6E52 =
           "Stream property %s cannot be used together with fill_history";
   public static final String
