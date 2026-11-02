@@ -47,6 +47,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -507,11 +508,15 @@ public class StreamNodeOutputIT extends StreamNodeITBase {
           String.format(
               "INSERT INTO %s.src_t (time, device_id, value) VALUES (%d, 'd1', 9)",
               DATABASE, tBase + 6000));
+      AtomicInteger triggerRound = new AtomicInteger();
       OUTPUT_AWAIT.untilAsserted(
           () -> {
+            boolean hasRow =
+                hasSinkRowOrRearmWatermark(statement, tBase, "sink_tag_t", triggerRound);
+            assertTrue("Sink should have at least one row", hasRow);
             try (ResultSet rs =
                 statement.executeQuery("SELECT device_id FROM " + DATABASE + ".sink_tag_t")) {
-              assertTrue("Sink should have at least one row", rs.next());
+              assertTrue(rs.next());
               String deviceId = rs.getString("device_id");
               assertEquals("Unmapped TAG must be NULL", null, rs.wasNull() ? null : deviceId);
             }
@@ -545,12 +550,16 @@ public class StreamNodeOutputIT extends StreamNodeITBase {
           String.format(
               "INSERT INTO %s.src_t (time, device_id, value) VALUES (%d, 'd1', 9)",
               DATABASE, tBase + 6000));
+      AtomicInteger triggerRound = new AtomicInteger();
       OUTPUT_AWAIT.untilAsserted(
           () -> {
+            boolean hasRow =
+                hasSinkRowOrRearmWatermark(statement, tBase, "sink_multi_t", triggerRound);
+            assertTrue("Sink should have at least one row", hasRow);
             try (ResultSet rs =
                 statement.executeQuery(
                     "SELECT location, group_x FROM " + DATABASE + ".sink_multi_t")) {
-              assertTrue("Sink should have at least one row", rs.next());
+              assertTrue(rs.next());
               assertEquals(
                   "Mapped TAG (location) must receive the source device_id value",
                   "d1",
@@ -582,11 +591,15 @@ public class StreamNodeOutputIT extends StreamNodeITBase {
           String.format(
               "INSERT INTO %s.src_t (time, device_id, value) VALUES (%d, 'd1', 9)",
               DATABASE, tBase + 6000));
+      AtomicInteger triggerRound = new AtomicInteger();
       OUTPUT_AWAIT.untilAsserted(
           () -> {
+            boolean hasRow =
+                hasSinkRowOrRearmWatermark(statement, tBase, "sink_2f_t", triggerRound);
+            assertTrue("Sink should have at least one row", hasRow);
             try (ResultSet rs =
                 statement.executeQuery("SELECT v2 FROM " + DATABASE + ".sink_2f_t")) {
-              assertTrue("Sink should have at least one row", rs.next());
+              assertTrue(rs.next());
               assertTrue("Unmapped FIELD (v2) must be NULL", rs.getString("v2") == null);
             }
           });
@@ -1054,6 +1067,28 @@ public class StreamNodeOutputIT extends StreamNodeITBase {
     statement.execute(
         "CREATE TABLE src_t (time TIMESTAMP TIME, device_id STRING TAG, value INT64 FIELD)");
     statement.execute("CREATE TABLE sink_t (time TIMESTAMP TIME, value INT64 FIELD)");
+  }
+
+  /**
+   * Returns whether the sink has a row. If not, writes another later-window source row so an
+   * out-of-order delivery that created an old window after the watermark advanced can be closed by
+   * the next Awaitility retry.
+   */
+  private boolean hasSinkRowOrRearmWatermark(
+      Statement statement, long tBase, String sinkTable, AtomicInteger triggerRound)
+      throws SQLException {
+    try (ResultSet rs =
+        statement.executeQuery(
+            String.format("SELECT time FROM %s.%s LIMIT 1", DATABASE, sinkTable))) {
+      if (rs.next()) {
+        return true;
+      }
+    }
+    statement.execute(
+        String.format(
+            "INSERT INTO %s.src_t (time, device_id, value) VALUES (%d, 'd1', 9)",
+            DATABASE, tBase + (3L + triggerRound.getAndIncrement()) * 5000L));
+    return false;
   }
 
   /**

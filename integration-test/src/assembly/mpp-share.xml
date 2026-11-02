@@ -28,8 +28,17 @@
     <dependencySets>
         <dependencySet>
             <outputDirectory>lib</outputDirectory>
+            <excludes>
+                <exclude>org.apache.iotdb:iotdb-streamnode:*:*</exclude>
+            </excludes>
         </dependencySet>
     </dependencySets>
+    <fileSets>
+        <fileSet>
+            <directory>${maven.multiModuleProjectDirectory}/iotdb-core/streamnode/target/iotdb-streamnode-${project.version}/lib</directory>
+            <outputDirectory>sn/lib</outputDirectory>
+        </fileSet>
+    </fileSets>
     <files>
         <file>
             <source>${project.basedir}/../external-service-impl/mqtt/target/mqtt-${project.version}-jar-with-dependencies.jar</source>
