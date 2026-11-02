@@ -236,7 +236,8 @@ public class ExpressionAnalyzer {
   private final Function<Node, Analysis.ResolvedWindow> getResolvedWindow;
 
   private static final String SUBQUERY_COLUMN_NUM_CHECK =
-      "Subquery must return only one column for now. Row Type is not supported for now.";
+      DataNodeQueryMessages
+          .EXCEPTION_SUBQUERY_MUST_RETURN_ONLY_ONE_COLUMN_FOR_NOW_ROW_TYPE_IS_NOT_SUPPORTED_FOR_NOW_A2D2C5AC;
 
   private ExpressionAnalyzer(
       Metadata metadata,
@@ -729,7 +730,11 @@ public class ExpressionAnalyzer {
     @Override
     public Type visitNotExpression(
         NotExpression node, StackableAstVisitorContext<Context> context) {
-      coerceType(context, node.getValue(), BOOLEAN, "Value of logical NOT expression");
+      coerceType(
+          context,
+          node.getValue(),
+          BOOLEAN,
+          DataNodeQueryMessages.EXCEPTION_VALUE_OF_LOGICAL_NOT_EXPRESSION_00F6E838);
 
       return setExpressionType(node, BOOLEAN);
     }
@@ -738,7 +743,11 @@ public class ExpressionAnalyzer {
     public Type visitLogicalExpression(
         LogicalExpression node, StackableAstVisitorContext<Context> context) {
       for (Expression term : node.getTerms()) {
-        coerceType(context, term, BOOLEAN, "Logical expression term");
+        coerceType(
+            context,
+            term,
+            BOOLEAN,
+            DataNodeQueryMessages.EXCEPTION_LOGICAL_EXPRESSION_TERM_C65A7562);
       }
 
       return setExpressionType(node, BOOLEAN);
@@ -804,7 +813,11 @@ public class ExpressionAnalyzer {
 
     @Override
     public Type visitIfExpression(IfExpression node, StackableAstVisitorContext<Context> context) {
-      coerceType(context, node.getCondition(), BOOLEAN, "IF condition");
+      coerceType(
+          context,
+          node.getCondition(),
+          BOOLEAN,
+          DataNodeQueryMessages.EXCEPTION_IF_CONDITION_70B1DBB9);
 
       Type type;
       if (node.getFalseValue().isPresent()) {
@@ -812,7 +825,7 @@ public class ExpressionAnalyzer {
             coerceToSingleType(
                 context,
                 node,
-                "Result types for IF must be the same",
+                DataNodeQueryMessages.EXCEPTION_RESULT_TYPES_FOR_IF_MUST_BE_THE_SAME_71714769,
                 node.getTrueValue(),
                 node.getFalseValue().get());
       } else {
@@ -826,13 +839,17 @@ public class ExpressionAnalyzer {
     public Type visitSearchedCaseExpression(
         SearchedCaseExpression node, StackableAstVisitorContext<Context> context) {
       for (WhenClause whenClause : node.getWhenClauses()) {
-        coerceType(context, whenClause.getOperand(), BOOLEAN, "CASE WHEN clause");
+        coerceType(
+            context,
+            whenClause.getOperand(),
+            BOOLEAN,
+            DataNodeQueryMessages.EXCEPTION_CASE_WHEN_CLAUSE_454D7201);
       }
 
       Type type =
           coerceToSingleType(
               context,
-              "All CASE results",
+              DataNodeQueryMessages.EXCEPTION_ALL_CASE_RESULTS_09DB7E1B,
               getCaseResultExpressions(node.getWhenClauses(), node.getDefaultValue()));
       setExpressionType(node, type);
 
@@ -852,7 +869,7 @@ public class ExpressionAnalyzer {
       Type type =
           coerceToSingleType(
               context,
-              "All CASE results",
+              DataNodeQueryMessages.EXCEPTION_ALL_CASE_RESULTS_09DB7E1B,
               getCaseResultExpressions(node.getWhenClauses(), node.getDefaultValue()));
       setExpressionType(node, type);
 
@@ -914,7 +931,11 @@ public class ExpressionAnalyzer {
     @Override
     public Type visitCoalesceExpression(
         CoalesceExpression node, StackableAstVisitorContext<Context> context) {
-      Type type = coerceToSingleType(context, "All COALESCE operands", node.getOperands());
+      Type type =
+          coerceToSingleType(
+              context,
+              DataNodeQueryMessages.EXCEPTION_ALL_COALESCE_OPERANDS_A5374A6A,
+              node.getOperands());
 
       return setExpressionType(node, type);
     }
@@ -1877,7 +1898,7 @@ public class ExpressionAnalyzer {
         Type type =
             coerceToSingleType(
                 context,
-                "IN value and list items",
+                DataNodeQueryMessages.EXCEPTION_IN_VALUE_AND_LIST_ITEMS_5D5CF98A,
                 ImmutableList.<Expression>builder()
                     .add(value)
                     .addAll(inListExpression.getValues())
@@ -2891,7 +2912,7 @@ public class ExpressionAnalyzer {
         accessControl,
         session,
         parameters,
-        "Constant expression cannot contain a subquery",
+        DataNodeQueryMessages.EXCEPTION_CONSTANT_EXPRESSION_CANNOT_CONTAIN_A_SUBQUERY_60319D92,
         warningCollector);
   }
 
