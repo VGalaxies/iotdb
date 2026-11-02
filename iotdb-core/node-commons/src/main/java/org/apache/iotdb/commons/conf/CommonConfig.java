@@ -447,6 +447,9 @@ public class CommonConfig {
 
   private boolean subscriptionConsensusLagBasedPriority = true;
 
+  // Disable fallback polling to keep each region's events with its assigned consumer.
+  private boolean subscriptionConsensusFallbackPollingEnabled = true;
+
   private int subscriptionConsensusPrefetchingQueueCapacity = 256;
 
   private boolean subscriptionConsensusWatermarkEnabled = false;
@@ -2880,6 +2883,15 @@ public class CommonConfig {
   public void setSubscriptionConsensusLagBasedPriority(
       final boolean subscriptionConsensusLagBasedPriority) {
     this.subscriptionConsensusLagBasedPriority = subscriptionConsensusLagBasedPriority;
+  }
+
+  public boolean isSubscriptionConsensusFallbackPollingEnabled() {
+    return subscriptionConsensusFallbackPollingEnabled;
+  }
+
+  public void setSubscriptionConsensusFallbackPollingEnabled(
+      final boolean subscriptionConsensusFallbackPollingEnabled) {
+    this.subscriptionConsensusFallbackPollingEnabled = subscriptionConsensusFallbackPollingEnabled;
   }
 
   public int getSubscriptionConsensusPrefetchingQueueCapacity() {
