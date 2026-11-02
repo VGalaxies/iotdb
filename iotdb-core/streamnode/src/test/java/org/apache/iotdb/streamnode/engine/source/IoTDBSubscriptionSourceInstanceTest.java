@@ -397,6 +397,21 @@ public class IoTDBSubscriptionSourceInstanceTest {
   }
 
   @Test
+  public void testCommitAfterStopDoesNotAdvanceProgress() throws Exception {
+    final SubscriptionMessage message = mockMessage(Collections.singletonList(buildTablet(1)));
+    when(mockConsumer.poll(any(Duration.class)))
+        .thenReturn(Collections.singletonList(message))
+        .thenReturn(Collections.emptyList());
+
+    instance.start(dataConsumer);
+    Awaitility.await().atMost(3, TimeUnit.SECONDS).until(() -> receivedIndices.size() >= 1);
+    instance.stop();
+    instance.commit(Long.MAX_VALUE);
+
+    verify(mockConsumer, Mockito.never()).commitSync(any(List.class));
+  }
+
+  @Test
   public void testCommitGroupsMessagesByPollConsumer() throws Exception {
     streamProperties.setSubscriptionPollThreadCount(2);
     final SubscriptionMessage firstMessage = mockMessage(Collections.singletonList(buildTablet(1)));

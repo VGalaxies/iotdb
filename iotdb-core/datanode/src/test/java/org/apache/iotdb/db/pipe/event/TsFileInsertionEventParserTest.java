@@ -377,6 +377,32 @@ public class TsFileInsertionEventParserTest {
   }
 
   @Test
+  public void testTableParserKeepsMultipleFieldChunksInOneTablet() throws Exception {
+    alignedTsFile = new File("table-multi-field-single-tablet.tsfile");
+    generateLargeTableTsFile(alignedTsFile, 1, 1, 1, 2, 10, 10);
+
+    try (final TsFileInsertionEventTableParser parser =
+        new TsFileInsertionEventTableParser(
+            alignedTsFile,
+            new TablePattern(true, null, null),
+            Long.MIN_VALUE,
+            Long.MAX_VALUE,
+            null,
+            null,
+            null,
+            false)) {
+      final Iterator<TabletInsertionEvent> iterator = parser.toTabletInsertionEvents().iterator();
+      Assert.assertTrue(iterator.hasNext());
+      final PipeRawTabletInsertionEvent event = (PipeRawTabletInsertionEvent) iterator.next();
+      final Tablet tablet = event.convertToTablet();
+      Assert.assertEquals(10, tablet.getRowSize());
+      Assert.assertEquals(2, getFieldColumnCount(tablet));
+      Assert.assertFalse(iterator.hasNext());
+      event.clearReferenceCount(getClass().getName());
+    }
+  }
+
+  @Test
   public void testConsumeTabletInsertionEventsWithRetryPreservesProgressOnOutOfMemory()
       throws Exception {
     final PipeTsFileInsertionEvent event =
