@@ -126,6 +126,11 @@ public class StreamNodeWrapper extends AbstractNodeWrapper {
   }
 
   @Override
+  protected String getNodeLibRelativePath() {
+    return "sn" + File.separator + "lib";
+  }
+
+  @Override
   String getNodeType() {
     return "streamnode";
   }

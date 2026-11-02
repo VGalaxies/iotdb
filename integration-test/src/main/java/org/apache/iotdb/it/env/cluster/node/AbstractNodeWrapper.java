@@ -122,7 +122,6 @@ import static org.apache.iotdb.it.env.cluster.ClusterConstant.STRONG_CONSISTENCY
 import static org.apache.iotdb.it.env.cluster.ClusterConstant.STRONG_CONSISTENCY_CLUSTER_MODE_SCHEMA_REGION_REPLICA_NUM;
 import static org.apache.iotdb.it.env.cluster.ClusterConstant.TAB;
 import static org.apache.iotdb.it.env.cluster.ClusterConstant.TARGET;
-import static org.apache.iotdb.it.env.cluster.ClusterConstant.TEMPLATE_NODE_LIB_PATH;
 import static org.apache.iotdb.it.env.cluster.ClusterConstant.TEMPLATE_NODE_PATH;
 import static org.apache.iotdb.it.env.cluster.ClusterConstant.TEST_NODE_ADDRESS;
 import static org.apache.iotdb.it.env.cluster.ClusterConstant.TRIGGER_LIB_DIR;
@@ -499,21 +498,21 @@ public abstract class AbstractNodeWrapper implements BaseNodeWrapper {
               + File.separator
               + "template-node-share"
               + File.separator
-              + "lib"
+              + getNodeLibRelativePath()
               + File.separator;
       File directory = new File(libPath);
       String osName = System.getProperty("os.name").toLowerCase();
-      String server_node_lib_path = "";
+      String server_node_lib_path = libPath + "*";
       if (directory.exists() && directory.isDirectory() && !osName.contains("win")) {
         File[] files = directory.listFiles();
         for (File file : files) {
           if (file.getName().startsWith("iotdb-server")) {
-            server_node_lib_path = libPath + file.getName() + ":" + TEMPLATE_NODE_LIB_PATH;
+            server_node_lib_path = libPath + file.getName() + ":" + libPath + "*";
             break;
           }
         }
       } else {
-        server_node_lib_path = TEMPLATE_NODE_LIB_PATH;
+        server_node_lib_path = libPath + "*";
       }
       startCmd.addAll(
           Arrays.asList(
@@ -540,7 +539,7 @@ public abstract class AbstractNodeWrapper implements BaseNodeWrapper {
           new ProcessBuilder(startCmd)
               .redirectOutput(ProcessBuilder.Redirect.appendTo(stdoutFile))
               .redirectError(ProcessBuilder.Redirect.appendTo(stdoutFile));
-      processBuilder.environment().put("CLASSPATH", TEMPLATE_NODE_LIB_PATH);
+      processBuilder.environment().put("CLASSPATH", server_node_lib_path);
       this.instance = processBuilder.start();
       logger.info("In test {} {} started.", getTestLogDirName(), getId());
     } catch (IOException ex) {
@@ -745,6 +744,11 @@ public abstract class AbstractNodeWrapper implements BaseNodeWrapper {
 
   private String getKillPoints() {
     return killPoints.toString();
+  }
+
+  /** Returns the node-specific directory under the shared template root. */
+  protected String getNodeLibRelativePath() {
+    return "lib";
   }
 
   /* Abstract methods, which must be implemented in ConfigNode and DataNode. */

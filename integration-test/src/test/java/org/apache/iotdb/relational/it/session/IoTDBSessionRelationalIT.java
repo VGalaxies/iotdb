@@ -769,6 +769,39 @@ public class IoTDBSessionRelationalIT {
   }
 
   @Test
+  public void insertAllFieldDataTypeMismatchWithoutTagTest() throws Exception {
+    try (ITableSession session = EnvFactory.getEnv().getTableSessionConnection()) {
+      session.executeNonQueryStatement("USE db1");
+      session.executeNonQueryStatement("CREATE TABLE field_wrong_type_no_tag (f1 int32 field)");
+      Tablet tablet =
+          new Tablet(
+              "field_wrong_type_no_tag",
+              Arrays.asList("f1"),
+              Arrays.asList(TSDataType.DOUBLE),
+              Arrays.asList(ColumnCategory.FIELD));
+      tablet.addTimestamp(0, 1);
+      tablet.addValue("f1", 0, 1.5);
+      try {
+        session.insert(tablet);
+        fail("Insert should fail");
+      } catch (StatementExecutionException e) {
+        assertEquals(
+            "507: No column other than Time present, please check the request", e.getMessage());
+      }
+      session.executeNonQueryStatement("ALTER TABLE field_wrong_type_no_tag DROP COLUMN f1");
+      session.executeNonQueryStatement(
+          "ALTER TABLE field_wrong_type_no_tag ADD COLUMN f1 DOUBLE FIELD");
+      session.insert(tablet);
+      try (SessionDataSet dataSet =
+          session.executeQueryStatement("select f1 from field_wrong_type_no_tag")) {
+        assertTrue(dataSet.hasNext());
+        assertEquals(1.5, dataSet.next().getFields().get(0).getDoubleV(), 0);
+        assertFalse(dataSet.hasNext());
+      }
+    }
+  }
+
+  @Test
   public void insertAllFieldDataTypeMismatchTest()
       throws IoTDBConnectionException, StatementExecutionException {
     try (ITableSession session = EnvFactory.getEnv().getTableSessionConnection()) {

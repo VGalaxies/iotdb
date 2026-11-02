@@ -286,10 +286,11 @@ public final class ConfigNodeMessages {
       "加载快照失败，快照文件 [{}] 不存在。";
   public static final String FAILED_TO_LOAD_SUBSCRIPTION_SNAPSHOT_SNAPSHOT_FILE_IS_NOT_EXIST =
       "加载订阅快照失败，快照文件 {} 不存在。";
-  public static final String FAILED_TO_ON_CONFIGNODE_RESPONSE = "执行 {} 失败，ConfigNode：{}，响应：{}";
-  public static final String FAILED_TO_ON_DATANODE = "执行 {} 失败，DataNode {}，{}";
-  public static final String FAILED_TO_ON_DATANODE_EXCEPTION = "执行 {} 失败，DataNode：{}，异常：{}";
-  public static final String FAILED_TO_ON_DATANODE_RESPONSE = "执行 {} 失败，DataNode：{}，响应：{}";
+  public static final String FAILED_TO_ON_CONFIGNODE_RESPONSE = "在 ConfigNode: {} 上执行 {} 失败，响应：{}";
+  public static final String FAILED_TO_ON_DATANODE = "在 DataNode {} 上执行 {} 失败，{}";
+  public static final String FAILED_TO_ON_DATANODE_EXCEPTION = "在 DataNode: {} 上执行 {} 失败，异常：{}";
+  public static final String FAILED_TO_ON_DATANODE_RESPONSE = "在 DataNode: {} 上执行 {} 失败，响应：{}";
+  public static final String FAILED_TO_ON_DATANODE_WITH_STATUS = "执行 {} 失败（DataNode: {}），状态码：{}，信息：{}";
   public static final String FAILED_TO_OPERATE_PIPE = "操作 pipe 失败";
   public static final String FAILED_TO_SET_PIPE_STATUS = "设置 pipe 状态失败";
   public static final String FAILED_TO_SET_PIPE_STATUS_WITH_STOPPED_BY_RUNTIME_EXCEPTION =

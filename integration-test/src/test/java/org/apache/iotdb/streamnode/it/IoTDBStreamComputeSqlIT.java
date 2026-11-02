@@ -1895,13 +1895,14 @@ public class IoTDBStreamComputeSqlIT {
       final long base = System.currentTimeMillis() + 2000;
 
       // Start BEFORE insert: the subscription runs in tail mode, only consuming rows written
-      // after it is established.
+      // after it is established. Use one poll thread so W2 cannot overtake W1's remaining rows.
       stmt.execute(
           "CREATE STREAM sql27 "
               + "FROM t1 PARTITION BY device_id TUMBLE(5s, "
               + base
               + ") INTO calc(time, avg_val) "
-              + "SELECT ${START_TIME}, AVG(amount) FROM ${ROWS}");
+              + "SELECT ${START_TIME}, AVG(amount) FROM ${ROWS} "
+              + "WITH (subscription_poll_thread_count = 1)");
       stmt.execute("START STREAM sql27");
 
       // W1 (3 rows) for device d1 — the multi-row window comes first. Values 1.0/2.0/3.0.

@@ -1096,10 +1096,12 @@ public class CreateStreamIT {
       stmt.execute("CREATE TABLE sink24(time TIMESTAMP TIME, rows INT64 FIELD)");
 
       final long base = System.currentTimeMillis() + 2000;
+      // This case tests table recreation; keep the data and close trigger in delivery order.
       stmt.execute(
           "CREATE STREAM s24 FROM t24 TUMBLE(5s, "
               + base
-              + ") INTO sink24(time, rows) SELECT ${START_TIME}, count(*) FROM ${ROWS}");
+              + ") INTO sink24(time, rows) SELECT ${START_TIME}, count(*) FROM ${ROWS} "
+              + "WITH (subscription_poll_thread_count = 1)");
       stmt.execute("START STREAM s24");
       awaitStreamRunning(stmt, "s24");
 
@@ -1113,7 +1115,7 @@ public class CreateStreamIT {
       final long now = System.currentTimeMillis();
       stmt.execute("INSERT INTO t24(time, device_id, value) VALUES (" + now + ", 'd1', 1.0)");
       stmt.execute(
-          "INSERT INTO t24(time, device_id, value) VALUES (" + (now + 7000) + ", 'd2', 2.0)");
+          "INSERT INTO t24(time, device_id, value) VALUES (" + (now + 7000) + ", 'd1', 2.0)");
 
       AWAIT.untilAsserted(
           () -> {

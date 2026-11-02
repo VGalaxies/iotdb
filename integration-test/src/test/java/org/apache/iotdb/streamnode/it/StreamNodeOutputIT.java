@@ -22,6 +22,7 @@ package org.apache.iotdb.streamnode.it;
 import org.apache.iotdb.commons.schema.column.ColumnHeaderConstant;
 import org.apache.iotdb.consensus.ConsensusFactory;
 import org.apache.iotdb.it.env.StreamEnvFactory;
+import org.apache.iotdb.it.env.cluster.node.StreamNodeWrapper;
 import org.apache.iotdb.itbase.category.StreamClusterIT;
 import org.apache.iotdb.itbase.env.BaseEnv;
 import org.apache.iotdb.session.subscription.ISubscriptionTableSession;
@@ -35,6 +36,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -44,8 +47,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -503,11 +508,15 @@ public class StreamNodeOutputIT extends StreamNodeITBase {
           String.format(
               "INSERT INTO %s.src_t (time, device_id, value) VALUES (%d, 'd1', 9)",
               DATABASE, tBase + 6000));
+      AtomicInteger triggerRound = new AtomicInteger();
       OUTPUT_AWAIT.untilAsserted(
           () -> {
+            boolean hasRow =
+                hasSinkRowOrRearmWatermark(statement, tBase, "sink_tag_t", triggerRound);
+            assertTrue("Sink should have at least one row", hasRow);
             try (ResultSet rs =
                 statement.executeQuery("SELECT device_id FROM " + DATABASE + ".sink_tag_t")) {
-              assertTrue("Sink should have at least one row", rs.next());
+              assertTrue(rs.next());
               String deviceId = rs.getString("device_id");
               assertEquals("Unmapped TAG must be NULL", null, rs.wasNull() ? null : deviceId);
             }
@@ -541,12 +550,16 @@ public class StreamNodeOutputIT extends StreamNodeITBase {
           String.format(
               "INSERT INTO %s.src_t (time, device_id, value) VALUES (%d, 'd1', 9)",
               DATABASE, tBase + 6000));
+      AtomicInteger triggerRound = new AtomicInteger();
       OUTPUT_AWAIT.untilAsserted(
           () -> {
+            boolean hasRow =
+                hasSinkRowOrRearmWatermark(statement, tBase, "sink_multi_t", triggerRound);
+            assertTrue("Sink should have at least one row", hasRow);
             try (ResultSet rs =
                 statement.executeQuery(
                     "SELECT location, group_x FROM " + DATABASE + ".sink_multi_t")) {
-              assertTrue("Sink should have at least one row", rs.next());
+              assertTrue(rs.next());
               assertEquals(
                   "Mapped TAG (location) must receive the source device_id value",
                   "d1",
@@ -578,11 +591,15 @@ public class StreamNodeOutputIT extends StreamNodeITBase {
           String.format(
               "INSERT INTO %s.src_t (time, device_id, value) VALUES (%d, 'd1', 9)",
               DATABASE, tBase + 6000));
+      AtomicInteger triggerRound = new AtomicInteger();
       OUTPUT_AWAIT.untilAsserted(
           () -> {
+            boolean hasRow =
+                hasSinkRowOrRearmWatermark(statement, tBase, "sink_2f_t", triggerRound);
+            assertTrue("Sink should have at least one row", hasRow);
             try (ResultSet rs =
                 statement.executeQuery("SELECT v2 FROM " + DATABASE + ".sink_2f_t")) {
-              assertTrue("Sink should have at least one row", rs.next());
+              assertTrue(rs.next());
               assertTrue("Unmapped FIELD (v2) must be NULL", rs.getString("v2") == null);
             }
           });
@@ -847,55 +864,105 @@ public class StreamNodeOutputIT extends StreamNodeITBase {
     }
   }
 
-  /**
-   * OUT-22: recreating with the same column name but an incompatible type makes writes fail
-   * (NonRetryableException); the sink stays empty.
-   */
+  /** OUT-22: failed windows remain retryable and are written after the target type is repaired. */
   @Test
   public void testRecreateIncompatibleTypeFails() throws Exception {
+    assertIncompatibleTypeRecovery(false);
+  }
+
+  /** Failed write-back must remain replayable after the only StreamNode crashes. */
+  @Test
+  public void testIncompatibleTypeRecoveryAfterStreamNodeCrash() throws Exception {
+    assertIncompatibleTypeRecovery(true);
+  }
+
+  private void assertIncompatibleTypeRecovery(boolean restartStreamNode) throws Exception {
+    StreamNodeWrapper wrapper =
+        StreamEnvFactory.getEnv().getNodeWrapperList().stream()
+            .filter(StreamNodeWrapper.class::isInstance)
+            .map(StreamNodeWrapper.class::cast)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("StreamNode not found"));
     try (Connection connection =
             StreamEnvFactory.getEnv().getConnection(BaseEnv.TABLE_SQL_DIALECT);
         Statement statement = connection.createStatement()) {
       setupDatabase(statement);
       setupSimpleSrcSink(statement);
-      long tBase = startTumbleStream(statement, "s22", "sink_t", "(time, value)");
-
+      // Establish the source DataRegion before the subscription is created.
+      statement.execute("INSERT INTO test.src_t (time, device_id, value) VALUES (1, 'seed', 0)");
+      long tBase = System.currentTimeMillis() + 1000;
+      // Keep source delivery ordered so this test isolates sink retry and replay behavior.
+      statement.execute(
+          String.format(
+              "CREATE STREAM s22 FROM test.src_t TUMBLE(5000ms,%d) INTO test.sink_t(time,value) "
+                  + "SELECT ${START_TIME}, count(*) FROM ${ROWS} WITH (subscription_poll_thread_count = 1)",
+              tBase));
+      statement.execute("START STREAM s22");
+      AWAIT.untilAsserted(
+          () ->
+              assertEquals(
+                  "RUNNING",
+                  queryStreamRow(statement, "s22")
+                      .get(ColumnHeaderConstant.STREAM_STATUS_TABLE_MODEL)));
       writeAndAssertSinkHasRows(statement, tBase);
       statement.execute("DROP TABLE " + DATABASE + ".sink_t");
-
-      // Recreate with same column name but incompatible type (BOOLEAN instead of INT64).
       statement.execute("CREATE TABLE sink_t (time TIMESTAMP TIME, value BOOLEAN FIELD)");
-
+      int logOffset = Files.readString(Paths.get(wrapper.getLogPath())).length();
       long lateBase = tBase + 20000;
       statement.execute(
           String.format(
-              "INSERT INTO %s.src_t (time, device_id, value) VALUES (%d, 'd1', 40),"
-                  + " (%d, 'd1', 50)",
+              "INSERT INTO %s.src_t (time, device_id, value) VALUES (%d, 'd1', 40), (%d, 'd1', 50)",
               DATABASE, lateBase + 1000, lateBase + 2000));
       statement.execute(
           String.format(
               "INSERT INTO %s.src_t (time, device_id, value) VALUES (%d, 'd1', 60)",
               DATABASE, lateBase + 6000));
-      TimeUnit.SECONDS.sleep(5);
-
-      // No new rows — writes fail and are dropped (NonRetryableException).
-      try (ResultSet rs =
-          statement.executeQuery("SELECT COUNT(*) AS cnt FROM " + DATABASE + ".sink_t")) {
+      Awaitility.await()
+          .pollInSameThread()
+          .atMost(90, TimeUnit.SECONDS)
+          .untilAsserted(
+              () -> {
+                String log = Files.readString(Paths.get(wrapper.getLogPath())).substring(logOffset);
+                assertTrue(
+                    "Expected at least two failed flush rounds",
+                    log.split("Flush failed for pipeline", -1).length >= 3);
+                assertFalse(
+                    "Write-back must remain retryable", log.contains("NonRetryableException"));
+              });
+      try (ResultSet rs = statement.executeQuery("SELECT count(*) FROM " + DATABASE + ".sink_t")) {
         assertTrue(rs.next());
-        assertEquals("Incompatible-type writes must not succeed", 0, rs.getInt(1));
+        assertEquals(0, rs.getLong(1));
       }
-
-      //      statement.execute("DROP TABLE " + DATABASE + ".sink_t");
-      //      statement.execute("CREATE TABLE sink_t (time TIMESTAMP TIME, value INT64 FIELD)");
-      //      OUTPUT_AWAIT.untilAsserted(
-      //          () -> {
-      //            try (ResultSet rs =
-      //                statement.executeQuery("SELECT COUNT(*) AS cnt FROM " + DATABASE +
-      // ".sink_t")) {
-      //              assertTrue(rs.next());
-      //              assertEquals("Incompatible-type writes must not succeed", 1, rs.getInt(1));
-      //            }
-      //          });
+      if (restartStreamNode) {
+        wrapper.stopForcibly();
+        assertFalse(wrapper.isAlive());
+        wrapper.start();
+        Awaitility.await()
+            .pollInSameThread()
+            .atMost(90, TimeUnit.SECONDS)
+            .untilAsserted(
+                () ->
+                    assertEquals(
+                        "RUNNING",
+                        queryStreamRow(statement, "s22")
+                            .get(ColumnHeaderConstant.STREAM_STATUS_TABLE_MODEL)));
+      }
+      statement.execute("DROP TABLE " + DATABASE + ".sink_t");
+      statement.execute("CREATE TABLE sink_t (time TIMESTAMP TIME, value INT64 FIELD)");
+      // No new source rows: this must be the failed window, not a newly generated output.
+      Awaitility.await()
+          .pollInSameThread()
+          .atMost(90, TimeUnit.SECONDS)
+          .untilAsserted(
+              () -> {
+                try (ResultSet rs =
+                    statement.executeQuery(
+                        "SELECT value FROM " + DATABASE + ".sink_t WHERE time = " + lateBase)) {
+                  assertTrue("Failed window must be recovered", rs.next());
+                  assertEquals(2L, rs.getLong(1));
+                  assertFalse("A recovered window must have one logical row", rs.next());
+                }
+              });
     }
   }
 
@@ -1000,6 +1067,28 @@ public class StreamNodeOutputIT extends StreamNodeITBase {
     statement.execute(
         "CREATE TABLE src_t (time TIMESTAMP TIME, device_id STRING TAG, value INT64 FIELD)");
     statement.execute("CREATE TABLE sink_t (time TIMESTAMP TIME, value INT64 FIELD)");
+  }
+
+  /**
+   * Returns whether the sink has a row. If not, writes another later-window source row so an
+   * out-of-order delivery that created an old window after the watermark advanced can be closed by
+   * the next Awaitility retry.
+   */
+  private boolean hasSinkRowOrRearmWatermark(
+      Statement statement, long tBase, String sinkTable, AtomicInteger triggerRound)
+      throws SQLException {
+    try (ResultSet rs =
+        statement.executeQuery(
+            String.format("SELECT time FROM %s.%s LIMIT 1", DATABASE, sinkTable))) {
+      if (rs.next()) {
+        return true;
+      }
+    }
+    statement.execute(
+        String.format(
+            "INSERT INTO %s.src_t (time, device_id, value) VALUES (%d, 'd1', 9)",
+            DATABASE, tBase + (3L + triggerRound.getAndIncrement()) * 5000L));
+    return false;
   }
 
   /**
