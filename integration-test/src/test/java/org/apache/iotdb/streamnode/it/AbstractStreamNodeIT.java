@@ -24,6 +24,7 @@ import org.apache.iotdb.commons.stream.IoTDBSubscriptionSource;
 import org.apache.iotdb.isession.ITableSession;
 import org.apache.iotdb.isession.SessionDataSet;
 import org.apache.iotdb.it.env.EnvFactory;
+import org.apache.iotdb.it.env.cluster.config.MppBaseConfig;
 import org.apache.iotdb.session.subscription.ISubscriptionTableSession;
 import org.apache.iotdb.session.subscription.SubscriptionTableSessionBuilder;
 import org.apache.iotdb.session.subscription.consumer.base.SubscriptionExecutorServiceManager;
@@ -36,6 +37,7 @@ import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 public abstract class AbstractStreamNodeIT {
@@ -63,6 +65,14 @@ public abstract class AbstractStreamNodeIT {
         .setIsPipeEnableMemoryCheck(false)
         // Subscription topics use mode=consensus, which requires IoTConsensus on data regions.
         .setDataRegionConsensusProtocolClass("org.apache.iotdb.consensus.iot.IoTConsensus");
+
+    // Stream processing requires each region's events to stay with its assigned consumer.
+    final Properties properties = new Properties();
+    properties.setProperty("subscription_consensus_fallback_polling_enabled", "false");
+    ((MppBaseConfig) EnvFactory.getEnv().getConfig().getDataNodeCommonConfig())
+        .updateProperties(properties);
+    ((MppBaseConfig) EnvFactory.getEnv().getConfig().getConfigNodeCommonConfig())
+        .updateProperties(properties);
 
     EnvFactory.getEnv().initClusterEnvironment();
   }
