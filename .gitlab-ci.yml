@@ -355,7 +355,7 @@ sonarqube-check:
   tags:
     - hybrid-db
   script:
-    - mvn clean verify sonar:sonar -Dsonar.projectKey=iotdb -Dsonar.projectName='iotdb' -Dsonar.host.url=http://192.168.134.103:9000 -Dsonar.login=squ_6c8818c6c18696ffbeadd31090714fa34085c276 $SONAR_SCAN_OPTS -DskipTests -pl '!example/jdbc,!example/mqtt,!example/mqtt-customize,!example/pipe-count-point-processor,!example/pipe-opc-ua-sink,!example/rest-java-example,!example/schema,!example/session,!example/trigger,!example/udf' -am
+    - mvn clean verify sonar:sonar -Dsonar.projectKey=iotdb -Dsonar.projectName='iotdb' -Dsonar.host.url=http://192.168.134.103:9000 -Dsonar.login=squ_6c8818c6c18696ffbeadd31090714fa34085c276 $SONAR_SCAN_OPTS -DskipTests -pl '!example/jdbc,!example/mqtt,!example/mqtt-customize,!example/pipe-count-point-processor,!example/rest-java-example,!example/schema,!example/session,!example/trigger,!example/udf' -am
   allow_failure: true
   rules:
     - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH 

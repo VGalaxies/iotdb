@@ -19,6 +19,7 @@
 
 package org.apache.iotdb.it.env.cluster.env;
 
+import org.apache.iotdb.it.env.cluster.config.MppBaseConfig;
 import org.apache.iotdb.it.env.cluster.node.ConfigNodeWrapper;
 import org.apache.iotdb.it.env.cluster.node.DataNodeWrapper;
 import org.apache.iotdb.it.env.cluster.node.StreamNodeStarter;
@@ -27,6 +28,7 @@ import org.apache.iotdb.it.framework.IoTDBTestLogger;
 import org.slf4j.Logger;
 
 import java.util.List;
+import java.util.Properties;
 import java.util.stream.Collectors;
 
 public class StreamEnv extends AbstractEnv {
@@ -45,12 +47,17 @@ public class StreamEnv extends AbstractEnv {
 
   @Override
   public void initClusterEnvironment(int configNodesNum, int dataNodesNum) {
-    super.initEnvironment(configNodesNum, dataNodesNum, 30);
+    initClusterEnvironment(configNodesNum, dataNodesNum, 30);
   }
 
   @Override
   public void initClusterEnvironment(
       int configNodesNum, int dataNodesNum, int testWorkingRetryCount) {
+    // Stream processing requires each region's events to stay with its assigned consumer.
+    final Properties properties = new Properties();
+    properties.setProperty("subscription_consensus_fallback_polling_enabled", "false");
+    ((MppBaseConfig) getConfig().getDataNodeCommonConfig()).updateProperties(properties);
+    ((MppBaseConfig) getConfig().getConfigNodeCommonConfig()).updateProperties(properties);
     super.initEnvironment(configNodesNum, dataNodesNum, testWorkingRetryCount);
   }
 
