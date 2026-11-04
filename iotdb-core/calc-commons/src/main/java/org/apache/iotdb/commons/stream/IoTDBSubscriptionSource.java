@@ -19,6 +19,7 @@
 
 package org.apache.iotdb.commons.stream;
 
+import org.apache.iotdb.commons.pipe.config.constant.PipeSourceConstant;
 import org.apache.iotdb.commons.pipe.config.constant.SystemConstant;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
 import org.apache.iotdb.commons.schema.table.TsTable;
@@ -121,6 +122,9 @@ public class IoTDBSubscriptionSource extends StreamSource {
             TopicConstant.START_TIME_KEY,
             String.valueOf(streamProperties.getFillHistoryStartTime()));
       }
+      topicProperties.setProperty(
+          PipeSourceConstant.SOURCE_HISTORY_TSFILE_ORDER_BY_QUERY_PRIORITY_KEY,
+          Boolean.FALSE.toString());
     } else {
       topicProperties.setProperty(TopicConstant.MODE_KEY, TopicConstant.MODE_CONSENSUS_VALUE);
     }

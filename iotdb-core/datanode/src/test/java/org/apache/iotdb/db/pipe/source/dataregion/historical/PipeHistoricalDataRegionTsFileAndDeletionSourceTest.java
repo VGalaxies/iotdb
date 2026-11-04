@@ -541,6 +541,49 @@ public class PipeHistoricalDataRegionTsFileAndDeletionSourceTest {
   }
 
   @Test
+  public void testDisabledQueryPriorityKeepsCompactionOverwriteOrder() throws Exception {
+    final PipeHistoricalDataRegionTsFileAndDeletionSource source =
+        new PipeHistoricalDataRegionTsFileAndDeletionSource();
+    final PipeParameters parameters =
+        new PipeParameters(
+            new HashMap<String, String>() {
+              {
+                put(
+                    PipeSourceConstant.SOURCE_HISTORY_TSFILE_ORDER_BY_QUERY_PRIORITY_KEY,
+                    Boolean.FALSE.toString());
+              }
+            });
+    final File tempDir = Files.createTempDirectory("pipeCompactionOverwriteOrder").toFile();
+
+    try {
+      source.validate(new PipeParameterValidator(parameters));
+
+      final TsFileResource covered = createTsFileResource(tempDir, "100-1-0-0.tsfile");
+      covered.setSeq(true);
+      covered.setVersion(1);
+      covered.updateProgressIndex(new SimpleProgressIndex(0, 1));
+
+      final TsFileResource covering = createTsFileResource(tempDir, "100-2-0-0.tsfile");
+      covering.setSeq(true);
+      covering.setVersion(2);
+      covering.updateProgressIndex(new SimpleProgressIndex(0, 2));
+
+      setPrivateField(source, "shouldExtractInsertion", true);
+      setPrivateField(source, "shouldExtractDeletion", false);
+      setPrivateField(source, "startIndex", MinimumProgressIndex.INSTANCE);
+
+      final List<PersistentResource> resources = new ArrayList<>(Arrays.asList(covering, covered));
+      sortExtractedResources(source, resources);
+
+      Assert.assertFalse(
+          (Boolean) getPrivateField(source, "shouldOrderHistoricalTsFileByQueryPriority"));
+      Assert.assertEquals(Arrays.asList(covered, covering), resources);
+    } finally {
+      FileUtils.deleteFileOrDirectory(tempDir);
+    }
+  }
+
+  @Test
   public void testHistoricalTsFileQueryPriorityOrderCanBeDisabledByExtractorKey() throws Exception {
     final PipeHistoricalDataRegionTsFileAndDeletionSource source =
         new PipeHistoricalDataRegionTsFileAndDeletionSource();

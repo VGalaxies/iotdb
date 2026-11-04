@@ -19,6 +19,7 @@
 
 package org.apache.iotdb.commons.stream;
 
+import org.apache.iotdb.commons.pipe.config.constant.PipeSourceConstant;
 import org.apache.iotdb.rpc.subscription.config.TopicConstant;
 
 import org.junit.Assert;
@@ -42,6 +43,10 @@ public class IoTDBSubscriptionSourceTest {
     Assert.assertEquals("1234", topicProperties.getProperty(TopicConstant.START_TIME_KEY));
     Assert.assertEquals(
         "true", topicProperties.getProperty(TopicConstant.RETAIN_PROGRESS_AFTER_UNSUBSCRIBE_KEY));
+    Assert.assertEquals(
+        Boolean.FALSE.toString(),
+        topicProperties.getProperty(
+            PipeSourceConstant.SOURCE_HISTORY_TSFILE_ORDER_BY_QUERY_PRIORITY_KEY));
   }
 
   @Test
@@ -54,6 +59,10 @@ public class IoTDBSubscriptionSourceTest {
     Assert.assertEquals(
         TopicConstant.MODE_INITIAL_VALUE, topicProperties.getProperty(TopicConstant.MODE_KEY));
     Assert.assertNull(topicProperties.getProperty(TopicConstant.START_TIME_KEY));
+    Assert.assertEquals(
+        Boolean.FALSE.toString(),
+        topicProperties.getProperty(
+            PipeSourceConstant.SOURCE_HISTORY_TSFILE_ORDER_BY_QUERY_PRIORITY_KEY));
   }
 
   @Test
@@ -65,6 +74,9 @@ public class IoTDBSubscriptionSourceTest {
     Assert.assertNull(topicProperties.getProperty(TopicConstant.START_TIME_KEY));
     Assert.assertEquals(
         "true", topicProperties.getProperty(TopicConstant.RETAIN_PROGRESS_AFTER_UNSUBSCRIBE_KEY));
+    Assert.assertNull(
+        topicProperties.getProperty(
+            PipeSourceConstant.SOURCE_HISTORY_TSFILE_ORDER_BY_QUERY_PRIORITY_KEY));
   }
 
   @Test
