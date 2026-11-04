@@ -136,6 +136,7 @@ import org.apache.iotdb.commons.schema.table.TsTable;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnCategory;
 import org.apache.iotdb.commons.schema.table.column.TsTableColumnSchema;
 import org.apache.iotdb.commons.stream.StreamProperties;
+import org.apache.iotdb.commons.stream.SubscriptionTagFilterFormatter;
 import org.apache.iotdb.commons.udf.builtin.relational.tvf.FFTTableFunction;
 import org.apache.iotdb.commons.udf.builtin.relational.tvf.M4TableFunction;
 import org.apache.iotdb.commons.udf.utils.UDFDataTypeTransformer;
@@ -234,8 +235,10 @@ import org.apache.iotdb.db.queryengine.plan.relational.type.CompatibleResolver;
 import org.apache.iotdb.db.queryengine.plan.statement.crud.InsertBaseStatement;
 import org.apache.iotdb.db.schemaengine.table.DataNodeTableCache;
 import org.apache.iotdb.db.schemaengine.table.DataNodeTreeViewSchemaUtils;
+import org.apache.iotdb.db.subscription.tagfilter.TagFilterParser;
 import org.apache.iotdb.rpc.RpcUtils;
 import org.apache.iotdb.rpc.TSStatusCode;
+import org.apache.iotdb.rpc.subscription.exception.SubscriptionException;
 import org.apache.iotdb.udf.api.exception.UDFException;
 import org.apache.iotdb.udf.api.relational.TableFunction;
 import org.apache.iotdb.udf.api.relational.table.TableFunctionAnalysis;
@@ -334,6 +337,8 @@ import static org.apache.iotdb.db.queryengine.plan.relational.utils.NodeUtils.ge
 import static org.apache.tsfile.read.common.type.BooleanType.BOOLEAN;
 
 public class StatementAnalyzer {
+
+  private static final TagFilterParser TAG_FILTER_PARSER = new TagFilterParser();
 
   private final StatementAnalyzerFactory statementAnalyzerFactory;
 
@@ -6354,6 +6359,40 @@ public class StatementAnalyzer {
       }
 
       recordPreFilterTypesToTypeProvider(expressionAnalysis);
+      validatePreFilterColumns(expressionAnalysis);
+      validatePreFilterTagFilter(preFilter);
+    }
+
+    private void validatePreFilterColumns(ExpressionAnalysis expressionAnalysis) {
+      expressionAnalysis
+          .getColumnReferences()
+          .values()
+          .forEach(
+              resolvedField -> {
+                Field field = resolvedField.getField();
+                if (field.getColumnCategory() == TsTableColumnCategory.TAG) {
+                  return;
+                }
+                String columnName = field.getOriginColumnName().orElse(field.getName().orElse(""));
+                throw new SemanticException(
+                    String.format(
+                        DataNodeStreamMessages
+                            .EXCEPTION_PREFILTER_COLUMN_MUST_BE_TAG_COLUMN_59EA6A1A,
+                        columnName,
+                        field.getColumnCategory()));
+              });
+    }
+
+    private void validatePreFilterTagFilter(Expression preFilter) {
+      try {
+        TAG_FILTER_PARSER.parseAndValidate(SubscriptionTagFilterFormatter.format(preFilter));
+      } catch (IllegalArgumentException | SubscriptionException e) {
+        throw new SemanticException(
+            String.format(
+                DataNodeStreamMessages
+                    .EXCEPTION_PREFILTER_CLAUSE_IS_NOT_SUPPORTED_BY_THE_TAG_FILTER_CCFC88BA,
+                e.getMessage()));
+      }
     }
 
     private void recordPreFilterTypesToTypeProvider(ExpressionAnalysis expressionAnalysis) {

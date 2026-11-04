@@ -4549,17 +4549,13 @@ public class AstBuilder extends RelationalSqlBaseVisitor<Node> {
 
   @Override
   public Node visitStreamSourceClause(final RelationalSqlParser.StreamSourceClauseContext ctx) {
-    if (ctx.preFilter != null) {
-      throw new SemanticException(
-          DataNodeStreamMessages
-              .EXCEPTION_PREFILTER_CLAUSE_OF_THE_STREAM_SOURCE_IS_NOT_SUPPORTED_YET_7BCA6A84);
-    }
+    final Expression preFilter = ctx.preFilter == null ? null : (Expression) visit(ctx.preFilter);
     List<Expression> partitionBy =
         Optional.ofNullable(ctx.partition)
             .map(expressions -> visit(expressions, Expression.class))
             .orElse(ImmutableList.of());
     Table table = ctx.table == null ? null : new Table(getQualifiedName(ctx.table));
-    return new StreamSource(getLocation(ctx), table, null, partitionBy);
+    return new StreamSource(getLocation(ctx), table, preFilter, partitionBy);
   }
 
   @Override

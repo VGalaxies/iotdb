@@ -21,7 +21,6 @@ package org.apache.iotdb.db.queryengine.plan.relational.planner;
 
 import org.apache.iotdb.commons.auth.entity.User;
 import org.apache.iotdb.commons.conf.IoTDBConstant;
-import org.apache.iotdb.commons.exception.SemanticException;
 import org.apache.iotdb.commons.queryengine.common.SessionInfo;
 import org.apache.iotdb.commons.queryengine.common.SqlDialect;
 import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.PlanNode;
@@ -42,7 +41,6 @@ import org.apache.iotdb.commons.stream.StreamWindow;
 import org.apache.iotdb.commons.stream.TumbleWindow;
 import org.apache.iotdb.db.auth.AuthorityChecker;
 import org.apache.iotdb.db.auth.IAuthorityFetcher;
-import org.apache.iotdb.db.i18n.DataNodeStreamMessages;
 import org.apache.iotdb.db.protocol.session.IClientSession;
 import org.apache.iotdb.db.queryengine.common.MPPQueryContext;
 import org.apache.iotdb.db.queryengine.common.QueryId;
@@ -58,6 +56,7 @@ import org.apache.iotdb.db.queryengine.plan.relational.planner.ir.ExpressionRewr
 import org.apache.iotdb.db.queryengine.plan.relational.planner.ir.ExpressionTreeRewriter;
 import org.apache.iotdb.db.queryengine.plan.relational.planner.iterative.rule.PruneTableScanColumns;
 import org.apache.iotdb.db.queryengine.plan.relational.security.AllowAllAccessControl;
+import org.apache.iotdb.rpc.subscription.config.TopicConstant;
 
 import org.apache.tsfile.common.constant.TsFileConstant;
 import org.apache.tsfile.enums.TSDataType;
@@ -701,21 +700,56 @@ public class StreamPlannerTest {
   }
 
   @Test
-  public void testCreateStreamPreFilterNotSupported() {
-    // the stream source does not support a pre-filter yet
+  public void testCreateStreamWithPreFilterSetsTopicTagFilter() {
     String sql =
-        "create stream s_pre from testdb.table1 where s1 > 1 "
+        "create stream s_pre from testdb.table1 where tag1 = 'north' "
+            + "tumble(size => 1h, origin => 2000-01-01T00:00:00) "
+            + "into testdb.table2(time, s1) "
+            + "select time, s1 from testdb.table1";
+    MPPQueryContext context = newTestContext(sql);
+    Analysis analysis = PlanTester.analyze(sql, new TestMetadata(), context);
+    CreateStream createStream = (CreateStream) analysis.getStatement();
+
+    TableModelPlanner streamQueryPlanner = Mockito.mock(TableModelPlanner.class);
+    when(streamQueryPlanner.analyze(context)).thenReturn(analysis);
+    when(streamQueryPlanner.getSymbolAllocator()).thenReturn(new SymbolAllocator());
+
+    TableConfigTaskVisitor visitor =
+        new TableConfigTaskVisitor(
+                Mockito.mock(IClientSession.class),
+                new TestMetadata(),
+                new AllowAllAccessControl(),
+                new org.apache.iotdb.commons.queryengine.plan.relational.type.InternalTypeManager())
+            .withStreamQueryPlanner(streamQueryPlanner);
+
+    mockCurrentUser();
+    IConfigTask configTask = visitor.visitCreateStream(createStream, context);
+    Assert.assertTrue(configTask instanceof CreateStreamTask);
+    StreamTask streamTask = ((CreateStreamTask) configTask).getStreamTask();
+    IoTDBSubscriptionSource source = (IoTDBSubscriptionSource) streamTask.getSource();
+
+    Assert.assertNotNull(source.getPreFilter());
+    Assert.assertEquals(
+        "tag1 = \"north\"",
+        source
+            .getTopicProperties(streamTask.getProperties())
+            .getProperty(TopicConstant.TAG_FILTER_KEY));
+  }
+
+  @Test
+  public void testCreateStreamPreFilterWithNonTagColumnError() {
+    String sql =
+        "create stream s_pre from testdb.table1 where s1 = 1 "
             + "tumble(size => 1h, origin => 2000-01-01T00:00:00) "
             + "into testdb.table2(time, s1) "
             + "select ${start_time}, count(*) from ${rows}";
     MPPQueryContext context = newTestContext(sql);
-    SemanticException e =
+    AssertionError e =
         Assert.assertThrows(
-            SemanticException.class, () -> PlanTester.analyze(sql, new TestMetadata(), context));
-    Assert.assertEquals(
-        DataNodeStreamMessages
-            .EXCEPTION_PREFILTER_CLAUSE_OF_THE_STREAM_SOURCE_IS_NOT_SUPPORTED_YET_7BCA6A84,
-        e.getMessage());
+            AssertionError.class, () -> PlanTester.analyze(sql, new TestMetadata(), context));
+    Assert.assertTrue(
+        e.getMessage(),
+        e.getMessage().contains("PreFilter column must be TAG column, but s1 is FIELD column"));
   }
 
   private static MPPQueryContext newTestContext(String sql) {

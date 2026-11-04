@@ -55,11 +55,13 @@ public final class DataNodeStreamMessages {
   // --- PreFilter / PARTITION BY ---
 
   public static final String PREFILTER_CLAUSE = "PreFilter 子句";
-  public static final String
-      EXCEPTION_PREFILTER_CLAUSE_OF_THE_STREAM_SOURCE_IS_NOT_SUPPORTED_YET_7BCA6A84 =
-          "流源暂不支持 PreFilter 子句";
   public static final String EXCEPTION_PREFILTER_CLAUSE_MUST_EVALUATE_TO_BOOLEAN_TYPE_D79AF560 =
       "PreFilter 子句的计算结果必须为布尔值，实际类型为 %s";
+  public static final String EXCEPTION_PREFILTER_COLUMN_MUST_BE_TAG_COLUMN_59EA6A1A =
+      "PreFilter 列必须为 TAG 列，但 %s 是 %s 列";
+  public static final String
+      EXCEPTION_PREFILTER_CLAUSE_IS_NOT_SUPPORTED_BY_THE_TAG_FILTER_CCFC88BA =
+          "Tag 过滤器不支持该 PreFilter 子句：%s";
   public static final String EXCEPTION_PARTITION_BY_MUST_NOT_BE_ORDINAL_POSITIONS_E3191E38 =
       "PARTITION BY 不能使用序数位置";
   public static final String EXCEPTION_PARTITION_BY_MUST_BE_COLUMN_REFERENCE_FF33719A =

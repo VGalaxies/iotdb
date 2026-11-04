@@ -55,11 +55,13 @@ public final class DataNodeStreamMessages {
   // --- PreFilter / PARTITION BY ---
 
   public static final String PREFILTER_CLAUSE = "PreFilter clause";
-  public static final String
-      EXCEPTION_PREFILTER_CLAUSE_OF_THE_STREAM_SOURCE_IS_NOT_SUPPORTED_YET_7BCA6A84 =
-          "PreFilter clause of the stream source is not supported yet";
   public static final String EXCEPTION_PREFILTER_CLAUSE_MUST_EVALUATE_TO_BOOLEAN_TYPE_D79AF560 =
       "PreFilter clause must evaluate to a boolean: actual type %s";
+  public static final String EXCEPTION_PREFILTER_COLUMN_MUST_BE_TAG_COLUMN_59EA6A1A =
+      "PreFilter column must be TAG column, but %s is %s column";
+  public static final String
+      EXCEPTION_PREFILTER_CLAUSE_IS_NOT_SUPPORTED_BY_THE_TAG_FILTER_CCFC88BA =
+          "PreFilter clause is not supported by the tag filter: %s";
   public static final String EXCEPTION_PARTITION_BY_MUST_NOT_BE_ORDINAL_POSITIONS_E3191E38 =
       "PARTITION BY must not be ordinal positions";
   public static final String EXCEPTION_PARTITION_BY_MUST_BE_COLUMN_REFERENCE_FF33719A =

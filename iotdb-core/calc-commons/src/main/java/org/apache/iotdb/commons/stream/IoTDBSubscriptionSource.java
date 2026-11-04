@@ -125,6 +125,12 @@ public class IoTDBSubscriptionSource extends StreamSource {
         topicProperties.setProperty(TopicConstant.COLUMN_FILTER_KEY, columnFilter);
       }
     }
+    // The stream pre-filter is pushed down to the subscription as a TAG filter so rows are
+    // discarded before they reach the stream task.
+    if (preFilter != null) {
+      topicProperties.setProperty(
+          TopicConstant.TAG_FILTER_KEY, SubscriptionTagFilterFormatter.format(preFilter));
+    }
     if (streamProperties != null) {
       if (streamProperties.getSubscriptionConsensusWalRetentionSizeInBytes() != null) {
         topicProperties.setProperty(
