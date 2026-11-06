@@ -21,7 +21,9 @@ package org.apache.iotdb.streamnode;
 
 import org.apache.iotdb.common.rpc.thrift.TStreamNodeLocation;
 import org.apache.iotdb.commons.client.exception.ClientManagerException;
+import org.apache.iotdb.commons.cluster.NodeStatus;
 import org.apache.iotdb.commons.concurrent.ThreadName;
+import org.apache.iotdb.commons.conf.CommonDescriptor;
 import org.apache.iotdb.commons.disk.utils.DirectoryChecker;
 import org.apache.iotdb.rpc.TSStatusCode;
 import org.apache.iotdb.streamnode.client.ConfigNodeClient;
@@ -76,6 +78,12 @@ public class StreamNodeShutdownHook extends Thread {
     logger.info(StreamNodeMessages.STREAMNODE_EXITING);
 
     startWatcher();
+
+    // Heartbeats answered from now on report ReadOnly(Stopping). An RPC worker may still answer one
+    // after the shutdown report below, and the ConfigNode must not take it for a restart.
+    CommonDescriptor.getInstance()
+        .getConfig()
+        .setNodeStatusWithReason(NodeStatus.ReadOnly, NodeStatus.STOPPING);
 
     // Actually stop all services started by the StreamNode.
     StreamNode.getInstance().stop();
