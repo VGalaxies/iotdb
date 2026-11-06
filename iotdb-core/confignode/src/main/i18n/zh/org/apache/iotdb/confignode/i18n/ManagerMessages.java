@@ -499,6 +499,8 @@ public final class ManagerMessages {
       "正在重启 UNKNOWN 任务：{}";
   public static final String STREAM_MANAGER_STALE_HEARTBEAT =
       "任务 %s 的心跳已过期：期望 epoch=%d、leaderTerm=%d，实际 epoch=%d、leaderTerm=%d";
+  public static final String STREAM_MANAGER_TOPIC_CONFIG_MISMATCH_2F6C9A1B =
+      "启动 Stream 失败：已有 topic %s 与请求的 fill_history 配置不一致（期望 mode=%s，start-time=%s；实际 mode=%s，start-time=%s）。如需修改 fill_history，请先 DROP STREAM 再重建。";
   public static final String STREAM_MANAGER_STARTING_STREAM = "正在启动 Stream：{}";
   public static final String STREAM_MANAGER_STOPPING_STREAM = "正在停止 Stream：{}";
   public static final String STREAM_MANAGER_TASK_NOT_FOUND = "未找到 Stream 任务：%s";

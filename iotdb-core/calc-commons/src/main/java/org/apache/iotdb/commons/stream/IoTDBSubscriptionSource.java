@@ -19,6 +19,7 @@
 
 package org.apache.iotdb.commons.stream;
 
+import org.apache.iotdb.commons.pipe.config.constant.PipeSourceConstant;
 import org.apache.iotdb.commons.pipe.config.constant.SystemConstant;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
 import org.apache.iotdb.commons.schema.table.TsTable;
@@ -114,8 +115,19 @@ public class IoTDBSubscriptionSource extends StreamSource {
     topicProperties.setProperty(TopicConstant.TABLE_KEY, tableName);
     topicProperties.setProperty(
         SystemConstant.SQL_DIALECT_KEY, SystemConstant.SQL_DIALECT_TABLE_VALUE);
-    topicProperties.setProperty(TopicConstant.MODE_KEY, TopicConstant.MODE_CONSENSUS_VALUE);
-    // Stream stop and migration unsubscribe consumers; retain progress so they can resume.
+    if (streamProperties != null && streamProperties.isFillHistory()) {
+      topicProperties.setProperty(TopicConstant.MODE_KEY, TopicConstant.MODE_INITIAL_VALUE);
+      if (streamProperties.getFillHistoryStartTime() != null) {
+        topicProperties.setProperty(
+            TopicConstant.START_TIME_KEY,
+            String.valueOf(streamProperties.getFillHistoryStartTime()));
+      }
+      topicProperties.setProperty(
+          PipeSourceConstant.SOURCE_HISTORY_TSFILE_ORDER_BY_QUERY_PRIORITY_KEY,
+          Boolean.FALSE.toString());
+    } else {
+      topicProperties.setProperty(TopicConstant.MODE_KEY, TopicConstant.MODE_CONSENSUS_VALUE);
+    }
     topicProperties.setProperty(TopicConstant.RETAIN_PROGRESS_AFTER_UNSUBSCRIBE_KEY, "true");
     // Stream windows may hold events until they close; disable timeout-based redelivery.
     topicProperties.setProperty(TopicConstant.RECYCLE_UNCOMMITTED_EVENT_INTERVAL_MS_KEY, "-1");

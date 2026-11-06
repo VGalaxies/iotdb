@@ -405,6 +405,11 @@ public class IoTDBSubscriptionSourceInstance extends StreamSourceInstance {
 
   @Override
   public synchronized void commit(final long idx) {
+    if (!running.get()) {
+      // Commits arriving during shutdown may cover windows that have not reached the sink yet.
+      // Leaving them uncommitted lets the subscription broker redeliver them after restart.
+      return;
+    }
     // The commit callback can arrive while a poll thread is dispatching a message. Retain the
     // highest requested index and drain it again when that message becomes ready.
     requestedCommitIndex.accumulateAndGet(idx, Math::max);

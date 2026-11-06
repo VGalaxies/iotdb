@@ -177,6 +177,8 @@ public class StreamSerDeTest {
     props.setSubscriptionConsensusWalRetentionSizeInBytes(1024L);
     props.setSubscriptionConsensusWalRetentionTimeMs(3600L);
     props.setSubscriptionPollThreadCount(3);
+    props.setFillHistory(true);
+    props.setFillHistoryStartTime(1234L);
     StreamProperties copy = StreamProperties.deserialize(writePropertiesBuffer(props).duplicate());
     Assert.assertEquals(props.getWatermark(), copy.getWatermark());
     Assert.assertEquals(props.getAllowedLateness(), copy.getAllowedLateness());
@@ -191,6 +193,8 @@ public class StreamSerDeTest {
         copy.getSubscriptionConsensusWalRetentionTimeMs());
     Assert.assertEquals(
         props.getSubscriptionPollThreadCount(), copy.getSubscriptionPollThreadCount());
+    Assert.assertEquals(props.isFillHistory(), copy.isFillHistory());
+    Assert.assertEquals(props.getFillHistoryStartTime(), copy.getFillHistoryStartTime());
 
     props.setSubscriptionPollThreadCount(-1);
     copy = StreamProperties.deserialize(writePropertiesBuffer(props).duplicate());
@@ -207,6 +211,8 @@ public class StreamSerDeTest {
     Assert.assertNull(copyMin.getSubscriptionConsensusWalRetentionSizeInBytes());
     Assert.assertNull(copyMin.getSubscriptionConsensusWalRetentionTimeMs());
     Assert.assertNull(copyMin.getSubscriptionPollThreadCount());
+    Assert.assertFalse(copyMin.isFillHistory());
+    Assert.assertNull(copyMin.getFillHistoryStartTime());
   }
 
   /** Verifies a payload written before WAL retention fields were added still deserializes. */
@@ -225,6 +231,17 @@ public class StreamSerDeTest {
     Assert.assertNull(copy.getSubscriptionConsensusWalRetentionSizeInBytes());
     Assert.assertNull(copy.getSubscriptionConsensusWalRetentionTimeMs());
     Assert.assertNull(copy.getSubscriptionPollThreadCount());
+    Assert.assertFalse(copy.isFillHistory());
+    Assert.assertNull(copy.getFillHistoryStartTime());
+  }
+
+  @Test
+  public void streamPropertiesFillHistoryWithoutStartTime() throws IOException {
+    StreamProperties props = new StreamProperties();
+    props.setFillHistory(true);
+    StreamProperties copy = StreamProperties.deserialize(writePropertiesBuffer(props).duplicate());
+    Assert.assertTrue(copy.isFillHistory());
+    Assert.assertNull(copy.getFillHistoryStartTime());
   }
 
   @Test

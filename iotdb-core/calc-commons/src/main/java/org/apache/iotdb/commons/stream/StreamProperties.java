@@ -37,6 +37,8 @@ public class StreamProperties {
   public static final String SUBSCRIPTION_CONSENSUS_WAL_RETENTION_TIME_MS =
       "subscription_consensus_wal_retention_time_ms";
   public static final String SUBSCRIPTION_POLL_THREAD_COUNT = "subscription_poll_thread_count";
+  public static final String FILL_HISTORY = "fill_history";
+  public static final String FILL_HISTORY_START_TIME = "fill_history_start_time";
 
   public enum EventType {
     WINDOW_OPEN,
@@ -52,6 +54,8 @@ public class StreamProperties {
   private Long subscriptionConsensusWalRetentionSizeInBytes;
   private Long subscriptionConsensusWalRetentionTimeMs;
   private Integer subscriptionPollThreadCount;
+  private boolean fillHistory = false;
+  private Long fillHistoryStartTime;
 
   public StreamProperties() {}
 
@@ -135,6 +139,22 @@ public class StreamProperties {
     this.subscriptionPollThreadCount = subscriptionPollThreadCount;
   }
 
+  public boolean isFillHistory() {
+    return fillHistory;
+  }
+
+  public void setFillHistory(boolean fillHistory) {
+    this.fillHistory = fillHistory;
+  }
+
+  public Long getFillHistoryStartTime() {
+    return fillHistoryStartTime;
+  }
+
+  public void setFillHistoryStartTime(Long fillHistoryStartTime) {
+    this.fillHistoryStartTime = fillHistoryStartTime;
+  }
+
   public void serialize(DataOutputStream stream) throws IOException {
     stream.writeLong(watermark);
     stream.writeLong(allowedLateness);
@@ -145,6 +165,8 @@ public class StreamProperties {
     writeNullableLong(stream, subscriptionConsensusWalRetentionSizeInBytes);
     writeNullableLong(stream, subscriptionConsensusWalRetentionTimeMs);
     writeNullableInteger(stream, subscriptionPollThreadCount);
+    stream.writeBoolean(fillHistory);
+    writeNullableLong(stream, fillHistoryStartTime);
   }
 
   public static StreamProperties deserialize(ByteBuffer byteBuffer) throws IOException {
@@ -163,6 +185,12 @@ public class StreamProperties {
     }
     if (byteBuffer.hasRemaining()) {
       p.setSubscriptionPollThreadCount(readNullableInteger(byteBuffer));
+    }
+    if (byteBuffer.hasRemaining()) {
+      p.setFillHistory(byteBuffer.get() != 0);
+    }
+    if (byteBuffer.hasRemaining()) {
+      p.setFillHistoryStartTime(readNullableLong(byteBuffer));
     }
     return p;
   }
@@ -186,6 +214,10 @@ public class StreamProperties {
         + subscriptionConsensusWalRetentionTimeMs
         + ", subscriptionPollThreadCount="
         + subscriptionPollThreadCount
+        + ", fillHistory="
+        + fillHistory
+        + ", fillHistoryStartTime="
+        + fillHistoryStartTime
         + '}';
   }
 

@@ -29,6 +29,7 @@ import org.apache.iotdb.commons.concurrent.ThreadName;
 import org.apache.iotdb.commons.concurrent.threadpool.ScheduledExecutorUtil;
 import org.apache.iotdb.commons.pipe.config.constant.SystemConstant;
 import org.apache.iotdb.commons.stream.IoTDBSubscriptionSource;
+import org.apache.iotdb.commons.stream.StreamProperties;
 import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.commons.stream.StreamTaskExpectedStatus;
 import org.apache.iotdb.commons.stream.StreamTaskStatus;
@@ -761,6 +762,11 @@ public class StreamManager implements IClusterStatusSubscriber {
               String.format(
                   ManagerMessages.FAILED_TO_ALTER_TOPIC_THE_TOPIC_IS_NOT_EXISTED, topicName));
     }
+    final TSStatus topicConfigStatus =
+        validateTopicMatchesStreamProperties(topicName, topicMeta, task.getProperties());
+    if (topicConfigStatus != null) {
+      return topicConfigStatus;
+    }
     // Subscription metadata survives CN restart/failover and retains epochs even after the owner
     // is cleared. Keep the task epoch in sync because it supplies the consumer's owner epoch.
     final TSStatus epochStatus = advanceStreamEpoch(task, topicMeta.getMaxOwnerEpoch());
@@ -779,6 +785,35 @@ public class StreamManager implements IClusterStatusSubscriber {
                 .setTopicAttributes(ownerAttributes)
                 .setSubscribedConsumerGroupIds(Collections.emptySet()));
     return status;
+  }
+
+  private static TSStatus validateTopicMatchesStreamProperties(
+      final String topicName, final TopicMeta topicMeta, final StreamProperties properties) {
+    final boolean fillHistory = properties != null && properties.isFillHistory();
+    final String expectedMode =
+        fillHistory ? TopicConstant.MODE_INITIAL_VALUE : TopicConstant.MODE_INCREMENTAL_VALUE;
+    final long expectedStartTime =
+        fillHistory && properties.getFillHistoryStartTime() != null
+            ? properties.getFillHistoryStartTime()
+            : Long.MIN_VALUE;
+    final String actualStartTime =
+        topicMeta.getConfig().getAttributesWithSourceTimeRange().get(TopicConstant.START_TIME_KEY);
+    final boolean modeMatches =
+        fillHistory
+            ? topicMeta.getConfig().isInitialMode()
+            : topicMeta.getConfig().isIncrementalMode();
+    if (modeMatches && String.valueOf(expectedStartTime).equals(actualStartTime)) {
+      return null;
+    }
+    return new TSStatus(TSStatusCode.STREAM_START_ERROR.getStatusCode())
+        .setMessage(
+            String.format(
+                ManagerMessages.STREAM_MANAGER_TOPIC_CONFIG_MISMATCH_2F6C9A1B,
+                topicName,
+                expectedMode,
+                expectedStartTime,
+                topicMeta.getConfig().getMode(),
+                actualStartTime));
   }
 
   private static Map<String, String> toStringMap(final Properties properties) {

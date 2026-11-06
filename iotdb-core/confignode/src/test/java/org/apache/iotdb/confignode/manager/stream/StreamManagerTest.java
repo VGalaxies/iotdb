@@ -1155,7 +1155,12 @@ public class StreamManagerTest {
     doReturn(StatusUtils.OK).when(configManager).createTopic(any(TCreateTopicReq.class));
     doReturn(StatusUtils.OK).when(configManager).alterTopic(any(TAlterTopicReq.class));
     when(subscriptionInfo.deepCopyTopicMeta("__stream__subscription_stream", true))
-        .thenReturn(new TopicMeta("__stream__subscription_stream", 1L, Collections.emptyMap()));
+        .thenReturn(
+            new TopicMeta(
+                "__stream__subscription_stream",
+                1L,
+                Collections.singletonMap(
+                    TopicConstant.MODE_KEY, TopicConstant.MODE_CONSENSUS_VALUE)));
 
     Assert.assertEquals(
         TSStatusCode.SUCCESS_STATUS.getStatusCode(), startStream("subscription_stream").getCode());
@@ -1273,7 +1278,9 @@ public class StreamManagerTest {
         new IoTDBSubscriptionSource(
             "source_db", "source_table", null, null, "127.0.0.1", 6667, "root", "root"));
     streamInfo.addTask(task);
-    final TopicMeta topicMeta = new TopicMeta("__stream__subscription_stream", 1L, new HashMap<>());
+    final Map<String, String> topicAttributes = new HashMap<>();
+    topicAttributes.put(TopicConstant.MODE_KEY, TopicConstant.MODE_CONSENSUS_VALUE);
+    final TopicMeta topicMeta = new TopicMeta("__stream__subscription_stream", 1L, topicAttributes);
     topicMeta.transferOwner("previous_owner", epoch);
     if (clearOwner) {
       topicMeta.clearOwner();

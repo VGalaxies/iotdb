@@ -22,6 +22,7 @@ package org.apache.iotdb.db.pipe.event.common.tsfile.parser.table;
 import org.apache.iotdb.calc.utils.TypeServices;
 import org.apache.iotdb.commons.exception.pipe.PipeRuntimeOutOfMemoryCriticalException;
 import org.apache.iotdb.commons.path.PatternTreeMap;
+import org.apache.iotdb.commons.pipe.config.PipeConfig;
 import org.apache.iotdb.db.exception.load.LoadRuntimeOutOfMemoryException;
 import org.apache.iotdb.db.i18n.DataNodePipeMessages;
 import org.apache.iotdb.db.pipe.event.common.tablet.PipeTabletUtils;
@@ -412,6 +413,7 @@ public class TsFileInsertionEventTableParserTabletIterator
     dataTypeList.subList(deviceIdSize, dataTypeList.size()).clear();
 
     final int initialOffset = offset;
+    final long maxChunkMemory = PipeConfig.getInstance().getPipeMaxReaderChunkSize();
     boolean hasSelectedField = fieldSchemaList.isEmpty();
     boolean hasSelectedNonNullChunk = false;
     try {
@@ -431,16 +433,15 @@ public class TsFileInsertionEventTableParserTabletIterator
           chunk = reader.readMemChunk((ChunkMetadata) metadata);
           valueChunkList.add(chunk);
           final long newSize = size + PipeMemoryWeightUtil.calculateChunkRamBytesUsed(chunk);
+          if (maxChunkMemory > 0 && hasSelectedNonNullChunk && newSize > maxChunkMemory) {
+            valueChunkList.remove(valueChunkList.size() - 1);
+            chunk.close();
+            break;
+          }
           if (newSize > allocatedMemoryBlockForChunk.getMemoryUsageInBytes()) {
-            if (!hasSelectedNonNullChunk) {
-              // If the first chunk exceeds the memory limit, we need to allocate more memory
-              size = newSize;
-              allocatedMemoryBlockForChunk.forceResize(size);
-            } else {
-              valueChunkList.remove(valueChunkList.size() - 1);
-              chunk.close();
-              break;
-            }
+            // Grow the chunk block to keep all field chunks of one aligned tablet together.
+            size = newSize;
+            allocatedMemoryBlockForChunk.forceResize(size);
           } else {
             size = newSize;
           }
