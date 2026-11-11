@@ -730,14 +730,33 @@ public class StreamParserAndAnalyzerTest {
   }
 
   @Test
-  public void testStreamSourcePreFilterError() {
-    // the stream source does not support a pre-filter yet
+  public void testStreamSourcePreFilterWithTagColumn() {
     String sql =
-        "create stream s1 from testdb.table1 where s1 > 0 "
+        "create stream s1 from testdb.table1 where tag1 = 'north' and tag2 IN ('d1', 'd2') "
             + "tumble(size => 1h, origin => 2000-01-01T00:00:00) "
             + "into testdb.table2(time, s1) "
             + "select ${start_time}, s1 from ${rows}";
-    testAnalyzeError(sql, "PreFilter clause of the stream source is not supported yet");
+    testAnalyzeSuccess(sql);
+  }
+
+  @Test
+  public void testStreamSourcePreFilterWithNonTagColumnError() {
+    String sql =
+        "create stream s1 from testdb.table1 where s1 = 0 "
+            + "tumble(size => 1h, origin => 2000-01-01T00:00:00) "
+            + "into testdb.table2(time, s1) "
+            + "select ${start_time}, s1 from ${rows}";
+    testAnalyzeError(sql, "PreFilter column must be TAG column, but s1 is FIELD column");
+  }
+
+  @Test
+  public void testStreamSourcePreFilterWithUnsupportedExpressionError() {
+    String sql =
+        "create stream s1 from testdb.table1 where tag1 = tag2 "
+            + "tumble(size => 1h, origin => 2000-01-01T00:00:00) "
+            + "into testdb.table2(time, s1) "
+            + "select ${start_time}, s1 from ${rows}";
+    testAnalyzeError(sql, "PreFilter clause is not supported by the tag filter");
   }
 
   @Test

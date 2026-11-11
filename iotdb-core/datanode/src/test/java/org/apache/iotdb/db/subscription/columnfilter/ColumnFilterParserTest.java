@@ -19,9 +19,14 @@
 
 package org.apache.iotdb.db.subscription.columnfilter;
 
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.ComparisonExpression;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Identifier;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.StringLiteral;
 import org.apache.iotdb.commons.stream.IoTDBSubscriptionSource;
 import org.apache.iotdb.commons.subscription.columnfilter.ColumnMetadata;
+import org.apache.iotdb.db.subscription.tagfilter.TagFilterEvaluator;
+import org.apache.iotdb.db.subscription.tagfilter.TagFilterParser;
 import org.apache.iotdb.rpc.subscription.config.TopicConstant;
 import org.apache.iotdb.rpc.subscription.exception.SubscriptionException;
 
@@ -72,6 +77,32 @@ public class ColumnFilterParserTest {
     Assert.assertFalse(
         ColumnFilterEvaluator.evaluate(
             filter, new ColumnMetadata("db1", "weather", "site", "STRING", "ATTRIBUTE")));
+  }
+
+  /** A Stream pre-filter must be emitted in the syntax accepted by the subscription tag filter. */
+  @Test
+  public void testStreamTopicTagFilterIsAcceptedBySubscriptionParser() throws Exception {
+    final IoTDBSubscriptionSource source =
+        new IoTDBSubscriptionSource(
+            "db1",
+            "weather",
+            new ComparisonExpression(
+                ComparisonExpression.Operator.EQUAL,
+                new Identifier("region"),
+                new StringLiteral("north")),
+            List.of(),
+            "127.0.0.1",
+            6667,
+            "root",
+            "root");
+
+    final String tagFilter =
+        source.getTopicProperties(null).getProperty(TopicConstant.TAG_FILTER_KEY);
+    Assert.assertEquals("region = \"north\"", tagFilter);
+    Assert.assertTrue(
+        TagFilterEvaluator.evaluate(
+            new TagFilterParser().parseAndValidate(tagFilter),
+            identifier -> "region".equals(identifier.getValue()) ? "north" : null));
   }
 
   @Test

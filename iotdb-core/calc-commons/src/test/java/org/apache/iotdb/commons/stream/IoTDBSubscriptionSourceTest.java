@@ -20,12 +20,16 @@
 package org.apache.iotdb.commons.stream;
 
 import org.apache.iotdb.commons.pipe.config.constant.PipeSourceConstant;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.ComparisonExpression;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Identifier;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.StringLiteral;
 import org.apache.iotdb.rpc.subscription.config.TopicConstant;
 
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Properties;
 
 public class IoTDBSubscriptionSourceTest {
@@ -89,6 +93,37 @@ public class IoTDBSubscriptionSourceTest {
     final Properties topicProperties = source.getTopicProperties(properties);
 
     Assert.assertNotNull(topicProperties.getProperty(TopicConstant.COLUMN_FILTER_KEY));
+  }
+
+  @Test
+  public void testTopicPropertiesContainPreFilterTagFilter() {
+    final IoTDBSubscriptionSource source =
+        new IoTDBSubscriptionSource(
+            "db1",
+            "weather",
+            new ComparisonExpression(
+                ComparisonExpression.Operator.EQUAL,
+                new Identifier("region"),
+                new StringLiteral("north")),
+            Collections.emptyList(),
+            "127.0.0.1",
+            6667,
+            "root",
+            "root");
+    source.setSubscribeColumns(Arrays.asList("temperature"));
+
+    final Properties properties = source.getTopicProperties(null);
+    Assert.assertEquals("region = \"north\"", properties.getProperty(TopicConstant.TAG_FILTER_KEY));
+    Assert.assertNotNull(properties.getProperty(TopicConstant.COLUMN_FILTER_KEY));
+  }
+
+  @Test
+  public void testTopicPropertiesWithoutPreFilterHaveNoTagFilter() {
+    final IoTDBSubscriptionSource source =
+        new IoTDBSubscriptionSource(
+            "db1", "weather", null, Collections.emptyList(), "127.0.0.1", 6667, "root", "root");
+
+    Assert.assertNull(source.getTopicProperties(null).getProperty(TopicConstant.TAG_FILTER_KEY));
   }
 
   private static IoTDBSubscriptionSource newSource() {

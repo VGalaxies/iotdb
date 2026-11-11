@@ -20,7 +20,10 @@
 package org.apache.iotdb.commons.stream;
 
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.Symbol;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.ComparisonExpression;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Identifier;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.StringLiteral;
+import org.apache.iotdb.rpc.subscription.config.TopicConstant;
 
 import org.apache.tsfile.enums.ColumnCategory;
 import org.apache.tsfile.enums.TSDataType;
@@ -122,6 +125,30 @@ public class StreamSerDeTest {
     Assert.assertNull(nullFilterCopy.getPreFilter());
     Assert.assertEquals(
         nullFilterSource.getPartitionColumns(), nullFilterCopy.getPartitionColumns());
+  }
+
+  @Test
+  public void streamSourcePreFilterProducesTagFilterAfterSerialization() throws IOException {
+    final IoTDBSubscriptionSource source =
+        new IoTDBSubscriptionSource(
+            "db1",
+            "t1",
+            new ComparisonExpression(
+                ComparisonExpression.Operator.EQUAL,
+                new Identifier("region"),
+                new StringLiteral("north")),
+            Collections.emptyList(),
+            "127.0.0.1",
+            6667,
+            "root",
+            "root");
+
+    final IoTDBSubscriptionSource copy =
+        (IoTDBSubscriptionSource)
+            StreamSource.deserialize(writeSingleSourceBuffer(source).duplicate());
+    Assert.assertEquals(
+        "region = \"north\"",
+        copy.getTopicProperties(null).getProperty(TopicConstant.TAG_FILTER_KEY));
   }
 
   @Test
