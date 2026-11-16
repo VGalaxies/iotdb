@@ -79,6 +79,27 @@ the fix.
    change or a necessary compatibility adaptation. Report the source PR/commit(s), target base,
    adaptations and why they preserve semantics, and actual validation results/limitations.
 
+## Shared Code Change Reminders
+
+Code synchronization flows from Apache IoTDB → hybrid IoTDB → TimechoDB:
+
+- Apache IoTDB: `git@github.com:apache/iotdb.git`
+- hybrid IoTDB: `git@gitlab-eco.timecho.com:r-d/hybrid-db/iotdb.git`
+- TimechoDB: `git@gitlab.timecho.com:r-d/db/timechodb.git`
+
+After completing changes, check whether they modify code shared with Apache IoTDB:
+
+- If the changes also apply to the open-source version, identify the changes recommended for
+  synchronization and explain why in the final report.
+- If the changes only add conditional branches or integration points for features proprietary
+  to the current repository, still identify the shared code involved and the risk of future
+  synchronization conflicts. Do not recommend contributing proprietary features to the
+  open-source version on this basis.
+- No reminder is needed when only proprietary code is modified.
+
+This rule applies only to reminders in the final report. It does not change the normal fix
+workflow, require prior confirmation, or authorize automatic operations on other repositories.
+
 ## Build Commands
 
 ```bash
