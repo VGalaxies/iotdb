@@ -31,6 +31,7 @@ import org.apache.iotdb.commons.utils.TestOnly;
 import org.apache.iotdb.streamnode.conf.StreamNodeConfig;
 import org.apache.iotdb.streamnode.conf.StreamNodeDescriptor;
 import org.apache.iotdb.streamnode.engine.computation.planner.StreamExecutionPlanner;
+import org.apache.iotdb.streamnode.engine.reuse.SharedSliceManager;
 import org.apache.iotdb.streamnode.engine.scheduler.IStreamTaskScheduler;
 import org.apache.iotdb.streamnode.engine.scheduler.StreamTaskScheduler;
 import org.apache.iotdb.streamnode.engine.scheduler.task.StreamDriver;
@@ -38,6 +39,7 @@ import org.apache.iotdb.streamnode.engine.sink.CommitTracker;
 import org.apache.iotdb.streamnode.engine.sink.SinkPipeline;
 import org.apache.iotdb.streamnode.engine.sink.WriteBackEngine;
 import org.apache.iotdb.streamnode.engine.window.WindowEngineTickScheduler;
+import org.apache.iotdb.streamnode.engine.window.distributed.PartitionProgressTracker;
 import org.apache.iotdb.streamnode.i18n.StreamNodeMessages;
 import org.apache.iotdb.streamnode.metrics.SinkPipelineMetrics;
 
@@ -219,6 +221,9 @@ public abstract class AbstractStreamTaskInstance {
     StreamSubTaskContext subTaskContext =
         new StreamSubTaskContext(taskDefinition.getTaskName(), partitionKey, stateMachine);
     subTaskContext.setCommitTracker(commitTracker);
+    subTaskContext.setPartitionProgressTracker(getPartitionProgressTracker());
+    subTaskContext.setTaskDefinition(taskDefinition);
+    subTaskContext.setSharedSliceManager(getSharedSliceManager());
     subTaskContext.setWindowIdAllocator(nextWindowId);
     StreamSubTask subTask;
     try {
@@ -247,6 +252,14 @@ public abstract class AbstractStreamTaskInstance {
 
   protected abstract void onSubTaskStateChanged(
       PartitionKey partitionKey, StreamSubTaskExecution execution, StreamSubTaskState newState);
+
+  protected @Nullable PartitionProgressTracker getPartitionProgressTracker() {
+    return null;
+  }
+
+  protected @Nullable SharedSliceManager getSharedSliceManager() {
+    return null;
+  }
 
   public SessionInfo getSessionInfo() {
     return DEFAULT_SESSION_INFO;

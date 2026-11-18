@@ -20,8 +20,13 @@
 package org.apache.iotdb.streamnode.engine.computation;
 
 import org.apache.iotdb.calc.plan.planner.memory.MemoryReservationManager;
+import org.apache.iotdb.commons.stream.PartitionKey;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.streamnode.engine.computation.execution.operator.EventAwareOperator;
+import org.apache.iotdb.streamnode.engine.reuse.SharedSliceManager;
 import org.apache.iotdb.streamnode.engine.window.IEventInfo;
+
+import javax.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +47,12 @@ public class StreamComputeTaskContext {
   private final List<EventAwareOperator> eventAwareOperators = new ArrayList<>();
 
   private boolean mayHaveTmpFile = false;
+
+  private @Nullable StreamTask taskDefinition;
+
+  private @Nullable SharedSliceManager sharedSliceManager;
+
+  private @Nullable PartitionKey partitionKey;
 
   public StreamComputeTaskContext(boolean isRecomputeTask) {
     this.isRecomputeTask = isRecomputeTask;
@@ -85,5 +96,29 @@ public class StreamComputeTaskContext {
 
   public List<EventAwareOperator> getEventAwareOperators() {
     return eventAwareOperators;
+  }
+
+  public @Nullable StreamTask getTaskDefinition() {
+    return taskDefinition;
+  }
+
+  public void setTaskDefinition(@Nullable StreamTask taskDefinition) {
+    this.taskDefinition = taskDefinition;
+  }
+
+  public @Nullable SharedSliceManager getSharedSliceManager() {
+    return sharedSliceManager;
+  }
+
+  public void setSharedSliceManager(@Nullable SharedSliceManager sharedSliceManager) {
+    this.sharedSliceManager = sharedSliceManager;
+  }
+
+  public @Nullable PartitionKey getPartitionKey() {
+    return partitionKey;
+  }
+
+  public void setPartitionKey(@Nullable PartitionKey partitionKey) {
+    this.partitionKey = partitionKey;
   }
 }

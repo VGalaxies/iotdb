@@ -44,6 +44,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.CoalesceExpr
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Columns;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.ComparisonExpression;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.DereferenceExpression;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.DoubleLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Except;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.ExistsPredicate;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
@@ -127,6 +128,7 @@ import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.Start
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StopStream;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.StreamRows;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.TumbleEventWindow;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream.VariationEventWindow;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.util.ExpressionFormatter;
 import org.apache.iotdb.commons.queryengine.plan.relational.type.TypeManager;
 import org.apache.iotdb.commons.queryengine.plan.statement.component.FillPolicy;
@@ -6031,6 +6033,45 @@ public class StatementAnalyzer {
                       ExpressionFormatter.formatExpression(entry.getValue())));
             }
             break;
+          case StreamProperties.ALIGN_PARTITION_WATERMARK:
+          case StreamProperties.VARIATION_ADAPTIVE_BASELINE:
+          case StreamProperties.ENABLE_SLICE_REUSE:
+            validateBooleanStreamProperty(entry.getKey(), entry.getValue());
+            break;
+          case StreamProperties.PARTITION_STALE_TIMEOUT_MS:
+          case StreamProperties.VARIATION_TAU_MS:
+          case StreamProperties.VARIATION_DT_MAX_MS:
+          case StreamProperties.VARIATION_BUFFER_MAX_MS:
+          case StreamProperties.SLICE_RETENTION_MS:
+            validateDurationOrNonNegativeIntStreamProperty(entry.getKey(), entry.getValue());
+            break;
+          case StreamProperties.VARIATION_THETA:
+          case StreamProperties.VARIATION_EPSILON:
+          case StreamProperties.REUSE_COST_THRESHOLD:
+            validateNonNegativeNumberStreamProperty(entry.getKey(), entry.getValue());
+            break;
+          case StreamProperties.VARIATION_MIN_SAMPLES:
+          case StreamProperties.VARIATION_BUFFER_MAX_ROWS:
+            validatePositiveIntStreamProperty(
+                entry.getKey(), entry.getValue(), 1, Integer.MAX_VALUE);
+            break;
+          case StreamProperties.REUSE_KLL_K:
+            validatePositiveIntStreamProperty(entry.getKey(), entry.getValue(), 8, 65535);
+            break;
+          case StreamProperties.VARIATION_DETECTOR:
+            validateEnumStreamProperty(
+                entry.getKey(),
+                entry.getValue(),
+                ImmutableSet.of("evidence", "delta", "duration", "adwin", "optwin"));
+            break;
+          case StreamProperties.VARIATION_OVERFLOW_POLICY:
+            validateEnumStreamProperty(
+                entry.getKey(), entry.getValue(), ImmutableSet.of("force_close", "merge_back"));
+            break;
+          case StreamProperties.REUSE_SKETCH_TYPE:
+            validateEnumStreamProperty(
+                entry.getKey(), entry.getValue(), ImmutableSet.of("tdigest", "kll"));
+            break;
           default:
             throw new SemanticException(
                 String.format(
@@ -6048,6 +6089,134 @@ public class StatementAnalyzer {
                 DataNodeStreamMessages
                     .EXCEPTION_STREAM_PROPERTY_ARG_REQUIRES_FILL_HISTORY_TRUE_6B1C4D2E,
                 StreamProperties.FILL_HISTORY_START_TIME));
+      }
+    }
+
+    private static void validateBooleanStreamProperty(String name, Expression value) {
+      if (!(value instanceof BooleanLiteral)) {
+        throw new SemanticException(
+            String.format(
+                DataNodeStreamMessages
+                    .EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_A_BOOLEAN_BUT_GOT_ARG_DA94CDE1,
+                name,
+                ExpressionFormatter.formatExpression(value)));
+      }
+    }
+
+    private static void validateDurationOrNonNegativeIntStreamProperty(
+        String name, Expression value) {
+      if (value instanceof TimeDurationLiteral) {
+        return;
+      }
+      Expression unwrapped = value;
+      boolean negative = false;
+      if (value instanceof ArithmeticUnaryExpression) {
+        ArithmeticUnaryExpression unary = (ArithmeticUnaryExpression) value;
+        negative = unary.getSign() == ArithmeticUnaryExpression.Sign.MINUS;
+        unwrapped = unary.getValue();
+      }
+      if (unwrapped instanceof LongLiteral) {
+        long val = ((LongLiteral) unwrapped).getParsedValue();
+        if (negative || val < 0) {
+          throw new SemanticException(
+              String.format(
+                  DataNodeStreamMessages
+                      .EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_A_NON_NEGATIVE_NUMBER_BUT_GOT_ARG_40688C2D,
+                  name,
+                  ExpressionFormatter.formatExpression(value)));
+        }
+        return;
+      }
+      if (negative && unwrapped instanceof DoubleLiteral) {
+        throw new SemanticException(
+            String.format(
+                DataNodeStreamMessages
+                    .EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_A_NON_NEGATIVE_NUMBER_BUT_GOT_ARG_40688C2D,
+                name,
+                ExpressionFormatter.formatExpression(value)));
+      }
+      throw new SemanticException(
+          String.format(
+              DataNodeStreamMessages
+                  .EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_A_TIME_DURATION_E_G_1S_OR_AN_INTEGER_BUT_GOT_ARG_DEE25F8B,
+              name,
+              ExpressionFormatter.formatExpression(value)));
+    }
+
+    private static void validateNonNegativeNumberStreamProperty(String name, Expression value) {
+      Expression unwrapped = value;
+      double sign = 1.0;
+      if (value instanceof ArithmeticUnaryExpression) {
+        ArithmeticUnaryExpression unary = (ArithmeticUnaryExpression) value;
+        sign = unary.getSign() == ArithmeticUnaryExpression.Sign.MINUS ? -1.0 : 1.0;
+        unwrapped = unary.getValue();
+      }
+      Double numeric = null;
+      if (unwrapped instanceof DoubleLiteral) {
+        numeric = sign * ((DoubleLiteral) unwrapped).getValue();
+      } else if (unwrapped instanceof LongLiteral) {
+        numeric = sign * ((LongLiteral) unwrapped).getParsedValue();
+      }
+      if (numeric == null || Double.isNaN(numeric) || numeric < 0.0) {
+        throw new SemanticException(
+            String.format(
+                DataNodeStreamMessages
+                    .EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_A_NON_NEGATIVE_NUMBER_BUT_GOT_ARG_40688C2D,
+                name,
+                ExpressionFormatter.formatExpression(value)));
+      }
+    }
+
+    private static void validatePositiveIntStreamProperty(
+        String name, Expression value, int minVal, int maxVal) {
+      Expression unwrapped = value;
+      if (value instanceof ArithmeticUnaryExpression) {
+        ArithmeticUnaryExpression unary = (ArithmeticUnaryExpression) value;
+        if (unary.getSign() == ArithmeticUnaryExpression.Sign.MINUS) {
+          throw new SemanticException(
+              String.format(
+                  DataNodeStreamMessages
+                      .EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_A_POSITIVE_INTEGER_BUT_GOT_ARG_3378B0D7,
+                  name,
+                  ExpressionFormatter.formatExpression(value)));
+        }
+        unwrapped = unary.getValue();
+      }
+      if (!(unwrapped instanceof LongLiteral)) {
+        throw new SemanticException(
+            String.format(
+                DataNodeStreamMessages
+                    .EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_A_POSITIVE_INTEGER_BUT_GOT_ARG_3378B0D7,
+                name,
+                ExpressionFormatter.formatExpression(value)));
+      }
+      long val = ((LongLiteral) unwrapped).getParsedValue();
+      if (val < minVal || val > maxVal) {
+        throw new SemanticException(
+            String.format(
+                DataNodeStreamMessages
+                    .EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_A_POSITIVE_INTEGER_BUT_GOT_ARG_3378B0D7,
+                name,
+                ExpressionFormatter.formatExpression(value)));
+      }
+    }
+
+    private static void validateEnumStreamProperty(
+        String name, Expression value, Set<String> allowed) {
+      String raw = null;
+      if (value instanceof StringLiteral) {
+        raw = ((StringLiteral) value).getValue();
+      } else if (value instanceof Identifier) {
+        raw = ((Identifier) value).getValue();
+      }
+      if (raw == null || !allowed.contains(raw.toLowerCase(ENGLISH))) {
+        throw new SemanticException(
+            String.format(
+                DataNodeStreamMessages
+                    .EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_ONE_OF_ARG_BUT_GOT_ARG_AD5015FA,
+                name,
+                allowed,
+                ExpressionFormatter.formatExpression(value)));
       }
     }
 
@@ -6335,6 +6504,44 @@ public class StatementAnalyzer {
           throw new SemanticException(
               DataNodeStreamMessages
                   .EXCEPTION_TUMBLE_EVENT_WINDOW_MUST_BE_USED_WITH_FROM_CLAUSE_C77B71B9);
+        }
+      }
+
+      // VARIATION window constraints
+      if (eventWindow instanceof VariationEventWindow) {
+        if (sourceTable == null) {
+          throw new SemanticException(
+              DataNodeStreamMessages
+                  .EXCEPTION_VARIATION_EVENT_WINDOW_MUST_BE_USED_WITH_FROM_CLAUSE_ED701983);
+        }
+        VariationEventWindow variationWindow = (VariationEventWindow) eventWindow;
+        QualifiedObjectName tableName =
+            createQualifiedObjectName(sessionContext, sourceTable.getName());
+        Optional<TableSchema> tableSchema = metadata.getTableSchema(sessionContext, tableName);
+        if (tableSchema.isPresent()) {
+          String colName = variationWindow.getColumn().getValue().toLowerCase(ENGLISH);
+          ColumnSchema colSchema = tableSchema.get().getColumnSchemaMap().get(colName);
+          if (colSchema == null) {
+            throw new SemanticException(
+                String.format(
+                    DataNodeStreamMessages
+                        .EXCEPTION_VARIATION_EVENT_WINDOW_COLUMN_ARG_IS_NOT_FOUND_IN_SOURCE_TABLE_56790B0D,
+                    colName));
+          }
+          if (colSchema.getColumnCategory() == TsTableColumnCategory.ATTRIBUTE) {
+            throw new SemanticException(
+                String.format(
+                    DataNodeStreamMessages
+                        .EXCEPTION_VARIATION_EVENT_WINDOW_COLUMN_ARG_CANNOT_BE_AN_ATTRIBUTE_COLUMN_09AC0CE7,
+                    colName));
+          }
+        }
+        if (variationWindow.getDelta() != null && variationWindow.getDelta().getValue() < 0) {
+          throw new SemanticException(
+              String.format(
+                  DataNodeStreamMessages
+                      .EXCEPTION_THE_DELTA_OF_THE_VARIATION_EVENT_WINDOW_MUST_BE_NON_NEGATIVE_BUT_GOT_ARG_BB4BA485,
+                  variationWindow.getDelta().getValue()));
         }
       }
     }

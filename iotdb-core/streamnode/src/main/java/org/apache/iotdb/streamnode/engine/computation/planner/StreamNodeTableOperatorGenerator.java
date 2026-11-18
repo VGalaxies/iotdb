@@ -34,16 +34,21 @@ import org.apache.iotdb.calc.execution.operator.process.window.TableWindowOperat
 import org.apache.iotdb.calc.execution.operator.process.window.TopKRankingOperator;
 import org.apache.iotdb.calc.execution.operator.source.relational.MarkDistinctOperator;
 import org.apache.iotdb.calc.execution.operator.source.relational.aggregation.AggregationOperator;
+import org.apache.iotdb.calc.execution.operator.source.relational.aggregation.KllApproxPercentileAccumulator;
+import org.apache.iotdb.calc.execution.operator.source.relational.aggregation.TableAccumulator;
 import org.apache.iotdb.calc.execution.operator.source.relational.aggregation.TableAggregator;
+import org.apache.iotdb.calc.execution.operator.source.relational.aggregation.approximate.KllDoublesSketch;
 import org.apache.iotdb.calc.execution.operator.source.relational.aggregation.grouped.GroupedAggregator;
 import org.apache.iotdb.calc.execution.operator.source.relational.aggregation.grouped.HashAggregationOperator;
 import org.apache.iotdb.calc.execution.operator.source.relational.aggregation.grouped.StreamingAggregationOperator;
 import org.apache.iotdb.calc.execution.operator.source.relational.aggregation.grouped.StreamingHashAggregationOperator;
 import org.apache.iotdb.calc.execution.relational.ColumnTransformerBuilder;
 import org.apache.iotdb.calc.plan.planner.TableOperatorGenerator;
+import org.apache.iotdb.calc.plan.planner.memory.MemoryReservationManager;
 import org.apache.iotdb.calc.transformation.dag.column.ColumnTransformer;
 import org.apache.iotdb.calc.transformation.dag.column.leaf.LeafColumnTransformer;
 import org.apache.iotdb.commons.queryengine.common.SessionInfo;
+import org.apache.iotdb.commons.queryengine.plan.analyze.ITableTypeProvider;
 import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.PlanNodeId;
 import org.apache.iotdb.commons.queryengine.plan.planner.plan.parameter.InputLocation;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.Symbol;
@@ -63,7 +68,13 @@ import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.TopKNod
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.TopKRankingNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.ValueFillNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.WindowNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.DoubleLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.LongLiteral;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.SymbolReference;
+import org.apache.iotdb.commons.queryengine.plan.relational.type.InternalTypeManager;
+import org.apache.iotdb.commons.stream.StreamProperties;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.streamnode.conf.StreamNodeDescriptor;
 import org.apache.iotdb.streamnode.engine.computation.StreamComputeTaskContext;
 import org.apache.iotdb.streamnode.engine.computation.execution.StreamNodeColumnTransformerBuilder;
@@ -77,6 +88,7 @@ import org.apache.iotdb.streamnode.engine.computation.execution.operator.Reusabl
 import org.apache.iotdb.streamnode.engine.computation.execution.operator.ReusableStreamingHashAggregationOperator;
 import org.apache.iotdb.streamnode.engine.computation.execution.operator.ReusableTableWindowOperator;
 import org.apache.iotdb.streamnode.engine.computation.execution.operator.SessionScanOperator;
+import org.apache.iotdb.streamnode.engine.reuse.SliceCompatibilitySignature;
 import org.apache.iotdb.streamnode.engine.scheduler.task.StreamDriverContext;
 
 import com.google.common.collect.ImmutableList;
@@ -84,13 +96,19 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.tsfile.enums.TSDataType;
 import org.apache.tsfile.read.common.type.Type;
 
+import javax.annotation.Nullable;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalInt;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class StreamNodeTableOperatorGenerator
     extends TableOperatorGenerator<LocalStreamExecutionPlanContext, StreamMetadataImpl>
@@ -102,6 +120,8 @@ public class StreamNodeTableOperatorGenerator
   private final Map<PlanNodeId, Operator> reusableOperators = new HashMap<>();
   private final Map<PlanNodeId, CommonOperatorContext> operatorContexts = new HashMap<>();
   private final StreamComputeTaskContext computeContext;
+  private final Map<Symbol, Expression> activePreAggConstantBindings = new HashMap<>();
+  private @Nullable AggregationNode activeGlobalAggregationNode;
 
   public StreamNodeTableOperatorGenerator(
       StreamMetadataImpl metadata, StreamComputeTaskContext computeContext) {
@@ -314,7 +334,18 @@ public class StreamNodeTableOperatorGenerator
   public Operator visitAggregation(AggregationNode node, LocalStreamExecutionPlanContext context) {
     Operator operator = reusableOperators.get(node.getPlanNodeId());
     if (operator == null) {
-      return cacheReusableOperator(node.getPlanNodeId(), super.visitAggregation(node, context));
+      activePreAggConstantBindings.clear();
+      Map<Symbol, String> symbolToCol = new HashMap<>();
+      StringBuilder preAggBuilder = new StringBuilder();
+      SliceCompatibilitySignature.extractPreAggMetadata(
+          node.getChild(), preAggBuilder, symbolToCol, activePreAggConstantBindings);
+      activeGlobalAggregationNode = node.hasSingleGlobalAggregation() ? node : null;
+      try {
+        return cacheReusableOperator(node.getPlanNodeId(), super.visitAggregation(node, context));
+      } finally {
+        activePreAggConstantBindings.clear();
+        activeGlobalAggregationNode = null;
+      }
     }
     Operator child = node.getChild().accept(this, context);
     if (operator instanceof ReusableStreamingAggregationOperator) {
@@ -332,10 +363,99 @@ public class StreamNodeTableOperatorGenerator
   }
 
   @Override
+  protected TableAggregator buildAggregator(
+      Map<Symbol, Integer> childLayout,
+      Symbol symbol,
+      AggregationNode.Aggregation aggregation,
+      AggregationNode.Step step,
+      ITableTypeProvider typeProvider,
+      boolean scanAscending,
+      boolean isAggTableScan,
+      String timeColumnName,
+      Set<String> measurementColumnNames,
+      MemoryReservationManager memoryReservationManager,
+      LocalStreamExecutionPlanContext context) {
+    String functionName = aggregation.getResolvedFunction().getSignature().getName();
+    StreamTask taskDef = computeContext.getTaskDefinition();
+    StreamProperties props = taskDef != null ? taskDef.getProperties() : null;
+    if ("approx_percentile".equalsIgnoreCase(functionName)
+        && props != null
+        && "kll"
+            .equalsIgnoreCase(
+                props
+                    .getStringExtraProperty(StreamProperties.REUSE_SKETCH_TYPE, "tdigest")
+                    .toLowerCase(Locale.ENGLISH))
+        && aggregation.getArguments().size() == 2) {
+      List<Integer> argumentChannels = new ArrayList<>();
+      for (Expression argument : aggregation.getArguments()) {
+        argumentChannels.add(childLayout.get(Symbol.from(argument)));
+      }
+      List<TSDataType> originalArgumentTypes =
+          aggregation.getResolvedFunction().getSignature().getArgumentTypes().stream()
+              .map(InternalTypeManager::getTSDataType)
+              .collect(Collectors.toList());
+      Double configuredPct = null;
+      Expression arg1 = aggregation.getArguments().get(1);
+      if (arg1 instanceof SymbolReference) {
+        Expression bound = activePreAggConstantBindings.get(Symbol.from(arg1));
+        if (bound instanceof DoubleLiteral) {
+          configuredPct = ((DoubleLiteral) bound).getValue();
+        } else if (bound instanceof LongLiteral) {
+          configuredPct = (double) ((LongLiteral) bound).getParsedValue();
+        }
+      } else if (arg1 instanceof DoubleLiteral) {
+        configuredPct = ((DoubleLiteral) arg1).getValue();
+      } else if (arg1 instanceof LongLiteral) {
+        configuredPct = (double) ((LongLiteral) arg1).getParsedValue();
+      }
+      int kllK =
+          props.getIntExtraProperty(StreamProperties.REUSE_KLL_K, KllDoublesSketch.DEFAULT_K);
+      TableAccumulator kllAccumulator =
+          new KllApproxPercentileAccumulator(originalArgumentTypes.get(0), kllK, configuredPct);
+      OptionalInt maskChannel =
+          aggregation.hasMask()
+              ? OptionalInt.of(childLayout.get(aggregation.getMask().get()))
+              : OptionalInt.empty();
+      return new TableAggregator(
+          kllAccumulator,
+          step,
+          InternalTypeManager.getTSDataType(typeProvider.getTableModelType(symbol)),
+          argumentChannels,
+          maskChannel);
+    }
+    return super.buildAggregator(
+        childLayout,
+        symbol,
+        aggregation,
+        step,
+        typeProvider,
+        scanAscending,
+        isAggTableScan,
+        timeColumnName,
+        measurementColumnNames,
+        memoryReservationManager,
+        context);
+  }
+
+  @Override
   protected AggregationOperator createAggregationOperator(
       CommonOperatorContext operatorContext, Operator child, List<TableAggregator> aggregators) {
-    return new ReusableAggregationOperator(
-        super.createAggregationOperator(operatorContext, child, aggregators), child);
+    AggregationOperator baseOperator =
+        super.createAggregationOperator(operatorContext, child, aggregators);
+    if (activeGlobalAggregationNode != null
+        && computeContext.getSharedSliceManager() != null
+        && computeContext.getTaskDefinition() != null
+        && activeGlobalAggregationNode.getAggregations().size() == aggregators.size()) {
+      return new ReusableAggregationOperator(
+          baseOperator,
+          child,
+          new ReusableAggregationOperator.SliceReuseBinding(
+              computeContext.getSharedSliceManager(),
+              computeContext.getTaskDefinition().getTaskName(),
+              computeContext,
+              computeContext.getPartitionKey()));
+    }
+    return new ReusableAggregationOperator(baseOperator, child);
   }
 
   @Override

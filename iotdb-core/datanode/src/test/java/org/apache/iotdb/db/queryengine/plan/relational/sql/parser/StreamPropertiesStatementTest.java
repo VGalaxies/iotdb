@@ -185,4 +185,35 @@ public class StreamPropertiesStatementTest {
     Assert.assertNotNull(leftClosed);
     Assert.assertFalse(leftClosed.getValue());
   }
+
+  @Test
+  public void testCreateStreamWithExtendedProperties() {
+    final CreateStream statement =
+        (CreateStream)
+            sqlParser.createStatement(
+                "CREATE STREAM s_ext FROM testdb.t1 "
+                    + "VARIATION(col => s1, delta => 2.5) "
+                    + "INTO testdb.t2(time, s1) "
+                    + "SELECT ${start_time}, ${row_num} FROM ${rows} "
+                    + "WITH ("
+                    + "align_partition_watermark = true, "
+                    + "variation_detector = 'evidence', "
+                    + "variation_tau_ms = 5s, "
+                    + "enable_slice_reuse = true, "
+                    + "reuse_sketch_type = 'kll', "
+                    + "reuse_kll_k = 200"
+                    + ")",
+                ZoneId.systemDefault(),
+                clientSession);
+
+    Assert.assertNotNull(statement);
+    Map<String, Expression> properties = statement.getProperties();
+    Assert.assertEquals(6, properties.size());
+    Assert.assertTrue(((BooleanLiteral) properties.get("align_partition_watermark")).getValue());
+    Assert.assertTrue(((BooleanLiteral) properties.get("enable_slice_reuse")).getValue());
+    Assert.assertEquals(200L, ((LongLiteral) properties.get("reuse_kll_k")).getParsedValue());
+    Assert.assertEquals(
+        5_000L,
+        ((TimeDurationLiteral) properties.get("variation_tau_ms")).getValue().nonMonthDuration);
+  }
 }

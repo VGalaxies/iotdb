@@ -312,4 +312,25 @@ public final class StreamNodeMessages {
           "窗口 [{}, {})（流 {}）计算失败，该窗口的结果将不会输出";
   public static final String EXCEPTION_COLUMN_VALUE_READ_WITHOUT_NULL_CHECK_AT_INDEX_ARG_B5EDBDD7 =
       "读取索引为 %s 的列值前未做 null 检查";
+  public static final String EXCEPTION_UNSUPPORTED_VARIATION_DETECTOR_ARG_F6EB39D8 =
+      "不支持的 variation 检测器：%s";
+  public static final String
+      LOG_VARIATIONWINDOWENGINE_PROCESSED_ARG_ROWS_CONFIRMED_WINDOWS_ARG_PENDING_ROWS_ARG_93702A5F =
+          "VariationWindowEngine 已处理 {} 行，已确认窗口：{}，挂起后缀行数：{}";
+  public static final String LOG_VARIATIONWINDOWENGINE_DROPPED_FEA0FBAC =
+      "VariationWindowEngine 已销毁";
+  public static final String LOG_VARIATIONWINDOWENGINE_FORCE_CLOSED_B49E9362 =
+      "VariationWindowEngine 已强制关闭";
+  public static final String
+      LOG_VARIATIONWINDOWENGINE_CANDIDATE_CONFIRMED_AT_ARG_BACKTRACKED_ARG_ROWS_CLOSE_WINDOW_ARG_ARG_30906950 =
+          "VariationWindowEngine 在 {} 确认候选切换（回溯 {} 行），关闭窗口 [{}, {})";
+  public static final String
+      LOG_VARIATIONWINDOWENGINE_PENDING_BUFFER_BUDGET_EXCEEDED_ROWS_ARG_SPAN_ARGMS_APPLYING_POLICY_ARG_BE56EB8C =
+          "VariationWindowEngine 挂起后缀缓冲区超出预算（行数={}，跨度={}ms），执行策略 {}";
+  public static final String
+      LOG_SHAREDSLICEMANAGER_SKIPPED_DUPLICATE_SLICE_VERSION_ARG_FOR_CONSUMER_ARG_ON_WINDOW_ARG_ARG_82576B32 =
+          "SharedSliceManager 跳过消费者 {} 在窗口 [{}, {}) 上的重复切片版本 {}";
+  public static final String
+      LOG_SHAREDSLICEMANAGER_EVICTED_ARG_EXPIRED_BASE_SLICES_FREED_ARG_BYTES_65540835 =
+          "SharedSliceManager 驱逐了 {} 个过期基础切片，释放 {} 字节";
 }

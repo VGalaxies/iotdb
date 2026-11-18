@@ -269,6 +269,49 @@ public class StreamSerDeTest {
     StreamProperties copy = StreamProperties.deserialize(writePropertiesBuffer(props).duplicate());
     Assert.assertTrue(copy.isFillHistory());
     Assert.assertNull(copy.getFillHistoryStartTime());
+    Assert.assertTrue(copy.getExtraProperties().isEmpty());
+  }
+
+  @Test
+  public void streamPropertiesExtraPropertiesRoundTripAndVariationSubscribeColumns()
+      throws IOException {
+    StreamProperties props = new StreamProperties();
+    props.putExtraProperty(StreamProperties.ALIGN_PARTITION_WATERMARK, "true");
+    props.putExtraProperty(StreamProperties.VARIATION_DETECTOR, "evidence");
+    props.putExtraProperty(StreamProperties.VARIATION_THETA, "25.5");
+    props.putExtraProperty(StreamProperties.ENABLE_SLICE_REUSE, "true");
+    props.putExtraProperty(StreamProperties.REUSE_KLL_K, "256");
+
+    StreamProperties copy = StreamProperties.deserialize(writePropertiesBuffer(props).duplicate());
+    Assert.assertTrue(
+        copy.getBooleanExtraProperty(StreamProperties.ALIGN_PARTITION_WATERMARK, false));
+    Assert.assertEquals(
+        "evidence", copy.getStringExtraProperty(StreamProperties.VARIATION_DETECTOR, "delta"));
+    Assert.assertEquals(
+        25.5, copy.getDoubleExtraProperty(StreamProperties.VARIATION_THETA, 0.0), 1e-9);
+    Assert.assertTrue(copy.getBooleanExtraProperty(StreamProperties.ENABLE_SLICE_REUSE, false));
+    Assert.assertEquals(256, copy.getIntExtraProperty(StreamProperties.REUSE_KLL_K, 200));
+
+    // Verify VariationWindow monitored column is preserved in subscription columns even if
+    // eventInputColumns only selects a subset (e.g. count(*) -> [time]).
+    IoTDBSubscriptionSource source =
+        new IoTDBSubscriptionSource(
+            "db1", "t1", null, Collections.singletonList("dev"), "127.0.0.1", 6667, "root", "root");
+    VariationWindow variationWindow = new VariationWindow("temperature", 1.5);
+    variationWindow.setEventInputColumns(Collections.singletonList("time"));
+    StreamTask task = new StreamTask();
+    task.setTaskName("var_task");
+    task.setSource(source);
+    task.setWindow(variationWindow);
+    task.setTarget(new IoTDBTarget("db1", "out", Collections.emptyList()));
+    task.setProperties(props);
+
+    StreamTask restored = StreamTask.deserialize(ByteBuffer.wrap(serializeStreamTaskToBytes(task)));
+    IoTDBSubscriptionSource restoredSource = (IoTDBSubscriptionSource) restored.getSource();
+    Assert.assertNotNull(restoredSource);
+    Assert.assertTrue(restoredSource.getSubscribeColumns().contains("temperature"));
+    Assert.assertTrue(restoredSource.getSubscribeColumns().contains("dev"));
+    Assert.assertTrue(restoredSource.getSubscribeColumns().contains("time"));
   }
 
   @Test

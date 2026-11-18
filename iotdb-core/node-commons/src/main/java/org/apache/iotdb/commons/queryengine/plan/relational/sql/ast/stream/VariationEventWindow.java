@@ -21,6 +21,7 @@ package org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.stream;
 
 import org.apache.iotdb.commons.exception.SemanticException;
 import org.apache.iotdb.commons.i18n.StreamMessages;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.ArithmeticUnaryExpression;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.AstMemoryEstimationHelper;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.CommonQueryAstVisitor;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.DoubleLiteral;
@@ -147,10 +148,23 @@ public class VariationEventWindow extends EventWindow {
       }
 
       Node deltaNode = argumentMap.get(DELTA_PARAMETER_NAME);
-      if (deltaNode instanceof DoubleLiteral) {
+      if (deltaNode instanceof ArithmeticUnaryExpression) {
+        ArithmeticUnaryExpression unary = (ArithmeticUnaryExpression) deltaNode;
+        Node inner = unary.getValue();
+        double sign = unary.getSign() == ArithmeticUnaryExpression.Sign.MINUS ? -1.0 : 1.0;
+        if (inner instanceof DoubleLiteral) {
+          delta = new DoubleLiteral(sign * ((DoubleLiteral) inner).getValue());
+        } else if (inner instanceof LongLiteral) {
+          delta = new DoubleLiteral(sign * ((LongLiteral) inner).getParsedValue());
+        } else {
+          throw new ClassCastException();
+        }
+      } else if (deltaNode instanceof DoubleLiteral) {
         delta = (DoubleLiteral) deltaNode;
       } else if (deltaNode instanceof LongLiteral) {
         delta = new DoubleLiteral(((LongLiteral) deltaNode).getParsedValue());
+      } else if (deltaNode != null) {
+        throw new ClassCastException();
       }
     } catch (ClassCastException e) {
       throw new SemanticException(

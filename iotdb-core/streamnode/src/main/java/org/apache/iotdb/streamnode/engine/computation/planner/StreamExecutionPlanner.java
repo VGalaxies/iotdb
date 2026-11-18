@@ -197,6 +197,9 @@ public class StreamExecutionPlanner {
     StreamComputeTaskContext computeContext = new StreamComputeTaskContext(isRecompute);
     computeContext.setMemoryReservationManager(
         createMemoryReservationManager(subTaskContext, isRecompute));
+    computeContext.setTaskDefinition(taskDefinition);
+    computeContext.setSharedSliceManager(subTaskContext.getSharedSliceManager());
+    computeContext.setPartitionKey(subTaskContext.getPartitionKey());
     LocalStreamExecutionPlanContext planContext =
         new LocalStreamExecutionPlanContext(
             taskDefinition.getTypeProvider(),
@@ -253,7 +256,7 @@ public class StreamExecutionPlanner {
             + (isRecomputeTask ? "-recompute" : "-compute"));
   }
 
-  private PlanNode deserializePlanNodeTree(ByteBuffer byteBuffer) {
+  public static PlanNode deserializePlanNodeTree(ByteBuffer byteBuffer) {
     PlanNode root = PlanNodeType.deserialize(byteBuffer);
     int childrenCount = ReadWriteIOUtils.readInt(byteBuffer);
     for (int i = 0; i < childrenCount; i++) {

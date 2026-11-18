@@ -20,19 +20,30 @@
 package org.apache.iotdb.streamnode.engine.task;
 
 import org.apache.iotdb.commons.concurrent.threadpool.ScheduledExecutorUtil;
+import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.PlanNode;
 import org.apache.iotdb.commons.service.metric.MetricService;
 import org.apache.iotdb.commons.stream.PartitionKey;
+import org.apache.iotdb.commons.stream.StreamProperties;
 import org.apache.iotdb.commons.stream.StreamSource;
 import org.apache.iotdb.commons.stream.StreamTask;
+import org.apache.iotdb.commons.stream.TumbleWindow;
 import org.apache.iotdb.metrics.metricsets.IMetricSet;
 import org.apache.iotdb.streamnode.conf.StreamNodeConfig;
+import org.apache.iotdb.streamnode.engine.computation.planner.StreamExecutionPlanner;
 import org.apache.iotdb.streamnode.engine.dispatcher.ColumnPartitionedTabletDispatcher;
 import org.apache.iotdb.streamnode.engine.dispatcher.TabletDispatcher;
+import org.apache.iotdb.streamnode.engine.reuse.SharedSliceManager;
+import org.apache.iotdb.streamnode.engine.reuse.SliceCompatibilitySignature;
+import org.apache.iotdb.streamnode.engine.reuse.SliceCompatibilitySignature.SliceTaskDescriptor;
 import org.apache.iotdb.streamnode.engine.scheduler.IStreamTaskScheduler;
 import org.apache.iotdb.streamnode.engine.sink.CommitTracker;
+import org.apache.iotdb.streamnode.engine.source.IoTDBSubscriptionSourceInstance;
 import org.apache.iotdb.streamnode.engine.source.StreamSourceInstance;
 import org.apache.iotdb.streamnode.engine.task.StreamSubTask.DataSlice;
+import org.apache.iotdb.streamnode.engine.window.distributed.PartitionProgressTracker;
 import org.apache.iotdb.streamnode.metrics.StreamDispatcherMetrics;
+
+import javax.annotation.Nullable;
 
 import java.util.List;
 import java.util.Objects;
@@ -57,6 +68,8 @@ public class EventStreamTaskInstance extends AbstractStreamTaskInstance {
   private TabletDispatcher dispatcher;
   private IMetricSet dispatcherMetrics;
   private ScheduledFuture<?> taskCommitter;
+  private volatile @Nullable PartitionProgressTracker partitionProgressTracker;
+  private volatile @Nullable SharedSliceManager sharedSliceManager;
 
   public EventStreamTaskInstance(
       StreamTask taskDefinition,
@@ -68,6 +81,36 @@ public class EventStreamTaskInstance extends AbstractStreamTaskInstance {
 
   @Override
   protected void startInternal() throws Exception {
+    if (partitionProgressTracker == null
+        && taskDefinition.getProperties() != null
+        && taskDefinition
+            .getProperties()
+            .getBooleanExtraProperty(StreamProperties.ALIGN_PARTITION_WATERMARK, false)) {
+      long staleTimeoutMs =
+          taskDefinition
+              .getProperties()
+              .getLongExtraProperty(
+                  StreamProperties.PARTITION_STALE_TIMEOUT_MS,
+                  PartitionProgressTracker.DEFAULT_STALE_PARTITION_TIMEOUT_MS);
+      partitionProgressTracker = new PartitionProgressTracker(staleTimeoutMs);
+    }
+    if (taskDefinition.getProperties() != null
+        && taskDefinition
+            .getProperties()
+            .getBooleanExtraProperty(StreamProperties.ENABLE_SLICE_REUSE, false)
+        && taskDefinition.getWindow() instanceof TumbleWindow) {
+      sharedSliceManager = SharedSliceManager.getInstance();
+      if (taskDefinition.getCalcPlan() != null) {
+        PlanNode rootPlan =
+            StreamExecutionPlanner.deserializePlanNodeTree(
+                taskDefinition.getCalcPlan().duplicate());
+        SliceTaskDescriptor descriptor =
+            SliceCompatibilitySignature.fromStreamTask(taskDefinition, rootPlan);
+        if (descriptor != null) {
+          sharedSliceManager.registerStream(descriptor);
+        }
+      }
+    }
     if (sourceInstance == null) {
       if (taskDefinition.getSource() != null) {
         sourceInstance =
@@ -100,6 +143,9 @@ public class EventStreamTaskInstance extends AbstractStreamTaskInstance {
 
   @Override
   protected void stopInternal() throws Exception {
+    if (sharedSliceManager != null) {
+      sharedSliceManager.unregisterStream(taskDefinition.getTaskName());
+    }
     if (sourceInstance != null) {
       sourceInstance.stop();
     }
@@ -109,6 +155,9 @@ public class EventStreamTaskInstance extends AbstractStreamTaskInstance {
   protected void dropInternal() throws Exception {
     stopTaskCommitter();
     try {
+      if (sharedSliceManager != null) {
+        sharedSliceManager.unregisterStream(taskDefinition.getTaskName());
+      }
       if (sourceInstance != null) {
         sourceInstance.drop();
       }
@@ -116,6 +165,8 @@ public class EventStreamTaskInstance extends AbstractStreamTaskInstance {
       sourceInstance = null;
       deregisterDispatcherMetrics();
       dispatcher = null;
+      partitionProgressTracker = null;
+      sharedSliceManager = null;
     }
   }
 
@@ -163,9 +214,25 @@ public class EventStreamTaskInstance extends AbstractStreamTaskInstance {
     return subTask.offer(slices);
   }
 
+  @Override
+  protected @Nullable PartitionProgressTracker getPartitionProgressTracker() {
+    return partitionProgressTracker;
+  }
+
+  @Override
+  protected @Nullable SharedSliceManager getSharedSliceManager() {
+    return sharedSliceManager;
+  }
+
   protected StreamSourceInstance createSourceInstance(
       StreamSource source, String taskName, StreamNodeConfig config) {
-    return StreamSourceInstance.create(source, taskDefinition.getProperties(), taskName, config);
+    StreamSourceInstance instance =
+        StreamSourceInstance.create(source, taskDefinition.getProperties(), taskName, config);
+    if (instance instanceof IoTDBSubscriptionSourceInstance && partitionProgressTracker != null) {
+      ((IoTDBSubscriptionSourceInstance) instance)
+          .setPartitionProgressTracker(partitionProgressTracker);
+    }
+    return instance;
   }
 
   public long getLastCommittedSourceIndex() {

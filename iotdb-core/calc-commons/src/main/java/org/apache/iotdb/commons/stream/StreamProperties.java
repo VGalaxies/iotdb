@@ -20,10 +20,15 @@
 package org.apache.iotdb.commons.stream;
 
 import org.apache.iotdb.calc.i18n.CalcMessages;
+import org.apache.iotdb.commons.utils.BasicStructureSerDeUtil;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
 
 public class StreamProperties {
   public static final String WATERMARK = "watermark";
@@ -39,6 +44,29 @@ public class StreamProperties {
   public static final String SUBSCRIPTION_POLL_THREAD_COUNT = "subscription_poll_thread_count";
   public static final String FILL_HISTORY = "fill_history";
   public static final String FILL_HISTORY_START_TIME = "fill_history_start_time";
+
+  // Distributed partition progress alignment (§4.3)
+  public static final String ALIGN_PARTITION_WATERMARK = "align_partition_watermark";
+  public static final String PARTITION_STALE_TIMEOUT_MS = "partition_stale_timeout_ms";
+
+  // Variation / regime-aware dynamic boundary detection (§4.4)
+  public static final String VARIATION_DETECTOR = "variation_detector";
+  public static final String VARIATION_THETA = "variation_theta";
+  public static final String VARIATION_EPSILON = "variation_epsilon";
+  public static final String VARIATION_TAU_MS = "variation_tau_ms";
+  public static final String VARIATION_DT_MAX_MS = "variation_dt_max_ms";
+  public static final String VARIATION_MIN_SAMPLES = "variation_min_samples";
+  public static final String VARIATION_BUFFER_MAX_ROWS = "variation_buffer_max_rows";
+  public static final String VARIATION_BUFFER_MAX_MS = "variation_buffer_max_ms";
+  public static final String VARIATION_OVERFLOW_POLICY = "variation_overflow_policy";
+  public static final String VARIATION_ADAPTIVE_BASELINE = "variation_adaptive_baseline";
+
+  // Multi-granularity shared slice reuse (§4.5)
+  public static final String ENABLE_SLICE_REUSE = "enable_slice_reuse";
+  public static final String SLICE_RETENTION_MS = "slice_retention_ms";
+  public static final String REUSE_SKETCH_TYPE = "reuse_sketch_type";
+  public static final String REUSE_KLL_K = "reuse_kll_k";
+  public static final String REUSE_COST_THRESHOLD = "reuse_cost_threshold";
 
   public enum EventType {
     WINDOW_OPEN,
@@ -56,6 +84,7 @@ public class StreamProperties {
   private Integer subscriptionPollThreadCount;
   private boolean fillHistory = false;
   private Long fillHistoryStartTime;
+  private final Map<String, String> extraProperties = new LinkedHashMap<>();
 
   public StreamProperties() {}
 
@@ -155,6 +184,72 @@ public class StreamProperties {
     this.fillHistoryStartTime = fillHistoryStartTime;
   }
 
+  public Map<String, String> getExtraProperties() {
+    return Collections.unmodifiableMap(extraProperties);
+  }
+
+  public String getExtraProperty(String key) {
+    return key == null ? null : extraProperties.get(key.toLowerCase(Locale.ENGLISH));
+  }
+
+  public void putExtraProperty(String key, String value) {
+    if (key != null && value != null) {
+      extraProperties.put(key.toLowerCase(Locale.ENGLISH), value);
+    }
+  }
+
+  public void putAllExtraProperties(Map<String, String> values) {
+    if (values != null) {
+      values.forEach(this::putExtraProperty);
+    }
+  }
+
+  public boolean getBooleanExtraProperty(String key, boolean defaultValue) {
+    String val = getExtraProperty(key);
+    return val == null ? defaultValue : Boolean.parseBoolean(val);
+  }
+
+  public int getIntExtraProperty(String key, int defaultValue) {
+    String val = getExtraProperty(key);
+    if (val == null) {
+      return defaultValue;
+    }
+    try {
+      return Integer.parseInt(val);
+    } catch (NumberFormatException e) {
+      return defaultValue;
+    }
+  }
+
+  public long getLongExtraProperty(String key, long defaultValue) {
+    String val = getExtraProperty(key);
+    if (val == null) {
+      return defaultValue;
+    }
+    try {
+      return Long.parseLong(val);
+    } catch (NumberFormatException e) {
+      return defaultValue;
+    }
+  }
+
+  public double getDoubleExtraProperty(String key, double defaultValue) {
+    String val = getExtraProperty(key);
+    if (val == null) {
+      return defaultValue;
+    }
+    try {
+      return Double.parseDouble(val);
+    } catch (NumberFormatException e) {
+      return defaultValue;
+    }
+  }
+
+  public String getStringExtraProperty(String key, String defaultValue) {
+    String val = getExtraProperty(key);
+    return val == null ? defaultValue : val;
+  }
+
   public void serialize(DataOutputStream stream) throws IOException {
     stream.writeLong(watermark);
     stream.writeLong(allowedLateness);
@@ -167,6 +262,11 @@ public class StreamProperties {
     writeNullableInteger(stream, subscriptionPollThreadCount);
     stream.writeBoolean(fillHistory);
     writeNullableLong(stream, fillHistoryStartTime);
+    stream.writeInt(extraProperties.size());
+    for (Map.Entry<String, String> entry : extraProperties.entrySet()) {
+      BasicStructureSerDeUtil.write(entry.getKey(), stream);
+      BasicStructureSerDeUtil.write(entry.getValue(), stream);
+    }
   }
 
   public static StreamProperties deserialize(ByteBuffer byteBuffer) throws IOException {
@@ -192,33 +292,59 @@ public class StreamProperties {
     if (byteBuffer.hasRemaining()) {
       p.setFillHistoryStartTime(readNullableLong(byteBuffer));
     }
+    if (byteBuffer.remaining() >= Integer.BYTES) {
+      int extraCount = byteBuffer.getInt();
+      if (extraCount < 0) {
+        throw new IOException(CalcMessages.EXCEPTION_UNEXPECTED_END_OF_STREAM_PROPERTIES_922EBC18);
+      }
+      for (int i = 0; i < extraCount; i++) {
+        String key = BasicStructureSerDeUtil.readString(byteBuffer);
+        String value = BasicStructureSerDeUtil.readString(byteBuffer);
+        if (key != null && value != null) {
+          p.putExtraProperty(key, value);
+        }
+      }
+    }
     return p;
   }
 
   @Override
   public String toString() {
-    return "StreamProperties{"
-        + "watermark="
-        + watermark
-        + ", allowedLateness="
-        + allowedLateness
-        + ", maxDelayWindowClose="
-        + maxDelayWindowCloseMs
-        + ", maxIdleWindowRetain="
-        + maxIdleWindowRetainMs
-        + ", leftClosed="
-        + leftClosed
-        + ", subscriptionConsensusWalRetentionSizeInBytes="
-        + subscriptionConsensusWalRetentionSizeInBytes
-        + ", subscriptionConsensusWalRetentionTimeMs="
-        + subscriptionConsensusWalRetentionTimeMs
-        + ", subscriptionPollThreadCount="
-        + subscriptionPollThreadCount
-        + ", fillHistory="
-        + fillHistory
-        + ", fillHistoryStartTime="
-        + fillHistoryStartTime
-        + '}';
+    StringBuilder sb =
+        new StringBuilder("StreamProperties{")
+            .append("watermark=")
+            .append(watermark)
+            .append(", allowedLateness=")
+            .append(allowedLateness)
+            .append(", maxDelayWindowClose=")
+            .append(maxDelayWindowCloseMs)
+            .append(", maxIdleWindowRetain=")
+            .append(maxIdleWindowRetainMs)
+            .append(", leftClosed=")
+            .append(leftClosed)
+            .append(", subscriptionConsensusWalRetentionSizeInBytes=")
+            .append(subscriptionConsensusWalRetentionSizeInBytes)
+            .append(", subscriptionConsensusWalRetentionTimeMs=")
+            .append(subscriptionConsensusWalRetentionTimeMs)
+            .append(", subscriptionPollThreadCount=")
+            .append(subscriptionPollThreadCount)
+            .append(", fillHistory=")
+            .append(fillHistory)
+            .append(", fillHistoryStartTime=")
+            .append(fillHistoryStartTime);
+    if (!extraProperties.isEmpty()) {
+      sb.append(", extraProperties={");
+      boolean first = true;
+      for (Map.Entry<String, String> entry : extraProperties.entrySet()) {
+        if (!first) {
+          sb.append("; ");
+        }
+        first = false;
+        sb.append(entry.getKey()).append('=').append(entry.getValue());
+      }
+      sb.append('}');
+    }
+    return sb.append('}').toString();
   }
 
   private static void writeNullableLong(DataOutputStream stream, Long value) throws IOException {

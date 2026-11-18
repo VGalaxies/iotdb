@@ -21,6 +21,7 @@ package org.apache.iotdb.streamnode.engine.computation;
 
 import org.apache.iotdb.streamnode.engine.window.IEventInfo;
 
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -45,8 +46,15 @@ public class PlaceholderReplacer {
     result = replaceNamedPlaceholder(result, "row_num", toSqlLiteral(event.getRowCount(), INT64));
     result = replaceTimePlaceholder(result, "prev_time", event.getPrevTime());
     result = replaceTimePlaceholder(result, "next_time", event.getNextTime());
+    result = replaceOptionalValuePlaceholder(result, "prev_value", event.getPrevValue());
+    result = replaceOptionalValuePlaceholder(result, "current_value", event.getCurrentValue());
     result = replaceIndexedPlaceholder(result, event);
     return result;
+  }
+
+  private String replaceOptionalValuePlaceholder(String sql, String name, Optional<Object> value) {
+    String literal = value.isPresent() ? toSqlLiteral(value.get()) : "CAST(NULL AS DOUBLE)";
+    return replaceNamedPlaceholder(sql, name, literal);
   }
 
   /**

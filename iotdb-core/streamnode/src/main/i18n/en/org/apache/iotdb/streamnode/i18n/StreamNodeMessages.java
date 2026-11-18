@@ -324,4 +324,25 @@ public final class StreamNodeMessages {
           "Failed to compute window [{}, {}) of stream {}, the result of this window will not be output";
   public static final String EXCEPTION_COLUMN_VALUE_READ_WITHOUT_NULL_CHECK_AT_INDEX_ARG_B5EDBDD7 =
       "column value read at index %s without a null check";
+  public static final String EXCEPTION_UNSUPPORTED_VARIATION_DETECTOR_ARG_F6EB39D8 =
+      "Unsupported variation detector: %s";
+  public static final String
+      LOG_VARIATIONWINDOWENGINE_PROCESSED_ARG_ROWS_CONFIRMED_WINDOWS_ARG_PENDING_ROWS_ARG_93702A5F =
+          "VariationWindowEngine processed {} rows, confirmed windows: {}, pending rows: {}";
+  public static final String LOG_VARIATIONWINDOWENGINE_DROPPED_FEA0FBAC =
+      "VariationWindowEngine dropped";
+  public static final String LOG_VARIATIONWINDOWENGINE_FORCE_CLOSED_B49E9362 =
+      "VariationWindowEngine force closed";
+  public static final String
+      LOG_VARIATIONWINDOWENGINE_CANDIDATE_CONFIRMED_AT_ARG_BACKTRACKED_ARG_ROWS_CLOSE_WINDOW_ARG_ARG_30906950 =
+          "VariationWindowEngine candidate confirmed at {} (backtracked {} rows), close window [{}, {})";
+  public static final String
+      LOG_VARIATIONWINDOWENGINE_PENDING_BUFFER_BUDGET_EXCEEDED_ROWS_ARG_SPAN_ARGMS_APPLYING_POLICY_ARG_BE56EB8C =
+          "VariationWindowEngine pending buffer budget exceeded (rows={}, span={}ms), applying policy {}";
+  public static final String
+      LOG_SHAREDSLICEMANAGER_SKIPPED_DUPLICATE_SLICE_VERSION_ARG_FOR_CONSUMER_ARG_ON_WINDOW_ARG_ARG_82576B32 =
+          "SharedSliceManager skipped duplicate slice version {} for consumer {} on window [{}, {})";
+  public static final String
+      LOG_SHAREDSLICEMANAGER_EVICTED_ARG_EXPIRED_BASE_SLICES_FREED_ARG_BYTES_65540835 =
+          "SharedSliceManager evicted {} expired base slices, freed {} bytes";
 }

@@ -640,4 +640,16 @@ public final class CalcMessages {
 
   public static final String EXCEPTION_SCALAR_SUB_QUERY_DOES_NOT_HAVE_OUTPUT_E64DBE29 =
       "Scalar sub-query does not have output.";
+
+  public static final String
+      EXCEPTION_KLL_SKETCH_PARAMETER_K_MUST_BE_BETWEEN_8_AND_65535_BUT_GOT_ARG_2E5BDC96 =
+          "KLL sketch parameter k must be between 8 and 65535, but got %d";
+
+  public static final String
+      EXCEPTION_INTERMEDIATE_INPUT_AND_OUTPUT_OF_KLL_APPROX_PERCENTILE_SHOULD_BE_BINARYCOLUMN_B270A4EF =
+          "Intermediate input and output of KLL approx_percentile should be BinaryColumn";
+
+  public static final String
+      EXCEPTION_KLLAPPROXPERCENTILEACCUMULATOR_DOES_NOT_SUPPORT_STATISTICS_055207A6 =
+          "KllApproxPercentileAccumulator does not support statistics";
 }

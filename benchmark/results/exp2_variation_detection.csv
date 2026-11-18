@@ -1,0 +1,13 @@
+dataset,method,precision,recall,f1,mae_ms,mae_samples,false_split_rate,throughput_rows_per_sec
+pipeline_highfreq,Raw_Delta,0.1185,1.0000,0.2119,0.00,0.0000,1.0000,25435843.2
+pipeline_highfreq,Duration_Rule,1.0000,1.0000,1.0000,0.00,0.0000,0.0000,38967364.8
+pipeline_highfreq,ADWIN,0.2119,1.0000,0.3497,80.00,0.8000,0.5600,29950.3
+pipeline_highfreq,OPTWIN,1.0000,1.0000,1.0000,0.00,0.0000,0.0000,24026.0
+pipeline_highfreq,Ours_Evidence_Backtrack,1.0000,1.0000,1.0000,0.00,0.0000,0.0000,369727.1
+pipeline_highfreq,Offline_PELT_Oracle,0.2747,1.0000,0.4310,0.00,0.0000,0.5400,235831.0
+cisdi_regime_jitter,Raw_Delta,0.0084,1.0000,0.0167,1180.00,5.9000,1.0000,131004366.8
+cisdi_regime_jitter,Duration_Rule,0.0738,1.0000,0.1375,160.00,0.8000,0.2167,183486238.5
+cisdi_regime_jitter,ADWIN,0.1961,1.0000,0.3279,400.00,2.0000,0.5333,31268.9
+cisdi_regime_jitter,OPTWIN,1.0000,1.0000,1.0000,0.00,0.0000,0.0000,22730.8
+cisdi_regime_jitter,Ours_Evidence_Backtrack,1.0000,1.0000,1.0000,0.00,0.0000,0.0000,359426.7
+cisdi_regime_jitter,Offline_PELT_Oracle,0.1399,1.0000,0.2454,0.00,0.0000,0.7000,236513.6

@@ -49,6 +49,18 @@ public final class DataNodeStreamMessages {
       "Period event window cannot be used with PARTITION BY";
   public static final String EXCEPTION_TUMBLE_EVENT_WINDOW_MUST_BE_USED_WITH_FROM_CLAUSE_C77B71B9 =
       "Tumble event window must be used with FROM clause";
+  public static final String
+      EXCEPTION_VARIATION_EVENT_WINDOW_MUST_BE_USED_WITH_FROM_CLAUSE_ED701983 =
+          "Variation event window must be used with FROM clause";
+  public static final String
+      EXCEPTION_VARIATION_EVENT_WINDOW_COLUMN_ARG_IS_NOT_FOUND_IN_SOURCE_TABLE_56790B0D =
+          "Variation event window column '%s' is not found in source table";
+  public static final String
+      EXCEPTION_VARIATION_EVENT_WINDOW_COLUMN_ARG_CANNOT_BE_AN_ATTRIBUTE_COLUMN_09AC0CE7 =
+          "Variation event window column '%s' cannot be an ATTRIBUTE column";
+  public static final String
+      EXCEPTION_THE_DELTA_OF_THE_VARIATION_EVENT_WINDOW_MUST_BE_NON_NEGATIVE_BUT_GOT_ARG_BB4BA485 =
+          "The delta of the Variation event window must be non-negative, but got %s";
   public static final String EXCEPTION_EXCEEDING_ARGUMENTS_PROVIDED_D43758F6 =
       "Exceeding arguments provided";
 
@@ -102,4 +114,13 @@ public final class DataNodeStreamMessages {
   public static final String
       EXCEPTION_EVENT_WINDOW_ARG_ARGUMENT_ARG_ONLY_SUPPORTS_DURATION_UNITS_ARG_BUT_GOT_ARG_6F47BEF1 =
           "Event window %s argument %s only supports duration units %s, but got %s";
+  public static final String
+      EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_A_NON_NEGATIVE_NUMBER_BUT_GOT_ARG_40688C2D =
+          "Stream property %s must be a non-negative number, but got %s";
+  public static final String
+      EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_A_POSITIVE_INTEGER_BUT_GOT_ARG_3378B0D7 =
+          "Stream property %s must be a positive integer, but got %s";
+  public static final String
+      EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_ONE_OF_ARG_BUT_GOT_ARG_AD5015FA =
+          "Stream property %s must be one of %s, but got %s";
 }

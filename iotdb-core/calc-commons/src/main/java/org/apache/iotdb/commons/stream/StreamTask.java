@@ -461,6 +461,10 @@ public class StreamTask {
       if (eventInputColumns != null) {
         subscribeColumns.addAll(eventInputColumns);
       }
+      if (window instanceof VariationWindow variationWindow
+          && variationWindow.getColumn() != null) {
+        subscribeColumns.add(variationWindow.getColumn());
+      }
     }
     subscriptionSource.setSubscribeColumns(new ArrayList<>(subscribeColumns));
   }

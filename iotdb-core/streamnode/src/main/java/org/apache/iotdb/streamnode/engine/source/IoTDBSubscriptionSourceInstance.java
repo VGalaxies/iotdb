@@ -35,15 +35,22 @@ import org.apache.iotdb.metrics.utils.MetricType;
 import org.apache.iotdb.rpc.IoTDBConnectionException;
 import org.apache.iotdb.rpc.subscription.exception.SubscriptionConnectionException;
 import org.apache.iotdb.rpc.subscription.exception.SubscriptionTimeoutException;
+import org.apache.iotdb.rpc.subscription.payload.poll.SubscriptionCommitContext;
 import org.apache.iotdb.session.subscription.consumer.ISubscriptionTablePullConsumer;
+import org.apache.iotdb.session.subscription.consumer.base.SubscriptionMessageProcessor;
+import org.apache.iotdb.session.subscription.consumer.table.SubscriptionTablePullConsumer;
 import org.apache.iotdb.session.subscription.consumer.table.SubscriptionTablePullConsumerBuilder;
 import org.apache.iotdb.session.subscription.payload.SubscriptionMessage;
+import org.apache.iotdb.session.subscription.payload.SubscriptionMessageType;
 import org.apache.iotdb.streamnode.conf.StreamNodeConfig;
+import org.apache.iotdb.streamnode.engine.window.distributed.PartitionProgressTracker;
 
 import org.apache.thrift.transport.TTransportException;
 import org.apache.tsfile.write.record.Tablet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.annotation.Nullable;
 
 import java.net.ConnectException;
 import java.net.SocketException;
@@ -51,6 +58,7 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
@@ -97,6 +105,7 @@ public class IoTDBSubscriptionSourceInstance extends StreamSourceInstance {
   private final StreamNodeConfig nodeConfig;
   private volatile long ownerEpoch;
   private boolean rebuildConsumersOnRestart;
+  private volatile @Nullable PartitionProgressTracker partitionProgressTracker;
 
   private final List<ConsumerState> consumerStates = new ArrayList<>();
 
@@ -445,6 +454,11 @@ public class IoTDBSubscriptionSourceInstance extends StreamSourceInstance {
     }
   }
 
+  public void setPartitionProgressTracker(
+      @Nullable final PartitionProgressTracker partitionProgressTracker) {
+    this.partitionProgressTracker = partitionProgressTracker;
+  }
+
   /** Creates the pull consumer for the given poll thread. Overridable for testing. */
   protected ISubscriptionTablePullConsumer buildConsumer(final int pollThreadIndex) {
     final SubscriptionTablePullConsumerBuilder builder =
@@ -459,7 +473,81 @@ public class IoTDBSubscriptionSourceInstance extends StreamSourceInstance {
     if (ownerEpoch >= 0) {
       builder.ownerId(buildOwnerId(nodeConfig)).ownerEpoch(ownerEpoch);
     }
-    return builder.build();
+    final ISubscriptionTablePullConsumer consumer = builder.build();
+    final PartitionProgressTracker tracker = this.partitionProgressTracker;
+    if (tracker != null && consumer instanceof SubscriptionTablePullConsumer) {
+      ((SubscriptionTablePullConsumer) consumer)
+          .addProcessor(new RegionProgressObserverProcessor(tracker));
+    }
+    return consumer;
+  }
+
+  private static final class RegionProgressObserverProcessor
+      implements SubscriptionMessageProcessor {
+
+    private final PartitionProgressTracker tracker;
+
+    private RegionProgressObserverProcessor(final PartitionProgressTracker tracker) {
+      this.tracker = tracker;
+    }
+
+    @Override
+    public List<SubscriptionMessage> process(final List<SubscriptionMessage> messages) {
+      if (messages == null || messages.isEmpty()) {
+        return messages;
+      }
+      final long nowWallMs = System.currentTimeMillis();
+      for (final SubscriptionMessage message : messages) {
+        if (message == null || message.getCommitContext() == null) {
+          continue;
+        }
+        final SubscriptionCommitContext commitContext = message.getCommitContext();
+        final short messageType = message.getMessageType();
+        if (messageType == SubscriptionMessageType.WATERMARK.getType()) {
+          tracker.onHeartbeat(
+              commitContext.getDataNodeId(),
+              commitContext.getRegionId(),
+              message.getWatermarkTimestamp(),
+              nowWallMs);
+        } else if (messageType == SubscriptionMessageType.RECORD_HANDLER.getType()) {
+          try {
+            long maxTs = Long.MIN_VALUE;
+            long rows = 0L;
+            final Iterator<Tablet> iterator = message.getRecordTabletIterator();
+            while (iterator.hasNext()) {
+              final Tablet tablet = iterator.next();
+              if (tablet == null) {
+                continue;
+              }
+              final int rowSize = tablet.getRowSize();
+              final long[] timestamps = tablet.getTimestamps();
+              for (int i = 0; i < rowSize; i++) {
+                if (timestamps[i] > maxTs) {
+                  maxTs = timestamps[i];
+                }
+              }
+              rows += rowSize;
+            }
+            if (rows > 0) {
+              tracker.onDataBatch(
+                  commitContext.getDataNodeId(),
+                  commitContext.getRegionId(),
+                  maxTs,
+                  rows,
+                  nowWallMs);
+            }
+          } catch (final Exception ignored) {
+            // Passive observer must never break subscription message delivery
+          }
+        }
+      }
+      return messages;
+    }
+
+    @Override
+    public List<SubscriptionMessage> flush() {
+      return Collections.emptyList();
+    }
   }
 
   static String buildOwnerId(final StreamNodeConfig nodeConfig) {

@@ -1,0 +1,9 @@
+dataset,method,precision,recall,f1,mae_ms,mae_samples,false_split_rate,throughput_rows_per_sec
+pipeline_highfreq,Full_Ours,1.0000,1.0000,1.0000,0.00,0.0000,0.0000,357089.7
+pipeline_highfreq,wo_TimeDecay,1.0000,1.0000,1.0000,0.00,0.0000,0.0000,342699.5
+pipeline_highfreq,wo_AdaptiveBaseline,1.0000,1.0000,1.0000,0.00,0.0000,0.0000,63897763.6
+pipeline_highfreq,wo_OnsetBacktracking,1.0000,1.0000,1.0000,272.00,2.7200,0.0000,362205.7
+cisdi_regime_jitter,Full_Ours,1.0000,1.0000,1.0000,0.00,0.0000,0.0000,360363.2
+cisdi_regime_jitter,wo_TimeDecay,1.0000,1.0000,1.0000,0.00,0.0000,0.0000,364361.8
+cisdi_regime_jitter,wo_AdaptiveBaseline,0.5128,1.0000,0.6780,50.00,0.2500,0.0833,43945355.4
+cisdi_regime_jitter,wo_OnsetBacktracking,1.0000,1.0000,1.0000,400.00,2.0000,0.0000,364393.5

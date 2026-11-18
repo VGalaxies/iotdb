@@ -26,6 +26,8 @@ import org.apache.iotdb.streamnode.utils.IEventRowsIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nullable;
+
 import java.util.Optional;
 import java.util.OptionalLong;
 
@@ -42,6 +44,8 @@ public class WindowEventInfo implements IEventInfo {
   private final PartitionKey partitionKey;
   private final OptionalLong prevTime;
   private final OptionalLong nextTime;
+  @Nullable private final Object prevValue;
+  @Nullable private final Object currentValue;
   private volatile long rowCount;
   private final long windowId;
   private final boolean needsCompute;
@@ -56,6 +60,8 @@ public class WindowEventInfo implements IEventInfo {
     this.partitionKey = builder.partitionKey;
     this.prevTime = builder.prevTime;
     this.nextTime = builder.nextTime;
+    this.prevValue = builder.prevValue;
+    this.currentValue = builder.currentValue;
     this.windowId = builder.windowId;
     this.needsCompute = builder.needsCompute;
     this.rowsIterator = builder.rowsIterator;
@@ -111,12 +117,12 @@ public class WindowEventInfo implements IEventInfo {
 
   @Override
   public Optional<Object> getPrevValue() {
-    return Optional.empty();
+    return Optional.ofNullable(prevValue);
   }
 
   @Override
   public Optional<Object> getCurrentValue() {
-    return Optional.empty();
+    return Optional.ofNullable(currentValue);
   }
 
   @Override
@@ -175,6 +181,8 @@ public class WindowEventInfo implements IEventInfo {
     private long endTime;
     private OptionalLong prevTime = OptionalLong.empty();
     private OptionalLong nextTime = OptionalLong.empty();
+    @Nullable private Object prevValue;
+    @Nullable private Object currentValue;
     private int rowCount;
     private long windowId = -1;
     private boolean needsCompute = true;
@@ -202,6 +210,16 @@ public class WindowEventInfo implements IEventInfo {
 
     public Builder nextTime(long nextTime) {
       this.nextTime = OptionalLong.of(nextTime);
+      return this;
+    }
+
+    public Builder prevValue(@Nullable Object prevValue) {
+      this.prevValue = prevValue;
+      return this;
+    }
+
+    public Builder currentValue(@Nullable Object currentValue) {
+      this.currentValue = currentValue;
       return this;
     }
 

@@ -1,0 +1,5 @@
+mode,rounds,total_points,write_throughput_pts_sec,write_throughput_std,write_p50_ms,write_p95_ms,write_p99_ms,trigger_e2e_p50_ms,trigger_e2e_p99_ms,cn_rss_mb,dn_rss_mb,sn_rss_mb,cluster_rss_mb,dn_cpu_ms,sn_cpu_ms
+Baseline_Raw_Write,3,50000,89650.4,4712.1,1.065,1.709,2.017,0.00,0.00,321.4,517.7,189.6,1028.7,0.0,0.0
+Client_SQL_Polling,3,50000,80863.4,2124.6,1.092,1.760,4.102,146.18,146.18,320.5,560.4,189.2,1070.2,0.0,0.0
+Sync_WritePath_Trigger,3,50000,78215.6,5943.8,1.985,3.920,4.618,2.34,5.05,323.1,510.7,190.2,1023.9,0.0,0.0
+Ours_StreamNode_Async_Reuse,3,50000,65857.6,2996.8,1.615,3.764,8.994,354.86,507.03,329.3,679.3,497.5,1506.1,0.0,0.0

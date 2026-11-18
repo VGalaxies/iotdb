@@ -82,6 +82,20 @@ public class PlaceholderReplacerTest {
     Assert.assertEquals("select CAST(NULL AS INT64), CAST(NULL AS STRING) from table1", result);
   }
 
+  @Test
+  public void testReplacePrevAndCurrentValuePlaceholders() {
+    PlaceholderReplacer replacer = new PlaceholderReplacer();
+    IEventInfo presentEvent = new TestEventInfo(100, 200, 5, 12.5, 48.75);
+    Assert.assertEquals(
+        "select 12.5, 48.75 from table1",
+        replacer.replace("select ${prev_value}, ${CURRENT_VALUE} from table1", presentEvent));
+
+    IEventInfo absentEvent = new TestEventInfo(100, 200, 5);
+    Assert.assertEquals(
+        "select CAST(NULL AS DOUBLE), CAST(NULL AS DOUBLE) from table1",
+        replacer.replace("select ${prev_value}, ${current_value} from table1", absentEvent));
+  }
+
   private static class TestEventInfo implements IEventInfo {
 
     private final long startTime;
@@ -89,6 +103,8 @@ public class PlaceholderReplacerTest {
     private final OptionalLong rowCount;
     private final OptionalLong prevTime;
     private final OptionalLong nextTime;
+    private final Object prevValue;
+    private final Object currentValue;
     private final PartitionKey partitionKey;
 
     private TestEventInfo(long startTime, long endTime, long rowCount) {
@@ -132,11 +148,38 @@ public class PlaceholderReplacerTest {
         OptionalLong prevTime,
         OptionalLong nextTime,
         PartitionKey partitionKey) {
+      this(startTime, endTime, rowCount, prevTime, nextTime, null, null, partitionKey);
+    }
+
+    private TestEventInfo(
+        long startTime, long endTime, long rowCount, Object prevValue, Object currentValue) {
+      this(
+          startTime,
+          endTime,
+          OptionalLong.of(rowCount),
+          OptionalLong.empty(),
+          OptionalLong.empty(),
+          prevValue,
+          currentValue,
+          null);
+    }
+
+    private TestEventInfo(
+        long startTime,
+        long endTime,
+        OptionalLong rowCount,
+        OptionalLong prevTime,
+        OptionalLong nextTime,
+        Object prevValue,
+        Object currentValue,
+        PartitionKey partitionKey) {
       this.startTime = startTime;
       this.endTime = endTime;
       this.rowCount = rowCount;
       this.prevTime = prevTime;
       this.nextTime = nextTime;
+      this.prevValue = prevValue;
+      this.currentValue = currentValue;
       this.partitionKey = partitionKey;
     }
 
@@ -172,12 +215,12 @@ public class PlaceholderReplacerTest {
 
     @Override
     public Optional<Object> getPrevValue() {
-      return Optional.empty();
+      return Optional.ofNullable(prevValue);
     }
 
     @Override
     public Optional<Object> getCurrentValue() {
-      return Optional.empty();
+      return Optional.ofNullable(currentValue);
     }
 
     @Override

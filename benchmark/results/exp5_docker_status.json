@@ -1,0 +1,19 @@
+{
+  "timestamp_utc": "2026-11-18T02:22:03.065663+00:00",
+  "compose_file": "/Users/vgalaxies/codebase/iotdb-final/benchmark/competitors/docker-compose.competitors.yml",
+  "resource_quota": {
+    "cpus": 4.0,
+    "memory": "8g"
+  },
+  "docker_cli": "/usr/local/bin/docker",
+  "docker_daemon_available": false,
+  "status": "SKIPPED_ENVIRONMENT_BLOCKED",
+  "reason": "Docker daemon is not running (exit=1): Cannot connect to the Docker daemon at unix:///Users/vgalaxies/.docker/run/docker.sock. Is the docker daemon running?",
+  "services": [
+    "iotdb-ours",
+    "tdengine (tdengine/tdengine:3.3.2.0)",
+    "timescaledb (timescale/timescaledb:latest-pg16)",
+    "influxdb (influxdb:2.7)",
+    "flink-iotdb (flink:1.19-java17)"
+  ]
+}

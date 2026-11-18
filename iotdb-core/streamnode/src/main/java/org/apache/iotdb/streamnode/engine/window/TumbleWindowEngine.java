@@ -26,6 +26,7 @@ import org.apache.iotdb.commons.stream.StreamWindow;
 import org.apache.iotdb.commons.stream.TumbleWindow;
 import org.apache.iotdb.streamnode.engine.scheduler.task.StreamDriverContext;
 import org.apache.iotdb.streamnode.engine.task.StreamSubTask.DataSlice;
+import org.apache.iotdb.streamnode.engine.window.distributed.PartitionProgressTracker;
 import org.apache.iotdb.streamnode.i18n.StreamNodeMessages;
 import org.apache.iotdb.streamnode.metrics.StreamWindowEngineMetrics;
 
@@ -33,6 +34,8 @@ import com.google.common.util.concurrent.ListenableFuture;
 import org.apache.tsfile.common.constant.TsFileConstant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.annotation.Nullable;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -146,6 +149,7 @@ public class TumbleWindowEngine extends WindowEngine {
   private final WindowRowConverter rowConverter;
 
   // ===== Partition-level timelines =====
+  private final @Nullable PartitionProgressTracker partitionProgressTracker;
   private long maxEventTime = Long.MIN_VALUE;
   private long watermark = Long.MIN_VALUE;
   private long expiredLine = Long.MIN_VALUE;
@@ -193,6 +197,10 @@ public class TumbleWindowEngine extends WindowEngine {
       StreamProperties streamProperties,
       WindowEngineTickScheduler tickScheduler) {
     super(driverContext, streamProperties, window.getEventInputColumns(), tickScheduler);
+    this.partitionProgressTracker =
+        driverContext != null && driverContext.getSubTaskContext() != null
+            ? driverContext.getSubTaskContext().getPartitionProgressTracker()
+            : null;
     TumbleWindow tumbleWindow = (TumbleWindow) window;
     this.windowSize = tumbleWindow.getSize();
     this.origin = tumbleWindow.getOrigin();
@@ -357,9 +365,18 @@ public class TumbleWindowEngine extends WindowEngine {
       // counted first - close resets pendingCount, and a destroyed window's stale entries are
       // dropped by the drain's window lookup.
       maxEventTime = t;
-      watermark = maxEventTime - watermarkOption;
-      drainUncounted();
-      closeAndDestroyWindows(now);
+      long targetWatermark = maxEventTime - watermarkOption;
+      if (partitionProgressTracker != null) {
+        long alignedProgress = partitionProgressTracker.computeAlignedProgress(now);
+        if (alignedProgress != Long.MIN_VALUE) {
+          targetWatermark = Math.min(targetWatermark, alignedProgress - watermarkOption);
+        }
+      }
+      if (targetWatermark > watermark) {
+        watermark = targetWatermark;
+        drainUncounted();
+        closeAndDestroyWindows(now);
+      }
     }
     if (!state.isOpen()) {
       // Late data to a cached (closed) window: mark dirty and refresh its idle-retain deadline.
@@ -525,6 +542,18 @@ public class TumbleWindowEngine extends WindowEngine {
   @Override
   protected void onTick() {
     long now = nowMillis();
+    if (partitionProgressTracker != null
+        && (!windows.isEmpty() || maxEventTime != Long.MIN_VALUE)) {
+      long alignedProgress = partitionProgressTracker.computeAlignedProgress(now);
+      if (alignedProgress != Long.MIN_VALUE) {
+        long alignedWatermark = alignedProgress - watermarkOption;
+        if (alignedWatermark > watermark) {
+          watermark = alignedWatermark;
+          drainUncounted();
+          closeAndDestroyWindows(now);
+        }
+      }
+    }
     Iterator<Map.Entry<Long, TumbleWindowState>> it = windows.entrySet().iterator();
     while (it.hasNext()) {
       TumbleWindowState state = it.next().getValue();

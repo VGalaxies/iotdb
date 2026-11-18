@@ -1022,6 +1022,8 @@ public abstract class WindowEngine {
         return new TumbleWindowEngine(window, driverContext, streamProperties, tickScheduler);
       case CAPACITY:
         return new CapacityWindowEngine(window, driverContext, streamProperties, tickScheduler);
+      case VARIATION:
+        return new VariationWindowEngine(window, driverContext, streamProperties, tickScheduler);
       default:
         throw new UnsupportedOperationException(
             String.format(

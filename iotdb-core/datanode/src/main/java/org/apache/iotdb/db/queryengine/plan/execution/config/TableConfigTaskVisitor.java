@@ -44,9 +44,11 @@ import org.apache.iotdb.commons.queryengine.plan.relational.planner.Symbol;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.EventScanNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.OutputNode;
 import org.apache.iotdb.commons.queryengine.plan.relational.planner.node.SessionScanNode;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.ArithmeticUnaryExpression;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.BooleanLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.CommonQueryAstVisitor;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.DataType;
+import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.DoubleLiteral;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Expression;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Identifier;
 import org.apache.iotdb.commons.queryengine.plan.relational.sql.ast.Literal;
@@ -2251,7 +2253,7 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
 
             @Override
             public StreamWindow visitVariationEventWindow(VariationEventWindow v, Void context) {
-              String col = ExpressionFormatter.formatExpression(v.getColumn());
+              String col = v.getColumn().getValue().toLowerCase(Locale.ENGLISH);
               double delta = v.getDelta() == null ? 0.0 : v.getDelta().getValue();
               return new VariationWindow(col, delta);
             }
@@ -2417,6 +2419,7 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
     Integer subscriptionPollThreadCount = null;
     boolean fillHistory = false;
     Long fillHistoryStartTime = null;
+    Map<String, String> extraProperties = new HashMap<>();
 
     for (Map.Entry<String, Expression> entry : properties.entrySet()) {
       String key = entry.getKey();
@@ -2475,6 +2478,49 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
         case StreamProperties.FILL_HISTORY_START_TIME:
           fillHistoryStartTime = parseFillHistoryStartTime(value);
           break;
+        case StreamProperties.ALIGN_PARTITION_WATERMARK:
+        case StreamProperties.VARIATION_ADAPTIVE_BASELINE:
+        case StreamProperties.ENABLE_SLICE_REUSE:
+          if (value instanceof BooleanLiteral) {
+            extraProperties.put(key, Boolean.toString(((BooleanLiteral) value).getValue()));
+          }
+          break;
+        case StreamProperties.PARTITION_STALE_TIMEOUT_MS:
+        case StreamProperties.VARIATION_TAU_MS:
+        case StreamProperties.VARIATION_DT_MAX_MS:
+        case StreamProperties.VARIATION_BUFFER_MAX_MS:
+        case StreamProperties.SLICE_RETENTION_MS:
+          if (value instanceof TimeDurationLiteral) {
+            extraProperties.put(
+                key,
+                Long.toString(
+                    ((TimeDurationLiteral) value)
+                        .getValue()
+                        .getTotalDuration(TimeUnit.MILLISECONDS)));
+          } else {
+            extraProperties.put(key, Long.toString(parseLongFromLiteral(value, key)));
+          }
+          break;
+        case StreamProperties.VARIATION_THETA:
+        case StreamProperties.VARIATION_EPSILON:
+        case StreamProperties.REUSE_COST_THRESHOLD:
+          extraProperties.put(key, Double.toString(parseNonNegativeDoubleFromLiteral(value)));
+          break;
+        case StreamProperties.VARIATION_MIN_SAMPLES:
+        case StreamProperties.VARIATION_BUFFER_MAX_ROWS:
+        case StreamProperties.REUSE_KLL_K:
+          extraProperties.put(key, Integer.toString(parseIntFromLiteral(value, key)));
+          break;
+        case StreamProperties.VARIATION_DETECTOR:
+        case StreamProperties.VARIATION_OVERFLOW_POLICY:
+        case StreamProperties.REUSE_SKETCH_TYPE:
+          if (value instanceof StringLiteral) {
+            extraProperties.put(
+                key, ((StringLiteral) value).getValue().toLowerCase(Locale.ENGLISH));
+          } else if (value instanceof Identifier) {
+            extraProperties.put(key, ((Identifier) value).getValue().toLowerCase(Locale.ENGLISH));
+          }
+          break;
         default:
           break;
       }
@@ -2492,7 +2538,25 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
     streamProperties.setSubscriptionPollThreadCount(subscriptionPollThreadCount);
     streamProperties.setFillHistory(fillHistory);
     streamProperties.setFillHistoryStartTime(fillHistoryStartTime);
+    streamProperties.putAllExtraProperties(extraProperties);
     return streamProperties;
+  }
+
+  private static double parseNonNegativeDoubleFromLiteral(Expression value) {
+    Expression unwrapped = value;
+    double sign = 1.0;
+    if (value instanceof ArithmeticUnaryExpression) {
+      ArithmeticUnaryExpression unary = (ArithmeticUnaryExpression) value;
+      sign = unary.getSign() == ArithmeticUnaryExpression.Sign.MINUS ? -1.0 : 1.0;
+      unwrapped = unary.getValue();
+    }
+    if (unwrapped instanceof DoubleLiteral) {
+      return sign * ((DoubleLiteral) unwrapped).getValue();
+    }
+    if (unwrapped instanceof LongLiteral) {
+      return sign * ((LongLiteral) unwrapped).getParsedValue();
+    }
+    return 0.0;
   }
 
   private static long parseFillHistoryStartTime(final Expression value) {

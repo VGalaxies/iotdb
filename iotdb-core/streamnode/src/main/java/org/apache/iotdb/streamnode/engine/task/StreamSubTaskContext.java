@@ -20,9 +20,12 @@
 package org.apache.iotdb.streamnode.engine.task;
 
 import org.apache.iotdb.commons.stream.PartitionKey;
+import org.apache.iotdb.commons.stream.StreamTask;
 import org.apache.iotdb.streamnode.engine.memory.StreamNodeDataExchangeManager;
+import org.apache.iotdb.streamnode.engine.reuse.SharedSliceManager;
 import org.apache.iotdb.streamnode.engine.scheduler.task.StreamDriverContext;
 import org.apache.iotdb.streamnode.engine.sink.CommitTracker;
+import org.apache.iotdb.streamnode.engine.window.distributed.PartitionProgressTracker;
 import org.apache.iotdb.streamnode.exception.MemoryLeakException;
 import org.apache.iotdb.streamnode.i18n.StreamNodeMessages;
 
@@ -50,6 +53,12 @@ public class StreamSubTaskContext {
   private final CountDownLatch driverClosed = new CountDownLatch(1);
   private @Nullable CommitTracker commitTracker;
 
+  private @Nullable PartitionProgressTracker partitionProgressTracker;
+
+  private @Nullable StreamTask taskDefinition;
+
+  private @Nullable SharedSliceManager sharedSliceManager;
+
   /** Task-scoped window id allocator; shared across sub-tasks, null until wired. */
   private @Nullable AtomicLong windowIdAllocator;
 
@@ -67,6 +76,31 @@ public class StreamSubTaskContext {
 
   public void setCommitTracker(@Nullable CommitTracker commitTracker) {
     this.commitTracker = commitTracker;
+  }
+
+  public @Nullable PartitionProgressTracker getPartitionProgressTracker() {
+    return partitionProgressTracker;
+  }
+
+  public void setPartitionProgressTracker(
+      @Nullable PartitionProgressTracker partitionProgressTracker) {
+    this.partitionProgressTracker = partitionProgressTracker;
+  }
+
+  public @Nullable StreamTask getTaskDefinition() {
+    return taskDefinition;
+  }
+
+  public void setTaskDefinition(@Nullable StreamTask taskDefinition) {
+    this.taskDefinition = taskDefinition;
+  }
+
+  public @Nullable SharedSliceManager getSharedSliceManager() {
+    return sharedSliceManager;
+  }
+
+  public void setSharedSliceManager(@Nullable SharedSliceManager sharedSliceManager) {
+    this.sharedSliceManager = sharedSliceManager;
   }
 
   public void setWindowIdAllocator(@Nullable AtomicLong windowIdAllocator) {

@@ -1008,6 +1008,112 @@ public class StreamParserAndAnalyzerTest {
     testAnalyzeError(sql, errMsg);
   }
 
+  @Test
+  public void testAnalyzeVariationWithoutFromClauseError() {
+    String sql =
+        "create stream s1 "
+            + "variation(col => s1, delta => 1.0) "
+            + "into testdb.table2(time, s1) "
+            + "select ${start_time}, count(*) from testdb.table1";
+    testAnalyzeError(sql, "Variation event window must be used with FROM clause");
+  }
+
+  @Test
+  public void testAnalyzeVariationMissingColumnError() {
+    String sql =
+        "create stream s1 from testdb.table1 "
+            + "variation(col => missing_col, delta => 1.0) "
+            + "into testdb.table2(time, s1) "
+            + "select ${start_time}, count(*) from ${rows}";
+    testAnalyzeError(
+        sql, "Variation event window column 'missing_col' is not found in source table");
+  }
+
+  @Test
+  public void testAnalyzeVariationAttributeColumnError() {
+    String sql =
+        "create stream s1 from testdb.table1 "
+            + "variation(col => attr1, delta => 1.0) "
+            + "into testdb.table2(time, s1) "
+            + "select ${start_time}, count(*) from ${rows}";
+    testAnalyzeError(sql, "Variation event window column 'attr1' cannot be an ATTRIBUTE column");
+  }
+
+  @Test
+  public void testAnalyzeVariationNegativeDeltaError() {
+    String sql =
+        "create stream s1 from testdb.table1 "
+            + "variation(col => s1, delta => -0.5) "
+            + "into testdb.table2(time, s1) "
+            + "select ${start_time}, count(*) from ${rows}";
+    testAnalyzeError(sql, "The delta of the Variation event window must be non-negative");
+  }
+
+  @Test
+  public void testAnalyzeExtendedStreamPropertiesValid() {
+    String variationSql =
+        "create stream s_var from testdb.table1 "
+            + "variation(col => s3, delta => 2.5) "
+            + "into testdb.table2(time, s1) "
+            + "select ${start_time}, ${row_num} from ${rows} "
+            + "with ("
+            + "variation_detector = 'evidence', "
+            + "variation_theta = 4.5, "
+            + "variation_epsilon = 0.5, "
+            + "variation_tau_ms = 5s, "
+            + "variation_dt_max_ms = 2s, "
+            + "variation_min_samples = 3, "
+            + "variation_buffer_max_rows = 2048, "
+            + "variation_buffer_max_ms = 30s, "
+            + "variation_overflow_policy = 'merge_back', "
+            + "variation_adaptive_baseline = true"
+            + ")";
+    testAnalyzeSuccess(variationSql);
+
+    String tumbleSql =
+        "create stream s_reuse from testdb.table1 "
+            + "tumble(size => 1m, origin => 2000-01-01T00:00:00) "
+            + "into testdb.table2(time, s1) "
+            + "select ${start_time}, count(*) from ${rows} "
+            + "with ("
+            + "align_partition_watermark = true, "
+            + "partition_stale_timeout_ms = 10s, "
+            + "enable_slice_reuse = true, "
+            + "slice_retention_ms = 1m, "
+            + "reuse_sketch_type = 'kll', "
+            + "reuse_kll_k = 200, "
+            + "reuse_cost_threshold = 0.2"
+            + ")";
+    testAnalyzeSuccess(tumbleSql);
+  }
+
+  @Test
+  public void testAnalyzeExtendedStreamPropertiesInvalid() {
+    String badDetector =
+        "create stream s1 from testdb.table1 "
+            + "variation(col => s1, delta => 1.0) "
+            + "into testdb.table2(time, s1) "
+            + "select ${start_time}, count(*) from ${rows} "
+            + "with (variation_detector = 'unknown')";
+    testAnalyzeError(badDetector, "Stream property variation_detector must be one of");
+
+    String badTheta =
+        "create stream s1 from testdb.table1 "
+            + "variation(col => s1, delta => 1.0) "
+            + "into testdb.table2(time, s1) "
+            + "select ${start_time}, count(*) from ${rows} "
+            + "with (variation_theta = -1.0)";
+    testAnalyzeError(badTheta, "Stream property variation_theta must be a non-negative number");
+
+    String badKll =
+        "create stream s1 from testdb.table1 "
+            + "tumble(size => 1m) "
+            + "into testdb.table2(time, s1) "
+            + "select ${start_time}, count(*) from ${rows} "
+            + "with (reuse_kll_k = 4)";
+    testAnalyzeError(badKll, "Stream property reuse_kll_k must be a positive integer");
+  }
+
   private void testParseError(String sql, String errMsg) {
     SqlParser sqlParser = new SqlParser();
     ExecutorService executor = Executors.newSingleThreadExecutor();

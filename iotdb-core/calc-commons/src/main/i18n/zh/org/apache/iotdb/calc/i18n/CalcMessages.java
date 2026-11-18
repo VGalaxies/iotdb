@@ -613,4 +613,16 @@ public final class CalcMessages {
 
   public static final String EXCEPTION_SCALAR_SUB_QUERY_DOES_NOT_HAVE_OUTPUT_E64DBE29 =
       "标量子查询没有输出。";
+
+  public static final String
+      EXCEPTION_KLL_SKETCH_PARAMETER_K_MUST_BE_BETWEEN_8_AND_65535_BUT_GOT_ARG_2E5BDC96 =
+          "KLL 草图参数 k 必须在 8 到 65535 之间，但当前为 %d";
+
+  public static final String
+      EXCEPTION_INTERMEDIATE_INPUT_AND_OUTPUT_OF_KLL_APPROX_PERCENTILE_SHOULD_BE_BINARYCOLUMN_B270A4EF =
+          "KLL approx_percentile 的中间输入和输出必须是 BinaryColumn";
+
+  public static final String
+      EXCEPTION_KLLAPPROXPERCENTILEACCUMULATOR_DOES_NOT_SUPPORT_STATISTICS_055207A6 =
+          "KllApproxPercentileAccumulator 不支持 statistics";
 }

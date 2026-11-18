@@ -4223,7 +4223,12 @@ public class AstBuilder extends RelationalSqlBaseVisitor<Node> {
     final String durationText = propertyValue.getText();
     final boolean isHighPrecisionProperty =
         StreamProperties.WATERMARK.equals(propertyName)
-            || StreamProperties.ALLOWED_LATENESS.equals(propertyName);
+            || StreamProperties.ALLOWED_LATENESS.equals(propertyName)
+            || StreamProperties.PARTITION_STALE_TIMEOUT_MS.equals(propertyName)
+            || StreamProperties.VARIATION_TAU_MS.equals(propertyName)
+            || StreamProperties.VARIATION_DT_MAX_MS.equals(propertyName)
+            || StreamProperties.VARIATION_BUFFER_MAX_MS.equals(propertyName)
+            || StreamProperties.SLICE_RETENTION_MS.equals(propertyName);
     final Set<String> allowedUnits =
         isHighPrecisionProperty ? EVENT_TIME_DURATION_UNITS : SYSTEM_TIME_DURATION_UNITS;
     final String allowedUnitNames =
@@ -4245,7 +4250,12 @@ public class AstBuilder extends RelationalSqlBaseVisitor<Node> {
     return StreamProperties.WATERMARK.equals(propertyName)
         || StreamProperties.ALLOWED_LATENESS.equals(propertyName)
         || StreamProperties.MAX_DELAY_WINDOW_CLOSE.equals(propertyName)
-        || StreamProperties.MAX_IDLE_WINDOW_RETAIN.equals(propertyName);
+        || StreamProperties.MAX_IDLE_WINDOW_RETAIN.equals(propertyName)
+        || StreamProperties.PARTITION_STALE_TIMEOUT_MS.equals(propertyName)
+        || StreamProperties.VARIATION_TAU_MS.equals(propertyName)
+        || StreamProperties.VARIATION_DT_MAX_MS.equals(propertyName)
+        || StreamProperties.VARIATION_BUFFER_MAX_MS.equals(propertyName)
+        || StreamProperties.SLICE_RETENTION_MS.equals(propertyName);
   }
 
   public Map<String, Expression> parseStreamProperties(RelationalSqlParser.PropertiesContext ctx) {

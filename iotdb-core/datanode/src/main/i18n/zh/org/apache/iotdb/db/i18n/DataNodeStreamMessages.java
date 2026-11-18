@@ -49,6 +49,18 @@ public final class DataNodeStreamMessages {
       "Period 事件窗口不能与 PARTITION BY 一起使用";
   public static final String EXCEPTION_TUMBLE_EVENT_WINDOW_MUST_BE_USED_WITH_FROM_CLAUSE_C77B71B9 =
       "Tumble 事件窗口必须与 FROM 子句一起使用";
+  public static final String
+      EXCEPTION_VARIATION_EVENT_WINDOW_MUST_BE_USED_WITH_FROM_CLAUSE_ED701983 =
+          "Variation 事件窗口必须与 FROM 子句一起使用";
+  public static final String
+      EXCEPTION_VARIATION_EVENT_WINDOW_COLUMN_ARG_IS_NOT_FOUND_IN_SOURCE_TABLE_56790B0D =
+          "源表中未找到 Variation 事件窗口列 '%s'";
+  public static final String
+      EXCEPTION_VARIATION_EVENT_WINDOW_COLUMN_ARG_CANNOT_BE_AN_ATTRIBUTE_COLUMN_09AC0CE7 =
+          "Variation 事件窗口列 '%s' 不能是 ATTRIBUTE 列";
+  public static final String
+      EXCEPTION_THE_DELTA_OF_THE_VARIATION_EVENT_WINDOW_MUST_BE_NON_NEGATIVE_BUT_GOT_ARG_BB4BA485 =
+          "Variation 事件窗口的 delta 参数必须为非负数，但当前为 %s";
   public static final String EXCEPTION_EXCEEDING_ARGUMENTS_PROVIDED_D43758F6 =
       "提供的参数过多";
 
@@ -102,4 +114,13 @@ public final class DataNodeStreamMessages {
   public static final String
       EXCEPTION_EVENT_WINDOW_ARG_ARGUMENT_ARG_ONLY_SUPPORTS_DURATION_UNITS_ARG_BUT_GOT_ARG_6F47BEF1 =
           "事件窗口 %s 的参数 %s 仅支持持续时间单位 %s，但当前为 %s";
+  public static final String
+      EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_A_NON_NEGATIVE_NUMBER_BUT_GOT_ARG_40688C2D =
+          "流属性 %s 必须为非负数，但当前为 %s";
+  public static final String
+      EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_A_POSITIVE_INTEGER_BUT_GOT_ARG_3378B0D7 =
+          "流属性 %s 必须为正整数，但当前为 %s";
+  public static final String
+      EXCEPTION_STREAM_PROPERTY_ARG_MUST_BE_ONE_OF_ARG_BUT_GOT_ARG_AD5015FA =
+          "流属性 %s 必须是 %s 之一，但当前为 %s";
 }
